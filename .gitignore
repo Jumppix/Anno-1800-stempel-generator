@@ -1,1 +1,9 @@
 /freebuff-sites-build/
+/node_modules/
+/dist/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+!.env.example
