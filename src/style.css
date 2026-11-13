@@ -594,3 +594,36 @@ button.ghost:disabled {
     flex: 0 0 auto;
   }
 }
+
+.legend em {
+  font-style: normal;
+}
+
+.stat-grid .stat-head {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding-top: 2px;
+}
+
+#solve-status.running::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #e2b25f;
+  animation: solve-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes solve-pulse {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -1,6 +1,8 @@
 import { zlibSync } from 'fflate';
+import { BUILDINGS, type BuildingId } from './buildings';
 
-export const HANDELSKAMMER_GUID = 1010516;
+export const HANDELSKAMMER_GUID = BUILDINGS.hk.guid;
+export const RATHAUS_GUID = BUILDINGS.rh.guid;
 
 export const REGIONS = {
   ow: { path: 5000000, folder: 'The Old World', label: 'Alte Welt' },
@@ -187,6 +189,8 @@ function serialize(roots: Node[]): Uint8Array {
 export interface StampChamber {
   x: number;
   y: number;
+  /** Gebäudetyp; ohne Angabe Handelskammer. */
+  type?: BuildingId;
 }
 
 export interface StampStreet {
@@ -220,11 +224,12 @@ export function buildStamp(
   const cx = Math.round((minX + maxX) / 2);
   const cy = Math.round((minY + maxY) / 2);
 
+  const guidOf = (c: StampChamber): number => BUILDINGS[c.type ?? 'hk'].guid;
   const buildings: Node[] = chambers.map((c, i) =>
     tag(T_ITEM, [
       attr(A_POS, f32pair(-(c.y - cy) - 1.5, -(c.x - cx) - 1.5)),
       attr(A_DIR, f32(0)),
-      attr(A_GUID, i32(HANDELSKAMMER_GUID)),
+      attr(A_GUID, i32(guidOf(c))),
       attr(A_OWNER, i64(i + 1)),
     ]),
   );
@@ -255,7 +260,7 @@ export function buildStamp(
 
   const roots: Node[] = [
     attr(A_STAMP, i32(REGIONS[region].path)),
-    attr(A_ICON, i32(HANDELSKAMMER_GUID)),
+    attr(A_ICON, i32(guidOf(chambers[0]))),
     tag(T_BUILDING, buildings),
     tag(T_STREETS, streetNodes),
     attr(A_STREET_COUNT, i32(streets.length)),

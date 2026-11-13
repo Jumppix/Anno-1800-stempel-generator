@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Handelskammer-Planer · Anno 1800</title>
+    <title>Handelskammer- &amp; Rathaus-Planer · Anno 1800</title>
   </head>
   <body>
     <div id="app">
@@ -11,7 +11,7 @@
         <header class="brand">
           <div class="brand-mark">HK</div>
           <div>
-            <h1>Handelskammer-Planer</h1>
+            <h1 id="brand-title">Handelskammer-Planer</h1>
             <p>Anno 1800 · Stempel-Export</p>
           </div>
         </header>
@@ -39,17 +39,32 @@
           <button id="align-all" class="ghost" type="button" disabled>Alle automatisch ausrichten</button>
         </section>
 
+        <section class="card">
+          <h2>Gebäude &amp; Optimierung</h2>
+          <label class="select-row">Gebäude
+            <select id="building">
+              <option value="hk">Handelskammern · R 15</option>
+              <option value="rh">Rathäuser · R 20</option>
+              <option value="both">Beide (HK + RH)</option>
+            </select>
+          </label>
+          <label class="select-row">Rechenzeit
+            <select id="budget">
+              <option value="2000">Schnell · 2 s</option>
+              <option value="6000" selected>Gründlich · 6 s</option>
+              <option value="20000">Sehr gründlich · 20 s</option>
+              <option value="60000">Maximal · 60 s</option>
+            </select>
+          </label>
+          <button id="optimize-more" class="ghost" type="button" disabled>Weiter optimieren</button>
+          <p id="solve-status" class="hint">–</p>
+          <p class="hint">Radien gleichartiger Gebäude überlappen nie (Mittelpunktabstand ≥ 2 × Radius). Ziel: erst möglichst viele Gebäude, dann möglichst viel Land im Radius.</p>
+        </section>
+
         <section class="card stats">
           <h2>Ergebnis</h2>
-          <div class="stat-grid">
-            <div><span>Kammern</span><strong id="stat-chambers">–</strong></div>
-            <div><span>Abdeckung</span><strong id="stat-coverage">–</strong></div>
-            <div><span>Lücken</span><strong id="stat-gaps">–</strong></div>
-            <div><span>Einfluss</span><strong id="stat-influence">–</strong></div>
-            <div><span>Baukosten</span><strong id="stat-cost">–</strong></div>
-            <div><span>Unterhalt</span><strong id="stat-upkeep">–</strong></div>
-          </div>
-          <p class="micro">Radius 15 · 4×4 · kein Straßenanschluss</p>
+          <div id="stat-grid" class="stat-grid"></div>
+          <p id="stat-micro" class="micro">4×4 · kein Straßenanschluss</p>
         </section>
 
         <section class="card">
@@ -58,12 +73,12 @@
             <input id="single-stamp" type="checkbox" checked />
             Alles in einen Stempel (Test)
           </label>
-          <p class="hint">Testmodus: ignoriert die 13.500-Kachel-Grenze und legt alle HKs + den Inselrand in einen Stempel. Zum Prüfen, ob Anno den großen Stempel annimmt.</p>
+          <p class="hint">Testmodus: ignoriert die 13.500-Kachel-Grenze und legt alle Gebäude + den Inselrand in einen Stempel. Zum Prüfen, ob Anno den großen Stempel annimmt.</p>
           <label class="check-row">
             <input id="include-streets" type="checkbox" checked />
             Inselrand in Stempeln
           </label>
-          <p class="hint">Nur der äußere Inselrand wird als Feldweg eingebaut; die Inselfläche bleibt frei, unter den HK-Flächen ist der Rand ausgespart.</p>
+          <p class="hint">Nur der äußere Inselrand wird als Feldweg eingebaut; die Inselfläche bleibt frei, unter den Gebäudeflächen ist der Rand ausgespart.</p>
           <div id="stamp-list" class="stamp-list"></div>
           <button id="zip" class="primary" type="button">Alle als ZIP</button>
           <p class="hint">Nach <code>Documents\Anno 1800\stamps\&lt;Region&gt;\&lt;Ordner&gt;</code> kopieren und Anno neu starten.</p>
@@ -78,11 +93,11 @@
         </div>
         <div id="stage-hint" class="stage-hint">Inselform aus Stempeln laden</div>
         <div class="legend">
-          <span><i class="swatch covered"></i>versorgt</span>
+          <span><i id="legend-covered" class="swatch covered"></i>versorgt</span>
           <span><i class="swatch gap"></i>Lücke</span>
           <span><i class="swatch frame"></i>Feldweg-Rahmen</span>
-          <span><i class="swatch hk"></i>Handelskammer</span>
-          <span><i class="swatch ring"></i>Radius 15</span>
+          <span><i class="swatch hk"></i><em id="legend-building">Handelskammer</em></span>
+          <span><i class="swatch ring"></i><em id="legend-radius">Radius 15</em></span>
           <span><i class="swatch part"></i>Stempel-Teil</span>
         </div>
       </main>

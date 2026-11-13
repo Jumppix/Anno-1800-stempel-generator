@@ -1,4 +1,4 @@
-# AGENTS.md – Anno 1800 Handelskammer-Planer
+# AGENTS.md – Anno 1800 Handelskammer- & Rathaus-Planer
 
 Diese Datei ist die Kurzanleitung für KI-Agenten und Entwickler. Ausführliche
 Hintergründe stehen in `README.md`; der Quellcode in `src/` ist maßgeblich.
@@ -8,7 +8,8 @@ Hintergründe stehen in `README.md`; der Quellcode in `src/` ist maßgeblich.
 Ein reines Browser-Tool (TypeScript + Vite) zum:
 1. Importieren von Anno-1800-Inselstempeln (Feldwege/Straßen),
 2. Zusammensetzen und Ausrichten mehrerer Stempelteile,
-3. Packen von 4×4-Handelskammern mit 15er-Radius ohne Radiusüberlappung,
+3. Packen von 4×4-Handelskammern (Radius 15) und/oder Rathäusern (Radius 20)
+   ohne Radiusüberlappung gleichartiger Gebäude,
 4. Exportieren spielbarer Stempel ohne Dateiendung, inklusive äußerem
    Inselrand als Feldweg-Orientierung.
 
@@ -21,6 +22,7 @@ npm ci
 npm run dev       # lokaler Dev-Server, Basis /
 npm run build     # tsc + Vite; Pflichtprüfung nach Änderungen
 npm run preview   # Produktionsbuild lokal
+npm run check     # Solver-Regressionstest + Invarianten (scripts/check-solver.mjs)
 ```
 
 Node 22+ wird in GitHub Actions verwendet. `package-lock.json` nicht
@@ -41,13 +43,20 @@ unnötig verändern.
 
 ## Code-Landkarte
 
-- `src/main.ts`: UI, Import, Zustand, `update()`, Export, Randstrecken.
+- `src/main.ts`: UI, Import, Zustand, `update()`/`rebuildOutputs()`, Export,
+  Randstrecken.
+- `src/buildings.ts`: Gebäudetypen (Größe, Radius, GUID, Farbe).
 - `src/stampReader.ts`: Binärparser, Koordinatentransformation
   `(x, y) = (−rawY, −rawX)`, Gebäude/Straßen/GUIDs.
 - `src/island.ts`: `combineParts`, `overlapCount`, `autoPlace`, `alignPart`.
-- `src/solver.ts`: `solve`, hexagonales Grundraster, `fillGaps`,
-  `splitChunks`; HK-Größe 4, Radius 15.
-- `src/stamp.ts`: `buildStamp`, `StreetInfo`/`BuildingInfo`-Writer.
+- `src/solver.ts`: `solve` (Gitter-Starts → Iterated Local Search mit
+  (1,2)-Tausch → Simulated-Annealing-Politur der Abdeckung), `validateLayout`,
+  `splitChunks`.
+- `src/solver.worker.ts` / `src/solveRunner.ts`: Solver im Web Worker, mehrere
+  Worker mit verschiedenen Seeds, bester gewinnt; bei „Beide“ erst HK, dann
+  Rathäuser um die HK-Flächen.
+- `src/stamp.ts`: `buildStamp`, `StreetInfo`/`BuildingInfo`-Writer (GUID je
+  Gebäudetyp).
 - `src/placement.ts`: 2D-Anordnen-Ansicht, pixelgenaue Zeichnung,
   Kachelraster, Drag-Hit-Test.
 - `src/render.ts`: Ergebnisansicht.
@@ -57,10 +66,12 @@ unnötig verändern.
 
 ## Invarianten (nicht brechen)
 
-1. **Keine HK-Radiusüberlappung:** Mittelpunktabstand ≥ 30 (2 × Radius 15).
-   Abstand exakt 30 ist Berührung und im Grundraster erlaubt. Bei Änderungen
-   die Prüfung in `overlapsAny` und die Testfälle im Blick behalten.
-2. **HK-Footprint:** 4×4, vollständig auf Land (`footprintLand`).
+1. **Keine Radiusüberlappung gleichartiger Gebäude:** Mittelpunktabstand
+   ≥ 2 × Radius (HK 30, Rathaus 40). Genau 2 × Radius ist Berührung und
+   erlaubt. Konfliktdefinition: `Packer.conflict`/`span` in `solver.ts`;
+   `validateLayout` und `npm run check` prüfen das.
+2. **Footprint:** 4×4, vollständig auf Land (Präfixsumme in `Packer`), keine
+   Überlappung der Flächen – auch nicht zwischen HK und Rathaus.
 3. **Keine gespiegelten Koordinaten:** Die Transformation in
    `stampReader.ts` ist die Anno-Designer-Konvention und behebt die frühere
    Spiegelung. Nicht durch eine naive 1:1-Übernahme ersetzen.
@@ -80,8 +91,8 @@ unnötig verändern.
 1. `README.md` und diesen Abschnitt lesen.
 2. Relevante Datei in `src/` ändern; bestehende Konventionen (deutsche UI-Texte,
    keine zusätzlichen Frameworks) beibehalten.
-3. `npm run build` ausführen; bei Solver-/Exportänderungen zusätzlich die
-   Teststempel in `test-stamps-fix/` laden und die Invarianten prüfen.
+3. `npm run build` ausführen; bei Solver-/Exportänderungen zusätzlich
+   `npm run check` (Teststempel + Invarianten).
 4. Bei UI-Änderungen die Anordnen-/Ergebnisansicht im Browser prüfen.
 5. Nur bei ausdrücklichem Auftrag committen/pushen; GitHub Pages deployt
    danach automatisch von `main`.
@@ -89,6 +100,9 @@ unnötig verändern.
 ## Bekannte offene Punkte
 
 - Spielbarkeit des großen Ein-Stempel-Exports ist noch ein Praxistest.
-- Kein automatisierter End-to-End-Test.
+- Kein automatisierter End-to-End-/Browser-Test (nur `npm run check` für den
+  Solver).
+- Optimalität ist für große Inseln nicht bewiesen; Benchmark-Insel
+  189 × 290: 41 HK / 25–26 Rathäuser (alter Solver: 33 HK).
 - Der Feldweg-GUID wird aus dem ersten importierten Stempel übernommen
   (Fallback 101308).

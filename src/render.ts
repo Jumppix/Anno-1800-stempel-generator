@@ -1,3 +1,4 @@
+import { BUILDINGS } from './buildings';
 import type { Chunk, LandMask, Layout } from './solver';
 
 const COLORS = [
@@ -134,15 +135,21 @@ export function render(
     ctx.fillRect(ox, oy, layout.w * scale, layout.h * scale);
   }
 
+  const multi = layout.groups.filter((g) => g.chambers.length > 0).length > 1;
   ctx.save();
   ctx.beginPath();
   ctx.rect(ox, oy, layout.w * scale, layout.h * scale);
   ctx.clip();
-  for (const c of layout.chambers) {
-    ctx.beginPath();
-    ctx.arc(ox + (c.x + 2) * scale, oy + (c.y + 2) * scale, 15 * scale, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(78, 150, 88, 0.55)';
-    ctx.fill();
+  for (const group of layout.groups) {
+    const spec = BUILDINGS[group.type];
+    const [r, g, b] = spec.rgb;
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${multi ? 0.32 : 0.55})`;
+    const half = spec.size / 2;
+    for (const c of group.chambers) {
+      ctx.beginPath();
+      ctx.arc(ox + (c.x + half) * scale, oy + (c.y + half) * scale, spec.radius * scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 
@@ -194,26 +201,35 @@ export function render(
 
   for (const c of layout.chambers) {
     const idx = chunkOf.get(`${c.x},${c.y}`) ?? 0;
+    const size = BUILDINGS[c.type].size;
     ctx.fillStyle = 'rgba(8, 15, 22, 0.94)';
-    ctx.fillRect(ox + c.x * scale, oy + c.y * scale, 4 * scale, 4 * scale);
+    ctx.fillRect(ox + c.x * scale, oy + c.y * scale, size * scale, size * scale);
     ctx.strokeStyle = COLORS[idx % COLORS.length];
     ctx.lineWidth = Math.max(1, Math.min(2, scale * 0.35));
     ctx.strokeRect(
       ox + c.x * scale + 0.5,
       oy + c.y * scale + 0.5,
-      4 * scale - 1,
-      4 * scale - 1,
+      size * scale - 1,
+      size * scale - 1,
     );
   }
 
-  ctx.globalAlpha = 0.45;
-  for (const c of layout.chambers) {
-    const idx = chunkOf.get(`${c.x},${c.y}`) ?? 0;
-    ctx.strokeStyle = COLORS[idx % COLORS.length];
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(ox + (c.x + 2) * scale, oy + (c.y + 2) * scale, 15 * scale, 0, Math.PI * 2);
-    ctx.stroke();
+  for (const group of layout.groups) {
+    const spec = BUILDINGS[group.type];
+    const [r, g, b] = spec.rgb;
+    const half = spec.size / 2;
+    ctx.strokeStyle = multi ? `rgb(${r}, ${g}, ${b})` : '';
+    ctx.lineWidth = multi ? 1.4 : 1;
+    ctx.globalAlpha = multi ? 0.85 : 0.45;
+    for (const c of group.chambers) {
+      if (!multi) {
+        const idx = chunkOf.get(`${c.x},${c.y}`) ?? 0;
+        ctx.strokeStyle = COLORS[idx % COLORS.length];
+      }
+      ctx.beginPath();
+      ctx.arc(ox + (c.x + half) * scale, oy + (c.y + half) * scale, spec.radius * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
 
@@ -221,11 +237,16 @@ export function render(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `600 ${Math.max(7, Math.min(11, scale * 0.85))}px ui-sans-serif, system-ui`;
-    layout.chambers.forEach((c, i) => {
-      const idx = chunkOf.get(`${c.x},${c.y}`) ?? 0;
-      ctx.fillStyle = COLORS[idx % COLORS.length];
-      ctx.fillText(String(i + 1), ox + (c.x + 2) * scale, oy + (c.y + 2) * scale);
-    });
+    for (const group of layout.groups) {
+      const spec = BUILDINGS[group.type];
+      const half = spec.size / 2;
+      group.chambers.forEach((c, i) => {
+        const idx = chunkOf.get(`${c.x},${c.y}`) ?? 0;
+        ctx.fillStyle = COLORS[idx % COLORS.length];
+        const label = multi ? `${spec.short[0]}${i + 1}` : String(i + 1);
+        ctx.fillText(label, ox + (c.x + half) * scale, oy + (c.y + half) * scale);
+      });
+    }
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
   }
@@ -236,9 +257,8 @@ export function render(
 
   ctx.font = '600 13px ui-sans-serif, system-ui';
   ctx.fillStyle = 'rgba(230, 237, 243, 0.72)';
-  ctx.fillText(
-    `${layout.w} × ${layout.h} Kacheln · ${layout.chambers.length} Kammern`,
-    16,
-    24,
-  );
+  const summary = layout.groups
+    .map((g) => `${g.chambers.length} ${BUILDINGS[g.type].plural}`)
+    .join(' · ');
+  ctx.fillText(`${layout.w} × ${layout.h} Kacheln · ${summary}`, 16, 24);
 }

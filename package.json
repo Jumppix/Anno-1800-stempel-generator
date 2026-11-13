@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "node scripts/check-solver.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2"

@@ -1,6 +1,8 @@
 import './style.css';
 import { zipSync, strToU8 } from 'fflate';
-import { solve, splitChunks, type Chunk, type LandMask, type Layout } from './solver';
+import { emptyLayout, splitChunks, type Chunk, type LandMask, type Layout } from './solver';
+import { BUILDINGS, modeTypes, type BuildingMode } from './buildings';
+import { SolveRunner } from './solveRunner';
 import { buildStamp, REGIONS, type RegionKey, type StampStreet } from './stamp';
 import { decodeStamp } from './stampReader';
 import {
@@ -37,12 +39,16 @@ const alignAll = el<HTMLButtonElement>('#align-all');
 const tabArrange = el<HTMLButtonElement>('#tab-arrange');
 const tabResult = el<HTMLButtonElement>('#tab-result');
 
-const statChambers = el<HTMLElement>('#stat-chambers');
-const statCoverage = el<HTMLElement>('#stat-coverage');
-const statGaps = el<HTMLElement>('#stat-gaps');
-const statInfluence = el<HTMLElement>('#stat-influence');
-const statCost = el<HTMLElement>('#stat-cost');
-const statUpkeep = el<HTMLElement>('#stat-upkeep');
+const buildingEl = el<HTMLSelectElement>('#building');
+const budgetEl = el<HTMLSelectElement>('#budget');
+const optimizeMore = el<HTMLButtonElement>('#optimize-more');
+const solveStatus = el<HTMLElement>('#solve-status');
+const statGrid = el<HTMLElement>('#stat-grid');
+const statMicro = el<HTMLElement>('#stat-micro');
+const brandTitle = el<HTMLElement>('#brand-title');
+const legendBuilding = el<HTMLElement>('#legend-building');
+const legendRadius = el<HTMLElement>('#legend-radius');
+const legendCovered = el<HTMLElement>('#legend-covered');
 
 const num = (v: number): string => v.toLocaleString('de-DE');
 const escapeHtml = (value: string): string =>
@@ -65,11 +71,18 @@ let parts: IslandPart[] = [];
 let combined: CombinedMask | null = null;
 let selectedId: string | null = null;
 let nextPartId = 1;
-let layout: Layout = solve(EMPTY_MASK.w, EMPTY_MASK.h, EMPTY_MASK);
+let layout: Layout = emptyLayout(EMPTY_MASK, ['hk']);
 let chunks: Chunk[] = [];
 let stamps: Uint8Array[] = [];
 let view: 'arrange' | 'result' = 'arrange';
 let placementView: PlacementView | null = null;
+
+// Hintergrund-Optimierung
+let solving = false;
+let workersUsed = 1;
+let solveKey = '';
+let solveStarted = 0;
+let statusTimer: number | undefined;
 
 interface DragState {
   part: IslandPart;
@@ -90,39 +103,55 @@ function regionKey(): RegionKey {
   return regionEl.value === 'nw' ? 'nw' : 'ow';
 }
 
+function buildingMode(): BuildingMode {
+  const v = buildingEl.value;
+  return v === 'rh' || v === 'both' ? v : 'hk';
+}
+
+function filePrefix(): string {
+  const mode = buildingMode();
+  return mode === 'both' ? 'HK_RH' : BUILDINGS[mode].short;
+}
+
 function stampName(index: number): string {
   const { w, h } = currentSize();
   const tag = regionKey() === 'ow' ? 'AW' : 'NW';
-  return `HK_${w}x${h}_${tag}_T${String(index + 1).padStart(2, '0')}`;
+  return `${filePrefix()}_${w}x${h}_${tag}_T${String(index + 1).padStart(2, '0')}`;
 }
+
+const pct = (part: number, whole: number): string =>
+  whole ? `${((part / whole) * 100).toFixed(1)} %` : '0.0 %';
 
 function placementText(): string {
   const region = REGIONS[regionKey()];
   const { w, h } = currentSize();
-  const coverage = layout.landCount
-    ? ((layout.coveredCount / layout.landCount) * 100).toFixed(1)
-    : '0.0';
   const source = combined
     ? `Inselform: ${parts.length} Teile (${combined.w} × ${combined.h}, ${num(combined.landCount)} Landkacheln)`
     : 'Inselform: keine';
+  const total = layout.chambers.length;
   const lines = [
-    'Anno 1800 – Handelskammer-Planer',
+    'Anno 1800 – Handelskammer- & Rathaus-Planer',
     `Insel: ${w} × ${h} Kacheln`,
     source,
     `Region: ${region.label} (Ordner: ${region.folder})`,
-    `Kammern: ${layout.chambers.length}`,
-    `Abdeckung: ${coverage} %`,
+    ...layout.groups.map((g) => {
+      const spec = BUILDINGS[g.type];
+      return `${spec.plural} (Radius ${spec.radius}): ${g.chambers.length} · Abdeckung ${pct(
+        g.coveredCount,
+        layout.landCount,
+      )}`;
+    }),
     '',
     singleStamp.checked
-      ? `Teststempel: alle ${layout.chambers.length} HKs in einem Stempel (ohne 13.500-Kachel-Grenze).`
+      ? `Teststempel: alle ${total} Gebäude in einem Stempel (ohne 13.500-Kachel-Grenze).`
       : `Aufteilung: ${chunks.length} Stempel (max. 13.500 Kacheln).`,
     '',
     includeStreets.checked
-      ? 'Jeder Stempel enthält den äußeren Inselrand als Feldwege (unter den HK-Flächen ausgespart).'
-      : 'Die Stempel enthalten nur die Handelskammern.',
+      ? 'Jeder Stempel enthält den äußeren Inselrand als Feldwege (unter den Gebäudeflächen ausgespart).'
+      : 'Die Stempel enthalten nur die Gebäude.',
     includeStreets.checked
-      ? 'Den Inselrand im Spiel an der Küste ausrichten; die HK sitzen dann richtig.'
-      : 'Die Stempel am Hex-Muster der Insel ausrichten.',
+      ? 'Den Inselrand im Spiel an der Küste ausrichten; die Gebäude sitzen dann richtig.'
+      : 'Die Stempel an der Insel ausrichten.',
     '',
     `Ablage: Documents\\Anno 1800\\stamps\\${region.folder}\\<Projektname>\\`,
     'Anno 1800 nach dem Kopieren neu starten.',
@@ -141,15 +170,41 @@ function download(name: string, data: Uint8Array): void {
 }
 
 function updateStats(): void {
-  const count = layout.chambers.length;
-  const coverage = layout.landCount ? (layout.coveredCount / layout.landCount) * 100 : 0;
-  const gaps = layout.landCount - layout.coveredCount;
-  statChambers.textContent = num(count);
-  statCoverage.textContent = `${coverage.toFixed(1)} %`;
-  statGaps.textContent = `${num(gaps)} Kacheln`;
-  statInfluence.textContent = num(Math.max(0, (count - 1) * 20));
-  statCost.textContent = `${num(count * 2500)} $`;
-  statUpkeep.textContent = `${num(count * 50)} $/min`;
+  const html: string[] = [];
+  const multi = layout.groups.length > 1;
+  for (const g of layout.groups) {
+    const spec = BUILDINGS[g.type];
+    const count = g.chambers.length;
+    if (multi) html.push(`<p class="stat-head">${spec.plural}</p>`);
+    html.push(
+      `<div><span>${multi ? 'Anzahl' : spec.plural}</span><strong>${num(count)}</strong></div>`,
+      `<div><span>Abdeckung</span><strong>${pct(g.coveredCount, layout.landCount)}</strong></div>`,
+      `<div><span>Lücken</span><strong>${num(layout.landCount - g.coveredCount)} Kacheln</strong></div>`,
+      `<div><span>Einfluss</span><strong>${num(Math.max(0, (count - 1) * 20))}</strong></div>`,
+    );
+    if (g.type === 'hk') {
+      html.push(
+        `<div><span>Baukosten</span><strong>${num(count * 2500)} $</strong></div>`,
+        `<div><span>Unterhalt</span><strong>${num(count * 50)} $/min</strong></div>`,
+      );
+    }
+  }
+  statGrid.innerHTML = html.join('');
+  statMicro.textContent = `${layout.groups
+    .map((g) => `${BUILDINGS[g.type].short}: Radius ${BUILDINGS[g.type].radius}`)
+    .join(' · ')} · 4×4 · kein Straßenanschluss`;
+}
+
+function updateModeTexts(): void {
+  const mode = buildingMode();
+  const types = modeTypes(mode);
+  brandTitle.textContent =
+    mode === 'both' ? 'Verwaltungs-Planer' : mode === 'rh' ? 'Rathaus-Planer' : 'Handelskammer-Planer';
+  legendBuilding.textContent = types.map((t) => BUILDINGS[t].label).join(' / ');
+  legendRadius.textContent = `Radius ${types.map((t) => BUILDINGS[t].radius).join(' / ')}`;
+  const colors = types.map((t) => `rgb(${BUILDINGS[t].rgb.join(', ')})`);
+  legendCovered.style.background =
+    colors.length > 1 ? `linear-gradient(135deg, ${colors[0]} 50%, ${colors[1]} 50%)` : colors[0];
 }
 
 function updateStampList(): void {
@@ -159,7 +214,9 @@ function updateStampList(): void {
     return;
   }
   if (chunks.length === 0) {
-    stampList.innerHTML = '<p class="empty">Keine Kammer passt – Fläche zu schmal.</p>';
+    stampList.innerHTML = solving
+      ? '<p class="empty">Optimierung läuft …</p>'
+      : '<p class="empty">Kein Gebäude passt – Fläche zu schmal.</p>';
     zipButton.disabled = true;
     return;
   }
@@ -167,8 +224,14 @@ function updateStampList(): void {
     .map((c, i) => {
       const bw = c.maxX - c.minX;
       const bh = c.maxY - c.minY;
+      const counts = layout.groups
+        .map((g) => {
+          const n = c.chambers.filter((ch) => ch.type === g.type).length;
+          return `${n} ${BUILDINGS[g.type].short}`;
+        })
+        .join(' + ');
       return `<div class="stamp-row">
-        <div><strong>T${i + 1}</strong><span>${c.chambers.length} Kammern · ${bw}×${bh}</span></div>
+        <div><strong>T${i + 1}</strong><span>${counts} · ${bw}×${bh}</span></div>
         <button type="button" data-i="${i}">↓ Stempel</button>
       </div>`;
     })
@@ -324,10 +387,70 @@ function collectOuterStreets(
   return streets;
 }
 
-function update(): void {
-  combined = combineParts(parts);
-  const { w, h } = currentSize();
-  layout = solve(w, h, combined ?? EMPTY_MASK);
+function maskKey(mask: LandMask, mode: BuildingMode): string {
+  // FNV-1a über die Maske: gleiche Insel + gleicher Modus = keine Neuberechnung.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < mask.data.length; i++) {
+    hash ^= mask.data[i];
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${mode}:${mask.w}x${mask.h}:${(hash >>> 0).toString(16)}`;
+}
+
+function setStatus(): void {
+  window.clearInterval(statusTimer);
+  solveStatus.classList.toggle('running', solving);
+  optimizeMore.disabled = solving || !combined;
+  if (!combined) {
+    solveStatus.textContent = '–';
+    return;
+  }
+  const summary = layout.groups
+    .map((g) => `${g.chambers.length} ${BUILDINGS[g.type].short}`)
+    .join(' + ');
+  if (solving) {
+    const tick = (): void => {
+      const s = ((performance.now() - solveStarted) / 1000).toFixed(1);
+      solveStatus.textContent = `Optimiere auf ${workersUsed} Kern${
+        workersUsed === 1 ? '' : 'en'
+      } … ${s} s · bisher ${summary}`;
+    };
+    tick();
+    statusTimer = window.setInterval(tick, 200);
+  } else {
+    const s = ((performance.now() - solveStarted) / 1000).toFixed(1);
+    solveStatus.textContent = `Fertig nach ${s} s · ${summary}. Mehr Rechenzeit kann noch etwas herausholen.`;
+  }
+}
+
+const runner = new SolveRunner(({ layout: next, running, workers }) => {
+  layout = next;
+  solving = running;
+  workersUsed = workers;
+  rebuildOutputs();
+});
+
+function startSolve(continueFromCurrent: boolean): void {
+  const types = modeTypes(buildingMode());
+  if (!combined) {
+    runner.cancel();
+    solving = false;
+    layout = emptyLayout(EMPTY_MASK, types);
+    rebuildOutputs();
+    return;
+  }
+  const mask: LandMask = {
+    w: combined.w,
+    h: combined.h,
+    data: combined.data,
+    landCount: combined.landCount,
+  };
+  solving = true;
+  solveStarted = performance.now();
+  void runner.start(mask, types, Number(budgetEl.value) || 6000, continueFromCurrent ? layout : null);
+}
+
+function rebuildOutputs(): void {
   chunks = singleStamp.checked ? splitChunks(layout, Infinity) : splitChunks(layout);
   const guid = fieldPathGuid();
   const outerStreets =
@@ -338,6 +461,19 @@ function update(): void {
   drawStage();
   updateStats();
   updateStampList();
+  setStatus();
+}
+
+function update(): void {
+  combined = combineParts(parts);
+  updateModeTexts();
+  const key = combined ? maskKey(combined, buildingMode()) : `empty:${buildingMode()}`;
+  if (key !== solveKey) {
+    solveKey = key;
+    startSolve(false);
+  } else {
+    rebuildOutputs();
+  }
   renderParts();
   updateImportInfo();
   clearStamp.hidden = parts.length === 0;
@@ -523,7 +659,7 @@ zipButton.addEventListener('click', () => {
   files['platzierung.txt'] = strToU8(placementText());
   const archive = zipSync(files, { level: 0 });
   const { w, h } = currentSize();
-  download(`HK_${w}x${h}_${regionKey() === 'ow' ? 'AW' : 'NW'}_stamps.zip`, archive);
+  download(`${filePrefix()}_${w}x${h}_${regionKey() === 'ow' ? 'AW' : 'NW'}_stamps.zip`, archive);
 });
 
 canvas.addEventListener('pointerdown', (event) => {
@@ -586,9 +722,11 @@ canvas.addEventListener('pointercancel', endDrag);
 
 tabArrange.addEventListener('click', () => setView('arrange'));
 tabResult.addEventListener('click', () => setView('result'));
-regionEl.addEventListener('change', update);
-includeStreets.addEventListener('change', update);
-singleStamp.addEventListener('change', update);
+regionEl.addEventListener('change', rebuildOutputs);
+includeStreets.addEventListener('change', rebuildOutputs);
+singleStamp.addEventListener('change', rebuildOutputs);
+buildingEl.addEventListener('change', update);
+optimizeMore.addEventListener('click', () => startSolve(true));
 
 new ResizeObserver(() => drawStage()).observe(stage);
 
