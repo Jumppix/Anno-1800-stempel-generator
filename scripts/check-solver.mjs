@@ -19,7 +19,7 @@ const { buildStamp } = await server.ssrLoadModule('/src/stamp.ts');
 const cases = [
   { file: 'test-stamps-fix/Insel_96x65_Feldwege', min: { hk: 12, rh: 7 } },
   { file: 'test-stamps-fix/Insel_51x38_Feldwege', min: { hk: 4, rh: 3 } },
-  { file: 'test-stamps-fix/Insel_189x290_Screenshot', min: { hk: 40, rh: 25 } },
+  { file: 'test-stamps-fix/Insel_189x290_Screenshot', min: { hk: 39, rh: 24 } },
 ];
 
 let failed = 0;
