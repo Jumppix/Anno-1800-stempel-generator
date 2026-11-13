@@ -1,0 +1,10 @@
+Anno 1800 – Handelskammer-Planer (Fix-Test)
+Region: Alte Welt (The Old World)
+
+HK_51x38_AW_T01:   4 Kammern, 49 × 30
+HK_80x80_AW_T01:   9 Kammern, 79 × 56
+HK_148x129_AW_T01: 20 Kammern, 139 × 82
+HK_148x129_AW_T02:  5 Kammern, 124 × 4, Offset (0, 78) zu T01
+
+Ablage: Documents\Anno 1800\stamps\The Old World\<Projektname>\
+Anno 1800 danach neu starten.
