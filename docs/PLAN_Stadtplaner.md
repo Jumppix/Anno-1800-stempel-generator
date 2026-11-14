@@ -408,7 +408,29 @@ dieselbe Gruppenregel (Bauplan je Gruppe).
 Universität, Gaskraftwerke (+ Lagerhäuser) als Sonderzellen in Rathaus-
 Lücken, Ministeriums-/Erlass-Effekte.
 
-## 15. Noch offene Fragen
+## 15. Rathaus-Items und Referenz annolayouts.de
+
+- **Referenz für Item-Kombinationen: https://annolayouts.de/1800/** (Daten unter
+  `data/optimization.json`, `data/sandbox/items.json`, `data/texts_de.json`;
+  in dieser Umgebung freigegeben). Empfehlung „Rathaus → Wolkenkratzer“ =
+  137798 Zofe „Blauer Himmel“, 137797 Lieferdienst „Blauer Himmel“, 190193
+  Saint D'Artois – genau die Items des Nutzers für alle Rathäuser.
+- Wirkung (Spieldaten): Zofe +5 Einwohner je erfülltem Bedürfnis aus Kekse,
+  Schreibmaschinen, Cognac, Violinen, Billardtische, Spielwaren, Kaufhaus,
+  Einrichtungshaus, Drogerie; Lieferdienst: Kaufhaus/Einrichtungshaus/Drogerie
+  liefern Kaugummi/Billardtische/Violinen; Saint D'Artois +2 je Bedürfnis aus
+  Fisch, Brot, Fleischkonserven, Universität, Kaffee, Glühbirnen, Sekt,
+  Dampfwagen, Schokolade, Gebackene Bananen.
+- Stufe 3: Ingenieure +33, Investoren +30 im Rathausradius (Kaufhaus,
+  Einrichtungshaus, Drogerie, Universität nur, wenn versorgt). Umgesetzt in
+  `TOWN_HALL_ITEM_BONUS` (rules.ts), Schalter in der Analyse.
+- Für später (Phase 5): annolayouts enthält auch Handelskammer-Setups je
+  Produktionsgebäude (z. B. Hochrad-Werkhalle) als Referenz.
+- Die Spiel-Maxima (Ingenieur 359–400, Investor 602) enthalten weitere
+  Bonus-Bedürfnisse (Post, Seife, Schokolade, Shampoo …); die Schätzung bleibt
+  bewusst ein Vergleichswert, kein exakter Spielwert.
+
+## 16. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

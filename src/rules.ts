@@ -62,6 +62,8 @@ export interface RuleConfig {
    * Panorama), 'stamp' = wie im Stempel.
    */
   tierMode: 'groups' | 'stamp';
+  /** Rathaus-Items (Zofe, Lieferdienst, Saint D'Artois) in allen Rathäusern. */
+  townHallItems: boolean;
 }
 
 /** Manuelle Festlegung (per Klick in der Analyse). */
@@ -80,6 +82,7 @@ export const DEFAULT_RULES: RuleConfig = {
   skyscraperLevel: 3,
   welfareForInstitutions: false,
   tierMode: 'groups',
+  townHallItems: true,
 };
 
 /** Palast: Pflaster-Basisreichweite 71, je Flügel +3. */
@@ -154,6 +157,44 @@ export const SKYSCRAPER_SERVICE_NEEDS: Readonly<
 };
 
 /** Luxus-Bedürfnisse (nur Zufriedenheit/Einkommen, keine Einwohner). */
+/**
+ * Rathaus-Items des Nutzers (laut annolayouts.de auch die empfohlene
+ * Kombination für Wolkenkratzer): Zofe „Blauer Himmel“ (137798), Lieferdienst
+ * „Blauer Himmel“ (137797), Saint D'Artois (190193). Bonus-Einwohner je
+ * Stufe-3-Hochhaus im Rathausradius; Einträge mit `kind` zählen nur, wenn das
+ * Haus von diesem Gebäude versorgt wird, die übrigen sind Waren.
+ * Lieferdienst: Kaufhaus/Einrichtungshaus/Drogerie liefern zusätzlich
+ * Kaugummi/Billardtische/Violinen (keine eigenen Einwohner).
+ */
+export const TOWN_HALL_ITEM_BONUS: Readonly<
+  Record<'engineer' | 'investor', ReadonlyArray<{ label: string; residents: number; kind?: BuildingKind }>>
+> = {
+  engineer: [
+    // Zofe: +5 je Bedürfnis
+    { label: 'Kaufhaus', residents: 5, kind: 'departmentStore' },
+    { label: 'Einrichtungshaus', residents: 5, kind: 'furnitureStore' },
+    { label: 'Drogerie', residents: 5, kind: 'drugStore' },
+    { label: 'Schreibmaschinen', residents: 5 },
+    { label: 'Violinen', residents: 5 },
+    // Saint D'Artois: +2 je Bedürfnis
+    { label: 'Universität', residents: 2, kind: 'university' },
+    { label: 'Fleischkonserven', residents: 2 },
+    { label: 'Kaffee', residents: 2 },
+    { label: 'Glühbirnen', residents: 2 },
+  ],
+  investor: [
+    { label: 'Kaufhaus', residents: 5, kind: 'departmentStore' },
+    { label: 'Einrichtungshaus', residents: 5, kind: 'furnitureStore' },
+    { label: 'Kekse', residents: 5 },
+    { label: 'Cognac', residents: 5 },
+    { label: 'Kaffee', residents: 2 },
+    { label: 'Glühbirnen', residents: 2 },
+    { label: 'Sekt', residents: 2 },
+    { label: 'Schokolade', residents: 2 },
+    { label: 'Dampfwagen', residents: 2 },
+  ],
+};
+
 export const LUXURY_SERVICES: Readonly<Record<Tier, readonly BuildingKind[]>> = {
   artisan: ['varietyTheatre', 'university'],
   engineer: ['bank', 'varietyTheatre'],

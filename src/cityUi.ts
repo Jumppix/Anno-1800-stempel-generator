@@ -84,6 +84,7 @@ export class CityUi {
   private readonly ministry = el<HTMLSelectElement>('#rule-ministry');
   private readonly policy = el<HTMLSelectElement>('#rule-policy');
   private readonly institutions = el<HTMLInputElement>('#rule-institutions');
+  private readonly items = el<HTMLInputElement>('#rule-items');
   private readonly ruleInfo = el<HTMLElement>('#rule-info');
   private readonly layerSelect = el<HTMLSelectElement>('#city-layer');
   private readonly tierMode = el<HTMLSelectElement>('#rule-tiers');
@@ -119,7 +120,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode]) {
+    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.items]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.ministry.addEventListener('change', () => {
@@ -175,6 +176,7 @@ export class CityUi {
       policy: (this.policy.value || 'none') as Policy,
       welfareForInstitutions: this.institutions.checked,
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'groups',
+      townHallItems: this.items.checked,
     };
     this.updateRuleInfo();
     this.reanalyze();
@@ -247,6 +249,7 @@ export class CityUi {
     const t = a.totals;
     const rows: string[] = [
       `<div><span>Einwohner (Schätzung)</span><strong>${num(t.residents)}</strong></div>`,
+      `<div><span>davon Rathaus-Items</span><strong>${num(t.itemResidents)}</strong></div>`,
       `<div><span>Hochhäuser</span><strong>${num(t.skyscrapers)}</strong></div>`,
       `<div><span>Ingenieure</span><strong>${num(t.byTier.engineer)}</strong></div>`,
       `<div><span>Investoren</span><strong>${num(t.byTier.investor)}</strong></div>`,
@@ -528,7 +531,11 @@ export class CityUi {
       else if (group !== undefined && this.edits.groups.has(group)) {
         lines.push('<span class="muted">Gruppe manuell ausgerichtet</span>');
       }
-      lines.push(`Einwohner ≈ ${r.residents}${r.hasRoad ? '' : ' – kein Straßenanschluss!'}`);
+      lines.push(
+        `Einwohner ≈ ${r.residents}${r.itemBonus ? ` (davon Rathaus-Items +${r.itemBonus})` : ''}${
+          r.hasRoad ? '' : ' – kein Straßenanschluss!'
+        }`,
+      );
       if (r.missing.length) {
         lines.push(`Fehlt: ${r.missing.map((k) => KIND_NAMES[k] ?? k).join(', ')}`);
       }

@@ -10,6 +10,7 @@ import {
   PANORAMA_RADIUS,
   SKYSCRAPER_L3_RESIDENTS,
   SKYSCRAPER_SERVICE_NEEDS,
+  TOWN_HALL_ITEM_BONUS,
   welfareApplies,
   welfareBonus,
   type RuleConfig,
@@ -44,6 +45,8 @@ export interface ResidenceInfo {
   panoramaParts: { lower: number; sameOrHigher: number; variety: number };
   panorama: number;
   residents: number;
+  /** Davon durch Rathaus-Items. */
+  itemBonus: number;
   /** Fehlende Einwohner-Bedürfnisse (Namen der Gebäudearten). */
   missing: BuildingKind[];
 }
@@ -75,6 +78,7 @@ export interface Analysis {
   warnings: string[];
   totals: {
     residents: number;
+    itemResidents: number;
     skyscrapers: number;
     byTier: Record<Tier, number>;
     coverage: Partial<Record<BuildingKind, number>>;
@@ -132,6 +136,7 @@ export function analyzeCity(
       panoramaParts: { lower: 0, sameOrHigher: 0, variety: 0 },
       panorama: 0,
       residents: 0,
+      itemBonus: 0,
       missing: [],
     }));
 
@@ -251,8 +256,16 @@ export function analyzeCity(
         r.missing.push(need.kind);
       }
     }
-    if (!r.hasRoad) n = 0;
-    r.residents = Math.max(0, n);
+    let bonus = 0;
+    if (rules.townHallItems && r.townHall !== null) {
+      for (const b of TOWN_HALL_ITEM_BONUS[tier]) if (!b.kind || r.services[b.kind]) bonus += b.residents;
+    }
+    if (!r.hasRoad) {
+      n = 0;
+      bonus = 0;
+    }
+    r.itemBonus = bonus;
+    r.residents = Math.max(0, n) + bonus;
   }
 
   // --- Weitere Prüfungen
@@ -306,6 +319,7 @@ export function analyzeCity(
     warnings,
     totals: {
       residents,
+      itemResidents: residences.reduce((a, r) => a + r.itemBonus, 0),
       skyscrapers: sky.length,
       byTier,
       coverage,
