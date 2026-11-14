@@ -426,18 +426,16 @@ export class CityUi {
       }
     }
 
-    // Radius des angewählten Gebäudes
+    // Radius des angewählten Gebäudes: Fläche leicht aufhellen, Linie folgt nach den Gebäuden.
     const sel = this.selected >= 0 ? c.buildings[this.selected] : null;
-    if (sel?.entry.radius) {
+    const selRadius = sel?.entry.radius ?? 0;
+    const inSelRadius = (b: CityBuilding): boolean =>
+      !sel || !selRadius || b === sel || Math.hypot(b.cx - sel.cx, b.cy - sel.cy) <= selRadius + 1e-9;
+    if (sel && selRadius) {
       ctx.beginPath();
-      ctx.arc(ox + (sel.cx + 0.5) * scale, oy + (sel.cy + 0.5) * scale, sel.entry.radius * scale, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(240, 215, 154, 0.10)';
+      ctx.arc(ox + (sel.cx + 0.5) * scale, oy + (sel.cy + 0.5) * scale, selRadius * scale, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
       ctx.fill();
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = 'rgba(240, 215, 154, 0.9)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
 
     // Kreisradien für Rathaus/Post
@@ -463,6 +461,8 @@ export class CityUi {
       const y = oy + b.y * scale;
       const w = b.w * scale;
       const h = b.h * scale;
+      // Gebäude außerhalb des Radius der Auswahl abdunkeln.
+      ctx.globalAlpha = inSelRadius(b) ? 1 : 0.28;
       ctx.fillStyle = this.fillFor(b);
       ctx.fillRect(x + 0.5, y + 0.5, w - 1, h - 1);
       if (this.isHighlighted(b, a)) {
@@ -489,6 +489,35 @@ export class CityUi {
       }
     }
 
+    ctx.globalAlpha = 1;
+    if (sel && selRadius) {
+      const cx = ox + (sel.cx + 0.5) * scale;
+      const cy = oy + (sel.cy + 0.5) * scale;
+      ctx.beginPath();
+      ctx.arc(cx, cy, selRadius * scale, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      // Beschriftung am oberen Kreisrand
+      const label = `Radius ${selRadius}`;
+      ctx.font = '700 12px ui-sans-serif, system-ui';
+      const tw = ctx.measureText(label).width;
+      const ly = cy - selRadius * scale;
+      ctx.fillStyle = 'rgba(6, 15, 22, 0.92)';
+      ctx.fillRect(cx - tw / 2 - 6, ly - 10, tw + 12, 20);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx - tw / 2 - 6 + 0.5, ly - 10 + 0.5, tw + 11, 19);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx, ly);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+    }
     if (sel) {
       ctx.strokeStyle = '#f0d79a';
       ctx.lineWidth = Math.max(2, Math.min(4, scale * 0.25));
@@ -775,7 +804,13 @@ export class CityUi {
       lines.push(`Im Ministeriumsbereich: ${s.inMinistry ? 'ja' : 'nein'}`);
       if (s.warehouseInRange !== null) lines.push(`Lager in Reichweite: ${s.warehouseInRange ? 'ja' : 'nein'}`);
     }
-    if (b.entry.radius) lines.push(`Radius ${b.entry.radius}`);
+    if (b.entry.radius) {
+      const radius = b.entry.radius;
+      const inside = a.residences.filter(
+        (r) => Math.hypot(r.building.cx - b.cx, r.building.cy - b.cy) <= radius + 1e-9,
+      ).length;
+      lines.push(`Radius ${radius} · ${inside} Wohnhäuser darin`);
+    }
     const hits = a.tradeUnionHits.get(idx);
     if (hits) lines.push(hits >= 2 ? `Geclippt: ${hits} Handelskammern` : '1 Handelskammer wirkt');
     lines.push(`<span class="muted">GUID ${b.guid}</span>`);
