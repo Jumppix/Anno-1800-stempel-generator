@@ -241,6 +241,112 @@ dem Zellenraster (Problem wird um Größenordnungen kleiner) und mehreren
 CPU-Kernen, die schon genutzt werden. Später denkbar für Massenberechnungen
 (z. B. viele Rasterversätze/Reichweitenkarten gleichzeitig bewerten).
 
-## 9. Offene Fragen an den Nutzer
+## 9. Antworten des Nutzers (Runde 1)
 
-Siehe Chat; Antworten werden hier nachgetragen.
+1./2. Gruppenform: unklar, was am effektivsten ist → sinnvolle Annahme treffen und
+   vergleichen. Öffentliche Gebäude wirken nur über Straßen (Reichweite 60 =
+   60 zusammenhängende Straßenkacheln).
+3. „Beeinflusst“ = **Mittelpunkt des Gebäudes im Radius** (gilt für Rathaus,
+   Handelskammer, Post …). Clipping mit Wohnhäusern: nicht planen. Rathaus braucht
+   keinen Straßenanschluss, Handelskammern schon (laut Wiki nur für Palast-Effekte,
+   siehe 10.). Rathaus-Item-Bonus: später.
+4. Je Ministerium genau **ein Erlass** und **eine Richtlinie**; nicht jede
+   Richtlinie unter jedem Ministerium. Werte recherchieren → Abschnitt 10.
+5. Clipping: zwei Formationen als Stempel geliefert (quadratisch, Raute), nur
+   diese sind möglich; Hochrad-Werkhallen teils austauschbar.
+6. Lufthafen 15×10, Module 3×5 **angrenzend**; keine Küste, keine Straße nötig;
+   kann als Lagerhaus dienen.
+7. Hauptanlegestelle per Klick: ja. Küste/Randbebauung macht der Nutzer selbst.
+8. Nur Stufe 3.
+9. Großer Ein-Stempel funktioniert, ruckelt aber → Ein-Stempel vs. 13.500er-
+   Aufteilung bleibt wählbar.
+10. „Insel 2“ = vier Feldweg-Stempel (siehe 11.).
+
+## 10. Recherchierte Werte (Anno-1800-Wiki, per MediaWiki-API gelesen)
+
+### Palast / Regionalministerium
+- Regionalministerium (Local Department): 5×8, **Straßenreichweite = halbe
+  Palastreichweite**; genau **ein** Ministerium und **eine** Richtlinie aktiv;
+  wirkt auf Gebäude in seiner Straßenreichweite. Passiver Effekt richtet sich
+  nach dem **Prestige** des Hauptpalasts.
+- Palastreichweite: Basis Feldweg 48 / Pflaster 71; je Flügel +2 / +3.
+  Flügellimit nach Profilstufe + Weltbevölkerung (z. B. 40 Flügel ≈ 191
+  Pflaster → Regionalministerium ≈ 95).
+- Prestige: ab 9.000 Attraktivität Stufe 1, je +1.000 eine Stufe, max. 25
+  (33.000); jede Stufe +20 % des Basiseffekts.
+- **Wohlfahrt** (ab 1.000 Attr.): +10 Reichweite für alle öffentlichen Gebäude
+  (Feldweg), **Pflaster ×1,5 = +15**, mit Prestige bis +60 / **+90**.
+- **Arbeit** (ab 700 Attr.): +10 % Produktivität in Handelskammer-Reichweite
+  (Prestige bis +60 %).
+- Richtlinien Wohlfahrt: Aspirational Finance (1.750), Arts Patronage (1.750),
+  **Stadtweites Netz / City Wide Web** (2.700): Kraftwerke **+15 / +22**
+  Reichweite; Social Welfare (4.500): +5 Zufriedenheit;
+  **Verlängerte Ausschankzeiten / Late Licence** (5.950): −20 % Getränkebedarf
+  für Häuser in Reichweite verbundener Wirtshäuser, Varietés, Clubhäuser,
+  Funktürme.
+- Richtlinien Arbeit: Land Reform, Skilled Labour (je 1.350),
+  **Förderung des Galvanismus / Galvanic Grants** (3.850): +50 % Produktivität
+  durch Strom; Factory Inspections (5.200): −50 % Arbeitskraft;
+  **Gewerkschaftsförderung / Union Subsidies** (6.750): +1 Item-Slot
+  Handelskammer.
+- Handelskammer/Rathaus brauchen selbst keine Straße; **für Palast-Effekte**
+  müssen sie per Straße in Reichweite des Ministeriums liegen.
+
+### Hochhäuser und Panorama (bestätigt)
+- Ausgangswert = eigene Stufe; jedes Hochhaus im Radius: niedriger +1, gleich
+  hoch oder höher −1, **gleiche Stufe andere Schicht +1**. Summe ≤ 0 keine,
+  1 schwach … 5 intensiv. Radius Stufe 3 = 5.
+- Max. Einwohner Stufe 3 je Stärke 0…5: Ingenieure 100/120/140/160/180/200,
+  Investoren 125/150/175/200/225/250.
+- Eigene Rechnung (Mittelpunktabstand, Radius ≤ 5): Raster mit gleicher
+  Reihenfolge Ingenieur-Spalte | Investor-Spalte in jeder Gruppe → **alle
+  inneren Häuser Stärke 5**, Ø 225 Einw./Haus, ≈ 19,8 Einw./Kachel.
+  Jede zweite Gruppe gespiegelt: nur Stärke 1–2 (−35 %). → Streifen-Regel
+  streng durchziehen, auch um Sonderblöcke herum.
+- Gruppenlänge (Reihen je Gruppe) bei gleicher Regel: 4 Reihen 19,8 →
+  8 Reihen 20,6 → 16 Reihen 21,0 Einw./Kachel (weniger Querstraßen), dafür
+  längere Straßenwege. Tool vergleicht; Standard 4 Reihen.
+- Offen: zählt „im Radius“ mit ≤ oder < (bei < : 4 Reihen 18,9 Einw./Kachel).
+
+### Versorgung und Logistik
+| Gebäude | Fläche | Reichweite Pflaster | Zusatz |
+| --- | --- | --- | --- |
+| Kaufhaus / Einrichtungshaus / Drogerie | 6×7 | 62 | brauchen **Lagerhaus/Kontor in Reichweite**, Strom und **Handwerker-Arbeitskraft**; Patent im Kreis 45 |
+| Universität | 6×9 | voll 64 / max 131 | Ingenieure +6 bei voller Reichweite |
+| Gaskraftwerk | 5×6 | 59 (+22 mit Stadtweitem Netz) | Gas per Karren → **Lagerhaus/Kontor in Reichweite**, Ingenieurs-Arbeitskraft |
+| Postamt | 4×6 | Kreis 24 | 500 Einw. = 100 %, max. 3.100 % bei 15.500 Einw.; keine Überlappung mit Postämtern/Briefkästen |
+| Briefkasten | 1×1 | Kreis 12 | wie Postamt |
+| Lufthafen | 10×15 | – | wirkt wie Kontor (Anschluss + Ladeplatz für Karren); Module 3×5 angrenzend |
+| Lagerhaus | 5×5 | – | braucht Straßenverbindung zum Kontor/Lufthafen |
+- Reichweite über Straße: Start an Straßenkacheln, die das Gebäude seitlich
+  berühren; kürzeste Straßenentfernung zum Haus zählt.
+- Wohlfahrt +15 … +90 gilt nur für öffentliche Gebäude in Reichweite des
+  Regionalministeriums; Kaufhaus/Einrichtungshaus/Drogerie laut Nutzer nicht
+  betroffen (Wiki ordnet sie als „Shopping Arcade“ ein – passt dazu).
+
+### Clipping (bestätigt durch die Stempel des Nutzers)
+- Nur Gebäude mit **gerader Breite und Länge**; quadratische auch diagonal.
+- Formation „quadratisch“: 4 Handelskammern im Quadrat (Abstand 30), je eine
+  Hochrad-Werkhalle (6×6) auf der Kantenmitte → Mitte genau 15,0 von beiden HK.
+- Formation „Raute“: Handelskammer-Abstände 30 über die Diagonale (18, 24);
+  Werkhallen-Mitten genau 15,0 von zwei HK.
+- Beide Stempel enthalten keine Straßen/Lagerhaus → Tool ergänzt Straßen und
+  Lagerhaus.
+
+## 11. Testinsel „Insel 2“
+- Vier Feldweg-Stempel (127×112, 88×69, 84×121, 111×151) = dieselbe Insel wie
+  im ersten Screenshot; mit den Versätzen aus dem Screenshot 189×290,
+  25.630 Landkacheln. Alter HK-Solver 33 HK / 79,8 % (exakt wie Screenshot),
+  neuer 40–41 HK.
+- Die automatische Ausrichtung findet die Versätze nicht (eigener Fehler,
+  separat erfasst).
+
+## 12. Noch offene Fragen
+- Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
+  Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
+  entfernte markiert?).
+- Palast: Anzahl Flügel bzw. angezeigte Reichweite des Regionalministeriums,
+  Prestige-Stufe.
+- Handwerker-Arbeitskraft für Kaufhaus & Co. (Insel hat nur Ingenieure/
+  Investoren): Pendlerstation am Lufthafen (3. Modul) oder Pendlerkai?
+- Screenshot mit T1–T4 in anderer Form gehört zu welcher Insel?
