@@ -74,6 +74,8 @@ unnötig verändern.
 - `src/placement.ts`: 2D-Anordnen-Ansicht, pixelgenaue Zeichnung,
   Kachelraster, Drag-Hit-Test.
 - `src/render.ts`: Ergebnisansicht.
+- `src/camera.ts`: Zoom/Verschieben (Mausrad, rechte Maustaste) für Anordnen,
+  Ergebnis und Plan/Analyse; Ereignisse in `main.ts`, `CityUi.camera`.
 - `src/style.css`: Styling.
 - `research/`: Reverse-Engineering, Referenzstempel, keine Laufzeitabhängigkeit.
 - `test-parts/`, `test-stamps-fix/`: Testdaten ohne Endung

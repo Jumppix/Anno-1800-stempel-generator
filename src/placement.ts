@@ -1,3 +1,4 @@
+import type { Camera } from './camera';
 import type { CombinedMask, IslandPart } from './island';
 
 export interface PlacementView {
@@ -95,6 +96,7 @@ export function renderPlacement(
   parts: readonly IslandPart[],
   combined: CombinedMask,
   selectedId: string | null,
+  camera?: Camera,
 ): PlacementView {
   const parent = canvas.parentElement;
   if (!parent) return { scale: 1, originX: 0, originY: 0, minX: combined.minX, minY: combined.minY };
@@ -136,9 +138,16 @@ export function renderPlacement(
   const rawScale = Math.min((cw - pad * 2) / combined.w, (ch - top - pad) / combined.h);
   // Snap the tile size to whole device pixels. Together with disabled image
   // smoothing this keeps every tile edge hard instead of antialiased/blurred.
-  const scale = Math.max(1 / dpr, Math.floor(rawScale * dpr) / dpr);
-  const originX = snap((cw - combined.w * scale) / 2);
-  const originY = snap(top + (ch - top - pad - combined.h * scale) / 2);
+  const baseScale = Math.max(1 / dpr, Math.floor(rawScale * dpr) / dpr);
+  const base = {
+    scale: baseScale,
+    ox: (cw - combined.w * baseScale) / 2,
+    oy: top + (ch - top - pad - combined.h * baseScale) / 2,
+  };
+  const v = camera ? camera.apply(base, cw, ch) : base;
+  const scale = v.scale >= 1 ? Math.max(1 / dpr, Math.round(v.scale * dpr) / dpr) : v.scale;
+  const originX = snap(v.ox);
+  const originY = snap(v.oy);
 
   ctx.save();
   ctx.beginPath();

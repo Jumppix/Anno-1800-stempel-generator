@@ -201,7 +201,7 @@
             </select>
           </label>
           <p class="hint">Stempel aus dem normalen Spiel enthalten nur Bauernhäuser; alle zählen als Hochhaus Stufe 3. Aneinanderstoßende Häuser bilden eine Gruppe aus je einer Linie Ingenieure und Investoren (senkrechte Gruppe: Spalten, waagerechte: Reihen). Welche Linie was ist, wählt das Tool nach bestem Panorama.</p>
-          <p class="hint"><strong>Klick auf ein Haus</strong> tauscht Ingenieure/Investoren der ganzen Gruppe (so wie in deiner Stadt). <strong>Umschalt+Klick</strong>: einzelnes Haus Ingenieur → Investor → automatisch.</p>
+          <p class="hint"><strong>Klick auf ein Gebäude</strong> wählt es an und zeigt alle Infos (mit Knöpfen zum Tauschen von Ingenieuren/Investoren). <strong>Strg+Klick</strong>: ganze Gruppe tauschen · <strong>Umschalt+Klick</strong>: einzelnes Haus Ingenieur → Investor → automatisch. <strong>Mausrad</strong> zoomt (ab etwa 4× stehen Einwohner und Panorama auf den Häusern), <strong>rechte Maustaste halten</strong> verschiebt die Ansicht.</p>
           <p class="hint">Grün = versorgt/im Radius, Rot = fehlt. Panorama: Zahl 0–5 (5 = intensiv). Maus über ein Gebäude zeigt Details.</p>
         </section>
 
@@ -216,6 +216,13 @@
       <main class="stage">
         <canvas id="canvas"></canvas>
         <div id="city-tip" class="city-tip" hidden></div>
+        <div id="city-select" class="city-select" hidden></div>
+        <div class="zoom-controls">
+          <button id="zoom-in" type="button" title="Hineinzoomen (Mausrad)">+</button>
+          <button id="zoom-out" type="button" title="Herauszoomen (Mausrad)">−</button>
+          <button id="zoom-fit" type="button" title="Ganze Insel zeigen">⤢</button>
+          <span class="zoom-hint">Mausrad: Zoom · rechte Maustaste halten: verschieben</span>
+        </div>
         <div class="stage-tabs" data-mode="admin city">
           <button id="tab-arrange" class="active" type="button">Anordnen</button>
           <button id="tab-result" type="button">Ergebnis</button>

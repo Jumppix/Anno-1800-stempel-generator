@@ -17,6 +17,7 @@ import {
   type RuleConfig,
   type TierEdits,
 } from './rules';
+import { Camera } from './camera';
 import { buildGenericStamp } from './stamp';
 import { decodeStampFull } from './stampReader';
 import { catalogTestLayout, demoCityLayout } from './testStamps';
@@ -95,6 +96,11 @@ export class CityUi {
   private readonly stats = el<HTMLElement>('#city-stats');
   private readonly warnings = el<HTMLElement>('#city-warnings');
   private readonly tip = el<HTMLElement>('#city-tip');
+  private readonly selectBox = el<HTMLElement>('#city-select');
+  /** Zoom/Verschiebung der Plan-/Analyse-Ansicht. */
+  readonly camera = new Camera();
+  /** Angewähltes Gebäude (Index), −1 = keins. */
+  private selected = -1;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -136,6 +142,14 @@ export class CityUi {
     });
     canvas.addEventListener('pointermove', (event) => this.hover(event));
     canvas.addEventListener('pointerdown', (event) => this.click(event));
+    this.selectBox.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
+      if (!button) return;
+      const act = button.dataset.act;
+      if (act === 'close') this.select(-1);
+      else if (act === 'group') this.flipGroup(this.selected);
+      else if (act === 'house') this.cycleHouse(this.selected);
+    });
     canvas.addEventListener('pointerleave', () => {
       this.tip.hidden = true;
     });
@@ -228,6 +242,8 @@ export class CityUi {
 
   private load(bytes: Uint8Array, name: string): void {
     this.land = null;
+    this.selected = -1;
+    this.selectBox.hidden = true;
     try {
       this.city = cityFromStamp(decodeStampFull(bytes));
       this.sourceName = name;
@@ -245,7 +261,69 @@ export class CityUi {
     this.resByIndex = new Map(this.analysis.residences.map((r) => [r.building.index, r]));
     this.nonSky = new Set(this.analysis.nonSkyscrapers);
     this.updatePanel();
+    this.updateSelection();
     this.draw();
+  }
+
+  /** Auswahlfeld/Tooltip nur zeigen, solange die Plan-/Analyse-Ansicht sichtbar ist. */
+  setShown(shown: boolean): void {
+    if (!shown) {
+      this.selectBox.hidden = true;
+      this.tip.hidden = true;
+    } else if (this.selected >= 0) {
+      this.selectBox.hidden = false;
+    }
+  }
+
+  /** Versteckt den Tooltip (z. B. beim Verschieben der Ansicht). */
+  hideTip(): void {
+    this.tip.hidden = true;
+  }
+
+  private select(idx: number): void {
+    this.selected = idx;
+    this.updateSelection();
+    this.draw();
+  }
+
+  private updateSelection(): void {
+    const c = this.city;
+    if (!c || !this.analysis || this.selected < 0 || this.selected >= c.buildings.length) {
+      this.selected = -1;
+      this.selectBox.hidden = true;
+      return;
+    }
+    const idx = this.selected;
+    const r = this.resByIndex.get(idx);
+    const actions: string[] = [];
+    if (r && c.buildings[idx].entry.kind === 'residence') {
+      if (this.analysis.groupOf.has(idx)) actions.push('<button type="button" data-act="group">Gruppe: I ↔ V tauschen</button>');
+      const cur = this.edits.houses.get(idx);
+      const next = cur === undefined ? 'Ingenieur' : cur === 'engineer' ? 'Investor' : 'automatisch';
+      actions.push(`<button type="button" data-act="house">Nur dieses Haus: ${next}</button>`);
+    }
+    this.selectBox.innerHTML = `<button type="button" class="close" data-act="close" title="Auswahl aufheben">×</button>
+      <div class="lines">${this.describe(idx).join('<br>')}</div>
+      ${actions.length ? `<div class="actions">${actions.join('')}</div>` : ''}`;
+    this.selectBox.hidden = false;
+  }
+
+  private flipGroup(idx: number): void {
+    if (!this.analysis || idx < 0) return;
+    const group = this.analysis.groupOf.get(idx);
+    if (group === undefined) return;
+    const state = this.analysis.groupState.get(group) ?? 0;
+    this.edits.groups.set(group, state === 1 ? 0 : 1);
+    this.reanalyze();
+  }
+
+  private cycleHouse(idx: number): void {
+    if (idx < 0) return;
+    const current = this.edits.houses.get(idx);
+    if (current === undefined) this.edits.houses.set(idx, 'engineer');
+    else if (current === 'engineer') this.edits.houses.set(idx, 'investor');
+    else this.edits.houses.delete(idx);
+    this.reanalyze();
   }
 
   private updatePanel(): void {
@@ -320,21 +398,46 @@ export class CityUi {
     }
 
     const pad = 30;
-    const scale = Math.min((cw - pad * 2) / c.w, (ch - pad * 2) / c.h);
-    const ox = (cw - c.w * scale) / 2;
-    const oy = (ch - c.h * scale) / 2;
+    const baseScale = Math.min((cw - pad * 2) / c.w, (ch - pad * 2) / c.h);
+    const { scale, ox, oy } = this.camera.apply(
+      { scale: baseScale, ox: (cw - c.w * baseScale) / 2, oy: (ch - c.h * baseScale) / 2 },
+      cw,
+      ch,
+    );
     this.view = { scale, ox, oy };
+    // Sichtbarer Kachelbereich (nur das zeichnen, was im Bild liegt).
+    const vis = {
+      x0: Math.floor(-ox / scale) - 1,
+      y0: Math.floor(-oy / scale) - 1,
+      x1: Math.ceil((cw - ox) / scale) + 1,
+      y1: Math.ceil((ch - oy) / scale) + 1,
+    };
 
-    if (this.land) this.drawLand(ctx, this.land, scale, ox, oy);
+    if (this.land) this.drawLand(ctx, this.land, scale, ox, oy, vis);
 
     // Straßen; bei Versorgungs-/Ministeriumsebene erreichte Straßen hervorheben.
     const reached = this.reachedRoads(c, a);
-    for (let i = 0; i < c.road.length; i++) {
+    for (let y = Math.max(0, vis.y0); y < Math.min(c.h, vis.y1); y++) {
+      for (let x = Math.max(0, vis.x0); x < Math.min(c.w, vis.x1); x++) {
+      const i = y * c.w + x;
       if (!c.road[i]) continue;
-      const x = i % c.w;
-      const y = (i - x) / c.w;
       ctx.fillStyle = reached?.[i] ? 'rgba(90, 190, 110, 0.85)' : c.road[i] === 1010035 ? '#4a5560' : '#5a4f3f';
       ctx.fillRect(ox + x * scale, oy + y * scale, scale + 0.3, scale + 0.3);
+      }
+    }
+
+    // Radius des angewählten Gebäudes
+    const sel = this.selected >= 0 ? c.buildings[this.selected] : null;
+    if (sel?.entry.radius) {
+      ctx.beginPath();
+      ctx.arc(ox + (sel.cx + 0.5) * scale, oy + (sel.cy + 0.5) * scale, sel.entry.radius * scale, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(240, 215, 154, 0.10)';
+      ctx.fill();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(240, 215, 154, 0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     // Kreisradien für Rathaus/Post
@@ -355,6 +458,7 @@ export class CityUi {
 
     // Gebäude
     for (const b of c.buildings) {
+      if (b.x + b.w < vis.x0 || b.y + b.h < vis.y0 || b.x > vis.x1 || b.y > vis.y1) continue;
       const x = ox + b.x * scale;
       const y = oy + b.y * scale;
       const w = b.w * scale;
@@ -370,8 +474,11 @@ export class CityUi {
         ctx.lineWidth = 1;
         ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
       }
+      const detail = scale * Math.min(b.w, b.h) >= 42 ? this.detailFor(b) : null;
       const label = this.labelFor(b);
-      if (label && scale * Math.min(b.w, b.h) >= 14) {
+      if (detail) {
+        this.drawDetail(ctx, detail, x, y, w, h, scale);
+      } else if (label && scale * Math.min(b.w, b.h) >= 14) {
         ctx.fillStyle = 'rgba(8, 15, 22, 0.9)';
         ctx.font = `700 ${Math.max(8, Math.min(13, scale * 1.2))}px ui-sans-serif, system-ui`;
         ctx.textAlign = 'center';
@@ -382,9 +489,72 @@ export class CityUi {
       }
     }
 
+    if (sel) {
+      ctx.strokeStyle = '#f0d79a';
+      ctx.lineWidth = Math.max(2, Math.min(4, scale * 0.25));
+      ctx.strokeRect(ox + sel.x * scale - 1, oy + sel.y * scale - 1, sel.w * scale + 2, sel.h * scale + 2);
+    }
+
     ctx.font = '600 13px ui-sans-serif, system-ui';
     ctx.fillStyle = 'rgba(230, 237, 243, 0.72)';
     ctx.fillText(`${this.sourceName} · ${num(a.totals.residents)} Einwohner (Schätzung)`, 16, 24);
+    if (!this.camera.isDefault) {
+      ctx.font = '500 11px ui-sans-serif, system-ui';
+      ctx.fillStyle = 'rgba(230, 237, 243, 0.5)';
+      ctx.fillText(`Zoom ${Math.round(this.camera.zoom * 100)} %`, 16, 42);
+    }
+  }
+
+  /** Mehrzeilige Beschriftung bei starkem Zoom: Titel + Kennzahlen. */
+  private detailFor(b: CityBuilding): { title: string; lines: string[] } | null {
+    const r = this.resByIndex.get(b.index);
+    if (r) {
+      const tier = r.tier === 'engineer' ? 'Ingenieur' : r.tier === 'investor' ? 'Investor' : 'Handwerker';
+      const lines = [`≈ ${r.residents} EW`];
+      if (r.tier !== 'artisan') lines.push(`Panorama ${r.panorama}`);
+      lines.push(r.townHall !== null ? 'im RH-Radius' : 'ohne Rathaus');
+      return { title: tier, lines };
+    }
+    const label = this.labelFor(b);
+    const s = this.analysis?.services.find((x) => x.building === b);
+    const lines: string[] = [];
+    if (s) lines.push(`Reichw. ${s.range}`, `${s.covers} Häuser`);
+    else if (b.entry.radius) lines.push(`Radius ${b.entry.radius}`);
+    return { title: label || b.entry.name, lines };
+  }
+
+  private drawDetail(
+    ctx: CanvasRenderingContext2D,
+    d: { title: string; lines: string[] },
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    scale: number,
+  ): void {
+    const size = Math.max(9, Math.min(14, scale * 0.75));
+    const small = Math.max(8, size - 2);
+    const rows = 1 + d.lines.length;
+    const lineH = small * 1.25;
+    const total = size * 1.25 + (rows - 1) * lineH;
+    const maxRows = Math.max(1, Math.floor((h - 4 - size * 1.25) / lineH) + 1);
+    let cy = y + h / 2 - Math.min(total, h - 4) / 2 + size * 0.65;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(8, 15, 22, 0.92)';
+    ctx.font = `700 ${size}px ui-sans-serif, system-ui`;
+    ctx.fillText(d.title, x + w / 2, cy, w - 4);
+    ctx.font = `600 ${small}px ui-sans-serif, system-ui`;
+    cy += size * 0.65 + lineH * 0.55;
+    for (const line of d.lines.slice(0, maxRows - 1)) {
+      ctx.fillText(line, x + w / 2, cy, w - 4);
+      cy += lineH;
+    }
+    ctx.restore();
   }
 
   /** Landfläche leicht hinterlegen und den Inselrand (Land/Wasser-Kante) als Linie ziehen. */
@@ -394,18 +564,23 @@ export class CityUi {
     scale: number,
     ox: number,
     oy: number,
+    vis: { x0: number; y0: number; x1: number; y1: number },
   ): void {
     const { w, h, data, dx, dy } = land;
+    const xa = Math.max(0, vis.x0 - dx);
+    const xb = Math.min(w, vis.x1 - dx);
+    const ya = Math.max(0, vis.y0 - dy);
+    const yb = Math.min(h, vis.y1 - dy);
     const isLand = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && data[y * w + x] === 1;
     ctx.fillStyle = '#132230';
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
+    for (let y = ya; y < yb; y++) {
+      for (let x = xa; x < xb; x++) {
         if (data[y * w + x]) ctx.fillRect(ox + (x + dx) * scale, oy + (y + dy) * scale, scale + 0.3, scale + 0.3);
       }
     }
     ctx.beginPath();
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
+    for (let y = ya; y < yb; y++) {
+      for (let x = xa; x < xb; x++) {
         if (!data[y * w + x]) continue;
         const px = ox + (x + dx) * scale;
         const py = oy + (y + dy) * scale;
@@ -538,39 +713,30 @@ export class CityUi {
   }
 
   /**
-   * Klick auf ein Wohnhaus: Ingenieure/Investoren der ganzen Gruppe tauschen.
-   * Umschalt+Klick: einzelnes Haus Ingenieur → Investor → automatisch.
+   * Klick wählt ein Gebäude an (Infofeld). Umschalt+Klick: einzelnes Haus
+   * Ingenieur → Investor → automatisch; Strg/⌘+Klick: ganze Gruppe tauschen.
    */
   private click(event: PointerEvent): void {
-    if (!this.isActive() || !this.city || !this.analysis) return;
+    if (event.button !== 0 || !this.isActive() || !this.city || !this.analysis) return;
     const { idx } = this.buildingAt(event);
-    if (idx < 0 || this.city.buildings[idx].entry.kind !== 'residence') return;
-    if (event.shiftKey) {
-      const current = this.edits.houses.get(idx);
-      if (current === undefined) this.edits.houses.set(idx, 'engineer');
-      else if (current === 'engineer') this.edits.houses.set(idx, 'investor');
-      else this.edits.houses.delete(idx);
+    const residence = idx >= 0 && this.city.buildings[idx].entry.kind === 'residence';
+    if (residence && event.shiftKey) {
+      this.cycleHouse(idx);
+      this.select(idx);
+    } else if (residence && (event.ctrlKey || event.metaKey)) {
+      this.flipGroup(idx);
+      this.select(idx);
     } else {
-      const group = this.analysis.groupOf.get(idx);
-      if (group === undefined) return;
-      const state = this.analysis.groupState.get(group) ?? 0;
-      this.edits.groups.set(group, state === 1 ? 0 : 1);
+      this.select(idx === this.selected ? -1 : idx);
     }
-    this.reanalyze();
     this.hover(event);
   }
 
-  private hover(event: PointerEvent): void {
-    if (!this.isActive() || !this.city || !this.analysis || !this.view) {
-      this.tip.hidden = true;
-      return;
-    }
+  /** Infozeilen (HTML) zu einem Gebäude – für Tooltip und Auswahlfeld. */
+  private describe(idx: number): string[] {
     const c = this.city;
-    const { idx, px, py } = this.buildingAt(event);
-    if (idx < 0) {
-      this.tip.hidden = true;
-      return;
-    }
+    const a = this.analysis;
+    if (!c || !a) return [];
     const b = c.buildings[idx];
     const lines = [`<strong>${escapeHtml(b.entry.name)}</strong> · ${b.w}×${b.h}`];
     const r = this.resByIndex.get(idx);
@@ -586,7 +752,7 @@ export class CityUi {
           `<span class="muted">Stufe ${this.rules.skyscraperLevel} · kleinere +${p.lower} · gleich hohe ${p.sameOrHigher} · Variety +${p.variety}</span>`,
         );
       }
-      const group = this.analysis.groupOf.get(idx);
+      const group = a.groupOf.get(idx);
       if (this.edits.houses.has(idx)) lines.push('<span class="muted">Haus manuell festgelegt</span>');
       else if (group !== undefined && this.edits.groups.has(group)) {
         lines.push('<span class="muted">Gruppe manuell ausgerichtet</span>');
@@ -602,7 +768,7 @@ export class CityUi {
       lines.push(`Rathaus: ${r.townHall !== null ? 'ja' : 'nein'} · Post: ${r.post !== null ? 'ja' : 'nein'}`);
     }
     if (!r && this.nonSky.has(idx)) lines.push('ohne Schicht im Stempel');
-    const s = this.analysis.services.find((x) => x.building === b);
+    const s = a.services.find((x) => x.building === b);
     if (s) {
       const bonus = s.range - s.baseRange;
       lines.push(`Reichweite ${s.range}${bonus ? ` (${s.baseRange} + ${bonus})` : ''} · versorgt ${s.covers} Häuser`);
@@ -610,9 +776,23 @@ export class CityUi {
       if (s.warehouseInRange !== null) lines.push(`Lager in Reichweite: ${s.warehouseInRange ? 'ja' : 'nein'}`);
     }
     if (b.entry.radius) lines.push(`Radius ${b.entry.radius}`);
-    const hits = this.analysis.tradeUnionHits.get(idx);
+    const hits = a.tradeUnionHits.get(idx);
     if (hits) lines.push(hits >= 2 ? `Geclippt: ${hits} Handelskammern` : '1 Handelskammer wirkt');
     lines.push(`<span class="muted">GUID ${b.guid}</span>`);
+    return lines;
+  }
+
+  private hover(event: PointerEvent): void {
+    if (!this.isActive() || !this.city || !this.analysis || !this.view) {
+      this.tip.hidden = true;
+      return;
+    }
+    const { idx, px, py } = this.buildingAt(event);
+    if (idx < 0 || idx === this.selected) {
+      this.tip.hidden = true;
+      return;
+    }
+    const lines = this.describe(idx);
     this.tip.innerHTML = lines.join('<br>');
     this.tip.hidden = false;
     const stageRect = this.canvas.parentElement?.getBoundingClientRect();

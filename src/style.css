@@ -709,3 +709,112 @@ button.ghost:disabled {
 [hidden] {
   display: none !important;
 }
+
+/* Abstand zwischen Einstellungen und Hauptknopf */
+.select-row + button.primary,
+.check-row + button.primary {
+  margin-top: 14px;
+}
+
+/* Zoom-Steuerung unten rechts in der Zeichenfläche */
+.zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zoom-controls button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(6, 15, 22, 0.9);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.zoom-controls button:hover {
+  border-color: var(--gold);
+}
+
+.zoom-hint {
+  order: -1;
+  margin-right: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(6, 15, 22, 0.75);
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+
+/* Infofeld zum angewählten Gebäude */
+.city-select {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  z-index: 4;
+  width: 270px;
+  max-height: calc(100% - 120px);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: rgba(6, 15, 22, 0.96);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.city-select .muted {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.city-select .close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.city-select .close:hover {
+  color: var(--text);
+}
+
+.city-select .lines {
+  padding-right: 14px;
+}
+
+.city-select .actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.city-select .actions button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.city-select .actions button:hover {
+  border-color: var(--gold);
+}

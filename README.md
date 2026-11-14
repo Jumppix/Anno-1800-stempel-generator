@@ -120,6 +120,14 @@ ohne Ränder und Rathäuser: 2.253 Häuser.
 Export: Bauernhäuser, Pflasterstraßen, Rathäuser, optional Feldweg auf freien
 Randkacheln; ein Stempel oder Teile bis 13.500 Kacheln; Bauplan als Bild.
 
+**Ansicht bedienen** (alle Ansichten): Mausrad zoomt um den Mauszeiger,
+rechte (oder mittlere) Maustaste gedrückt halten verschiebt das Bild, Knöpfe
+unten rechts: +, −, ganze Insel. In „Plan / Analyse“ stehen ab etwa 4× Zoom
+Schicht, Einwohner, Panorama und Rathaus-Abdeckung auf jedem Haus. Klick wählt
+ein Gebäude an (Infofeld rechts oben mit allen Werten, bei Häusern Knöpfe zum
+Tauschen von Ingenieuren/Investoren; Radius des Gebäudes wird eingezeichnet);
+Strg+Klick tauscht die Gruppe, Umschalt+Klick ein einzelnes Haus.
+
 **Stadt-Stempel analysieren** (Phase 1):
 
 1. Einen Ausschnitt der fertigen Stadt im Spiel als Stempel speichern und unter

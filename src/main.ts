@@ -18,6 +18,7 @@ import {
   type IslandPart,
 } from './island';
 import { render } from './render';
+import { Camera } from './camera';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
 
 function el<T extends HTMLElement>(selector: string): T {
@@ -84,6 +85,11 @@ const currentAppMode = (): 'admin' | 'city' => mode;
 // Wird weiter unten erzeugt; update() kann vorher schon laufen.
 let plannerUi: PlannerUi | null = null;
 let placementView: PlacementView | null = null;
+// Zoom/Verschiebung je Ansicht (Plan/Analyse hat eine eigene in CityUi).
+const arrangeCamera = new Camera();
+// CityUi wird weiter unten erzeugt; drawStage() kann vorher schon laufen.
+let cityUiReady = false;
+const resultCamera = new Camera();
 
 // Hintergrund-Optimierung
 let solving = false;
@@ -302,6 +308,7 @@ function setView(next: 'arrange' | 'result'): void {
 
 function drawStage(): void {
   legendCity.hidden = !(mode === 'city' && view === 'result');
+  if (cityUiReady) cityUi.setShown(mode === 'city' && view === 'result');
   if (mode === 'city' && view === 'result') {
     stageHint.hidden = true;
     placementView = null;
@@ -319,13 +326,20 @@ function drawStage(): void {
 
   stageHint.hidden = true;
   if (view === 'arrange') {
-    placementView = renderPlacement(canvas, parts, combined, selectedId);
+    placementView = renderPlacement(canvas, parts, combined, selectedId, arrangeCamera);
     canvas.style.cursor = 'grab';
   } else {
     placementView = null;
     canvas.style.cursor = 'default';
-    render(canvas, layout, chunks, combined);
+    render(canvas, layout, chunks, combined, resultCamera);
   }
+}
+
+/** Kamera der gerade sichtbaren Ansicht (null = nichts zum Zoomen). */
+function activeCamera(): Camera | null {
+  if (mode === 'city' && view === 'result') return cityUi.camera;
+  if (!combined || parts.length === 0) return null;
+  return view === 'arrange' ? arrangeCamera : resultCamera;
 }
 
 function fieldPathGuid(): number {
@@ -638,6 +652,7 @@ zipButton.addEventListener('click', () => {
 });
 
 canvas.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || pan) return;
   if (view !== 'arrange' || !placementView || !combined) return;
   const rect = canvas.getBoundingClientRect();
   const px = event.clientX - rect.left;
@@ -695,6 +710,62 @@ function endDrag(): void {
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
+// Ansicht verschieben: rechte (oder mittlere) Maustaste gedrückt halten – wie
+// auf einem Whiteboard. Zoomen mit dem Mausrad um den Mauszeiger.
+let pan: { camera: Camera; x: number; y: number; panX: number; panY: number; id: number } | null = null;
+canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+canvas.addEventListener('pointerdown', (event) => {
+  if (event.button !== 2 && event.button !== 1) return;
+  const camera = activeCamera();
+  if (!camera) return;
+  pan = { camera, x: event.clientX, y: event.clientY, panX: camera.panX, panY: camera.panY, id: event.pointerId };
+  canvas.setPointerCapture(event.pointerId);
+  canvas.style.cursor = 'grabbing';
+  cityUi.hideTip();
+  event.preventDefault();
+});
+canvas.addEventListener('pointermove', (event) => {
+  if (!pan || event.pointerId !== pan.id) return;
+  pan.camera.panX = pan.panX + event.clientX - pan.x;
+  pan.camera.panY = pan.panY + event.clientY - pan.y;
+  cityUi.hideTip();
+  drawStage();
+});
+const endPan = (event: PointerEvent): void => {
+  if (!pan || event.pointerId !== pan.id) return;
+  pan = null;
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  drawStage();
+};
+canvas.addEventListener('pointerup', endPan);
+canvas.addEventListener('pointercancel', endPan);
+canvas.addEventListener(
+  'wheel',
+  (event) => {
+    const camera = activeCamera();
+    if (!camera) return;
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const delta = event.deltaMode === 1 ? event.deltaY * 33 : event.deltaMode === 2 ? event.deltaY * 400 : event.deltaY;
+    camera.zoomAt(event.clientX - rect.left, event.clientY - rect.top, Math.exp(-delta * 0.0015));
+    cityUi.hideTip();
+    drawStage();
+  },
+  { passive: false },
+);
+const zoomCenter = (factor: number): void => {
+  const camera = activeCamera();
+  if (!camera) return;
+  camera.zoomAt(canvas.clientWidth / 2, canvas.clientHeight / 2, factor);
+  drawStage();
+};
+el<HTMLButtonElement>('#zoom-in').addEventListener('click', () => zoomCenter(1.4));
+el<HTMLButtonElement>('#zoom-out').addEventListener('click', () => zoomCenter(1 / 1.4));
+el<HTMLButtonElement>('#zoom-fit').addEventListener('click', () => {
+  activeCamera()?.reset();
+  drawStage();
+});
+
 tabArrange.addEventListener('click', () => setView('arrange'));
 tabResult.addEventListener('click', () => setView('result'));
 regionEl.addEventListener('change', rebuildOutputs);
@@ -710,6 +781,7 @@ const cityUi = new CityUi(
     if (mode === 'city') setView('result');
   },
 );
+cityUiReady = true;
 plannerUi = new PlannerUi(cityUi, () =>
   combined
     ? {

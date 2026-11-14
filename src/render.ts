@@ -1,4 +1,5 @@
 import { BUILDINGS } from './buildings';
+import type { Camera } from './camera';
 import type { Chunk, LandMask, Layout } from './solver';
 
 const COLORS = [
@@ -74,6 +75,7 @@ export function render(
   layout: Layout,
   chunks: Chunk[],
   mask?: LandMask,
+  camera?: Camera,
 ): void {
   const parent = canvas.parentElement;
   if (!parent) return;
@@ -101,9 +103,9 @@ export function render(
   ctx.fillRect(0, 0, cw, ch);
 
   const pad = 34;
-  const scale = Math.min((cw - pad * 2) / layout.w, (ch - pad * 2) / layout.h);
-  const ox = (cw - layout.w * scale) / 2;
-  const oy = (ch - layout.h * scale) / 2;
+  const baseScale = Math.min((cw - pad * 2) / layout.w, (ch - pad * 2) / layout.h);
+  const base = { scale: baseScale, ox: (cw - layout.w * baseScale) / 2, oy: (ch - layout.h * baseScale) / 2 };
+  const { scale, ox, oy } = camera ? camera.apply(base, cw, ch) : base;
 
   if (mask) {
     const off = document.createElement('canvas');
