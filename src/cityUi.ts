@@ -76,6 +76,8 @@ export class CityUi {
   private view: View | null = null;
   private resByIndex = new Map<number, ResidenceInfo>();
   private sourceName = '';
+  /** Landfläche der geplanten Insel (Kachelachsen der Stadt), nur beim Plan. */
+  private land: { w: number; h: number; data: Uint8Array; dx: number; dy: number } | null = null;
 
   private readonly fileInput = el<HTMLInputElement>('#city-file');
   private readonly info = el<HTMLElement>('#city-info');
@@ -194,9 +196,19 @@ export class CityUi {
     this.ruleInfo.textContent = parts.join(' · ');
   }
 
-  /** Einen erzeugten Stempel (z. B. Plan) anzeigen und analysieren. */
-  show(bytes: Uint8Array, name: string): void {
+  /**
+   * Einen erzeugten Stempel (z. B. Plan) anzeigen und analysieren. `land` ist
+   * die Inselmaske mit Verschiebung Maske → Stadtkachel; dann werden Landfläche
+   * und Inselrand mitgezeichnet.
+   */
+  show(
+    bytes: Uint8Array,
+    name: string,
+    land?: { w: number; h: number; data: Uint8Array; dx: number; dy: number },
+  ): void {
     this.load(bytes, name);
+    this.land = land ?? null;
+    this.draw();
   }
 
   setLayer(layer: Layer): void {
@@ -215,6 +227,7 @@ export class CityUi {
   }
 
   private load(bytes: Uint8Array, name: string): void {
+    this.land = null;
     try {
       this.city = cityFromStamp(decodeStampFull(bytes));
       this.sourceName = name;
@@ -312,6 +325,8 @@ export class CityUi {
     const oy = (ch - c.h * scale) / 2;
     this.view = { scale, ox, oy };
 
+    if (this.land) this.drawLand(ctx, this.land, scale, ox, oy);
+
     // Straßen; bei Versorgungs-/Ministeriumsebene erreichte Straßen hervorheben.
     const reached = this.reachedRoads(c, a);
     for (let i = 0; i < c.road.length; i++) {
@@ -370,6 +385,51 @@ export class CityUi {
     ctx.font = '600 13px ui-sans-serif, system-ui';
     ctx.fillStyle = 'rgba(230, 237, 243, 0.72)';
     ctx.fillText(`${this.sourceName} · ${num(a.totals.residents)} Einwohner (Schätzung)`, 16, 24);
+  }
+
+  /** Landfläche leicht hinterlegen und den Inselrand (Land/Wasser-Kante) als Linie ziehen. */
+  private drawLand(
+    ctx: CanvasRenderingContext2D,
+    land: { w: number; h: number; data: Uint8Array; dx: number; dy: number },
+    scale: number,
+    ox: number,
+    oy: number,
+  ): void {
+    const { w, h, data, dx, dy } = land;
+    const isLand = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && data[y * w + x] === 1;
+    ctx.fillStyle = '#132230';
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (data[y * w + x]) ctx.fillRect(ox + (x + dx) * scale, oy + (y + dy) * scale, scale + 0.3, scale + 0.3);
+      }
+    }
+    ctx.beginPath();
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!data[y * w + x]) continue;
+        const px = ox + (x + dx) * scale;
+        const py = oy + (y + dy) * scale;
+        if (!isLand(x, y - 1)) {
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + scale, py);
+        }
+        if (!isLand(x, y + 1)) {
+          ctx.moveTo(px, py + scale);
+          ctx.lineTo(px + scale, py + scale);
+        }
+        if (!isLand(x - 1, y)) {
+          ctx.moveTo(px, py);
+          ctx.lineTo(px, py + scale);
+        }
+        if (!isLand(x + 1, y)) {
+          ctx.moveTo(px + scale, py);
+          ctx.lineTo(px + scale, py + scale);
+        }
+      }
+    }
+    ctx.strokeStyle = 'rgba(214, 186, 120, 0.95)';
+    ctx.lineWidth = Math.max(1.2, Math.min(2.5, scale * 0.35));
+    ctx.stroke();
   }
 
   private reachedRoads(c: City, a: Analysis): Uint8Array | null {

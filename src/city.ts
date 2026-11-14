@@ -34,7 +34,9 @@ export interface City {
   conflicts: number;
 }
 
-const PAD = 2;
+/** Leerer Rand um das Stadtmodell (Kacheln). */
+export const CITY_PAD = 2;
+const PAD = CITY_PAD;
 
 /** Baut das Stadtmodell aus einem vollständig gelesenen Stempel. */
 export function cityFromStamp(stamp: DecodedStamp): City {

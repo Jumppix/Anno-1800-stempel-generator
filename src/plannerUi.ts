@@ -2,6 +2,7 @@
 // Inselform (in beiden Modi dieselbe), plant Raster + Rathäuser und zeigt das Ergebnis
 // in der Stadt-Ansicht (CityUi) mit allen Analyse-Ebenen.
 
+import { CITY_PAD } from './city';
 import type { CityUi } from './cityUi';
 import type { FillResult } from './fill';
 import {
@@ -233,7 +234,18 @@ export class PlannerUi {
     const full = buildGenericStamp(items.buildings, 'ow', items.streets);
     const bands = splitBands(items, this.split.checked ? 13500 : Infinity);
     this.stamps = bands.map((b) => buildGenericStamp(b.buildings, 'ow', b.streets));
-    this.cityUi.show(full, 'Wohnraster-Plan');
+    // Maske → Stadtkachel: das Stadtmodell beginnt CITY_PAD Kacheln vor dem kleinsten Element.
+    const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((st) => st.x)];
+    const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y)];
+    const minX = xs.reduce((m, v) => Math.min(m, v), Infinity);
+    const minY = ys.reduce((m, v) => Math.min(m, v), Infinity);
+    this.cityUi.show(full, 'Wohnraster-Plan', {
+      w: mask.w,
+      h: mask.h,
+      data: mask.data,
+      dx: CITY_PAD - minX,
+      dy: CITY_PAD - minY,
+    });
     this.stampList.innerHTML = this.stamps
       .map((_, i) => {
         const b = bands[i];
