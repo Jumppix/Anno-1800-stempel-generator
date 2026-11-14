@@ -22,6 +22,8 @@ export const FREE = 1;
 export const ROAD = 2;
 export const HOUSE = 3;
 export const BLOCKED = 4;
+/** Versorgungsgebäude (wie BLOCKED, braucht aber Straßenanschluss). */
+export const SERVICE = 5;
 
 export interface FillHouse {
   x: number;
@@ -33,7 +35,7 @@ export interface FillHouse {
 export interface FillState {
   w: number;
   h: number;
-  /** Je Kachel: 0 Wasser, 1 frei, 2 Straße, 3 Haus, 4 belegt (anderes Gebäude). */
+  /** Je Kachel: 0 Wasser, 1 frei, 2 Straße, 3 Haus, 4 belegt (Rathaus), 5 Versorgungsgebäude. */
   cell: Uint8Array;
   houses: FillHouse[];
 }
@@ -215,11 +217,12 @@ export function pruneRoads(s: FillState): number {
   const nearHouse = (i: number): boolean => {
     const x = i % w;
     const y = (i - x) / w;
+    const needs = (v: number): boolean => v === HOUSE || v === SERVICE;
     return (
-      (x > 0 && cell[i - 1] === HOUSE) ||
-      (x < w - 1 && cell[i + 1] === HOUSE) ||
-      (y > 0 && cell[i - w] === HOUSE) ||
-      (y < h - 1 && cell[i + w] === HOUSE)
+      (x > 0 && needs(cell[i - 1])) ||
+      (x < w - 1 && needs(cell[i + 1])) ||
+      (y > 0 && needs(cell[i - w])) ||
+      (y < h - 1 && needs(cell[i + w]))
     );
   };
   const degree = (i: number): number => {

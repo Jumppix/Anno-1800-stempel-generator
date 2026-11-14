@@ -113,8 +113,20 @@ Insel wird bebaut (`src/fill.ts`):
    auf Querstraßen. Übernommen wird nur, was Häuser × 225 + Häuser im
    Rathausradius × 31 erhöht.
 
+7. Versorgung (`src/services.ts`, Phase 3): Kaufhaus, Einrichtungshaus,
+   Drogerie, Universität und Gaskraftwerk (je abwählbar) ersetzen Häuser.
+   Je Art gewichtet gierig + lokale Suche (überflüssige entfernen, verlegen):
+   Gewinn = Wert der neu versorgten Häuser − Wert der verdrängten Häuser.
+   Ziel „Vollversorgung“ (Standard) wertet jedes versorgte Haus mit ≥ 30,
+   „Max. Einwohner“ nur mit dem Einwohnerverlust laut Wiki. Gebäude dürfen
+   auf Querstraßen stehen, wenn Netz und Anschlüsse erhalten bleiben. Danach
+   Lagerhäuser, sodass jedes Gebäude mit Lagerbedarf eines in Reichweite hat;
+   dann Lücken füllen und Nachverdichtung. Ministerium/Wohlfahrt folgt in
+   Phase 4 (bis dahin Grundreichweiten).
+
 Insel 2 (189 × 290): ≈ 2.110 Häuser ohne bzw. ≈ 2.055 mit 25 Rathäusern
-(vorher 2.010), geschätzte Einwohner 390.400 → 398.300 (+2 %); Rest ≈ 6 %,
+(vorher 2.010), geschätzte Einwohner 390.400 → 398.300 (+2 %); mit
+Vollversorgung (≈ 8 je Art, 7 Lagerhäuser, ≈ 1.880 Häuser) ≈ 459.000; Rest ≈ 6 %,
 fast nur 1–2 Kacheln breite Küstenränder. Theoretisches Ideal des 8er-Rasters
 ohne Ränder und Rathäuser: 2.253 Häuser.
 Export: Bauernhäuser, Pflasterstraßen, Rathäuser, optional Feldweg auf freien

@@ -20,6 +20,10 @@ import type { LandMask } from './solver';
 import { SolveRunner } from './solveRunner';
 import { buildGenericStamp } from './stamp';
 import type { PlannerJob, PlannerMessage } from './planner.worker';
+import type { BuildingKind } from './catalog';
+import type { ServiceReport } from './services';
+
+const SERVICE_KINDS_UI: BuildingKind[] = ['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'];
 
 export interface IslandSource {
   mask: LandMask;
@@ -53,6 +57,7 @@ export class PlannerUi {
   private readonly minCover = el<HTMLInputElement>('#plan-mincover');
   private readonly budget = el<HTMLSelectElement>('#plan-budget');
   private readonly compactBudget = el<HTMLSelectElement>('#plan-compact');
+  private readonly svcGoal = el<HTMLSelectElement>('#svc-goal');
   private readonly coast = el<HTMLInputElement>('#plan-coast');
   private readonly runButton = el<HTMLButtonElement>('#plan-run');
   private readonly status = el<HTMLElement>('#plan-status');
@@ -130,9 +135,16 @@ export class PlannerUi {
 
     const finished = finishPlan(plan, townHalls, Math.max(0, Number(this.minCover.value) || 0));
     const refilled = refillAroundTownHalls(src.mask, finished);
+    const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
+    let serviced: { city: CityPlan; report: ServiceReport; refilled: number } | null = null;
+    if (kinds.length) {
+      this.status.textContent = 'Versorgung wird geplant (Kaufhaus, Einrichtungshaus, Drogerie, Universität, Kraftwerk, Lagerhäuser) …';
+      serviced = await this.services(src.mask, refilled, kinds, Number(this.svcGoal.value) || 0);
+    }
+    const beforeCompact = serviced?.city ?? refilled;
     const compactMs = Number(this.compactBudget.value) || 0;
-    const compacted = compactMs > 0 ? await this.compact(src.mask, refilled, compactMs, started) : null;
-    const city = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : refilled;
+    const compacted = compactMs > 0 ? await this.compact(src.mask, beforeCompact, compactMs, started) : null;
+    const city = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : beforeCompact;
     this.result = { city, mask: src.mask, streetGuid: src.streetGuid };
     this.buildStamps();
     const secs = ((performance.now() - started) / 1000).toFixed(1);
@@ -146,6 +158,20 @@ export class PlannerUi {
     if (refilled.removedHouses) {
       parts.push(`${refilled.removedHouses} Häuser unter Rathäusern entfernt, ${refilled.refilled} drumherum neu gesetzt`);
     }
+    if (serviced) {
+      const r = serviced.report;
+      const names: Record<string, string> = {
+        departmentStore: 'Kaufhaus',
+        furnitureStore: 'Einrichtungsh.',
+        drugStore: 'Drogerie',
+        university: 'Universität',
+        powerPlant: 'Kraftwerk',
+      };
+      const list = kinds
+        .map((k) => `${r.placed[k] ?? 0}× ${names[k]} (${Math.round((r.coverage[k] ?? 0) * 100)} %)`)
+        .join(', ');
+      parts.push(`Versorgung: ${list}, ${r.warehouses}× Lagerhaus – ${r.removedHouses} Häuser ersetzt, ${serviced.refilled} neu gesetzt`);
+    }
     if (compacted) {
       parts.push(
         `Nachverdichtung ${compacted.gained >= 0 ? '+' : ''}${compacted.gained} Häuser${
@@ -155,7 +181,13 @@ export class PlannerUi {
     }
     if (city.droppedTownHalls) parts.push(`${city.droppedTownHalls} Rathaus/-häuser mit zu wenig Häusern verworfen`);
     parts.push(`${num(free)} freie Restkacheln (${((100 * free) / src.mask.landCount).toFixed(1)} %, meist schmale Ränder)`);
-    if (city.plan.networks > 1) parts.push(`${city.plan.networks} getrennte Straßennetze (Inselteile)`);
+    if (city.plan.networks > 1) {
+      parts.push(
+        `${city.plan.networks} getrennte Straßennetze (Inselteile)${
+          serviced ? ' – jedes Teil wird eigens versorgt; Lagerhäuser dort brauchen eine eigene Anlegestelle/Kontor' : ''
+        }`,
+      );
+    }
     this.status.textContent = `Fertig nach ${secs} s · ${parts.join(' · ')}.`;
     this.running = false;
     this.refreshIsland();
@@ -166,6 +198,25 @@ export class PlannerUi {
       this.workers.push(new Worker(new URL('./planner.worker.ts', import.meta.url), { type: 'module' }));
     }
     return this.workers[i];
+  }
+
+  /** Versorgungsgebäude + Lagerhäuser im Hintergrund (services.ts). */
+  private services(
+    mask: LandMask,
+    city: CityPlan,
+    kinds: BuildingKind[],
+    fullCoverageValue: number,
+  ): Promise<{ city: CityPlan; report: ServiceReport; refilled: number }> {
+    const id = ++this.jobId;
+    const worker = this.worker(0);
+    return new Promise((resolve) => {
+      worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
+        const msg = event.data;
+        if (msg.id === id && msg.kind === 'services') resolve({ city: msg.city, report: msg.report, refilled: msg.refilled });
+      };
+      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue };
+      worker.postMessage(job);
+    });
   }
 
   /** Gittersuche (mit Bandverschiebung) im Hintergrund. */
@@ -249,9 +300,12 @@ export class PlannerUi {
     this.stampList.innerHTML = this.stamps
       .map((_, i) => {
         const b = bands[i];
-        const houses = b.buildings.filter((x) => x.w === 3).length;
-        const halls = b.buildings.filter((x) => x.w === 4).length;
-        return `<div class="stamp-row"><div><strong>T${i + 1}</strong><span>${num(houses)} Häuser · ${halls} RH</span></div>
+        const houses = b.buildings.filter((x) => x.guid === 1010343).length;
+        const halls = b.buildings.filter((x) => x.guid === 100415).length;
+        const other = b.buildings.length - houses - halls;
+        return `<div class="stamp-row"><div><strong>T${i + 1}</strong><span>${num(houses)} Häuser · ${halls} RH${
+          other ? ` · ${other} weitere` : ''
+        }</span></div>
           <button type="button" data-i="${i}">↓ Stempel</button></div>`;
       })
       .join('');

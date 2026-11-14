@@ -11,8 +11,9 @@
 
 import { outerBoundary } from './coast';
 import { FARMER_HOUSE, STREET_GUIDS } from './catalog';
-import { BLOCKED, extendRoads, FREE, greedyFill, HOUSE, ROAD, WATER, type FillResult, type FillState } from './fill';
+import { BLOCKED, extendRoads, FREE, greedyFill, HOUSE, ROAD, SERVICE, WATER, type FillResult, type FillState } from './fill';
 import { compact, type CompactOptions, type CompactResult } from './compact';
+import { placeServices, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
 import type { LandMask, OverlapPenalty } from './solver';
 import type { StampBuilding, StampStreet } from './stamp';
 
@@ -289,6 +290,8 @@ export interface CityPlan {
   houses: PlannedHouse[];
   removedHouses: number;
   droppedTownHalls: number;
+  /** Versorgungsgebäude und Lagerhäuser (Phase 3). */
+  services?: PlacedService[];
 }
 
 /**
@@ -375,6 +378,10 @@ export function planToStampItems(
   for (const t of city.townHalls) {
     buildings.push({ guid: 100415, x: t.x, y: t.y, w: 4, h: 4, turns: 0 });
     mark(t.x, t.y, 4, 4);
+  }
+  for (const sv of city.services ?? []) {
+    buildings.push({ guid: sv.guid, x: sv.x, y: sv.y, w: sv.w, h: sv.h, turns: sv.turns });
+    mark(sv.x, sv.y, sv.w, sv.h);
   }
   const streets: StampStreet[] = [];
   for (let i = 0; i < city.plan.roads.length; i++) {
@@ -480,6 +487,9 @@ export function freeTiles(mask: LandMask, city: CityPlan): number {
   };
   for (const hs of city.houses) mark(hs.x, hs.y, 3);
   for (const t of city.townHalls) mark(t.x, t.y, 4);
+  for (const sv of city.services ?? []) {
+    for (let dy = 0; dy < sv.h; dy++) for (let dx = 0; dx < sv.w; dx++) used[(sv.y + dy) * mask.w + sv.x + dx] = 1;
+  }
   let free = 0;
   for (let i = 0; i < used.length; i++) if (mask.data[i] && !used[i]) free++;
   return free;
@@ -495,6 +505,9 @@ function cityToState(mask: LandMask, city: CityPlan): FillState {
   }
   for (const t of city.townHalls) {
     for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) cell[(t.y + dy) * w + t.x + dx] = BLOCKED;
+  }
+  for (const sv of city.services ?? []) {
+    for (let dy = 0; dy < sv.h; dy++) for (let dx = 0; dx < sv.w; dx++) cell[(sv.y + dy) * w + sv.x + dx] = SERVICE;
   }
   return s;
 }
@@ -539,4 +552,22 @@ export function compactCity(
   const townHalls = city.townHalls.map((t) => ({ x: t.x, y: t.y }));
   const result = compact(s, townHalls, options);
   return { city: stateToCity(s, city, townHalls), result };
+}
+
+/**
+ * Phase 3: Versorgungsgebäude und Lagerhäuser setzen (services.ts), danach
+ * die Lücken wieder mit Häusern füllen.
+ */
+export function planServices(
+  mask: LandMask,
+  city: CityPlan,
+  options: ServiceOptions,
+): { city: CityPlan; report: ServiceReport; refilled: number } {
+  const s = cityToState(mask, city);
+  const { services, report } = placeServices(s, city.townHalls, options);
+  const before = s.houses.length;
+  greedyFill(s);
+  extendRoads(s);
+  const next = stateToCity(s, city, [...city.townHalls]);
+  return { city: { ...next, services: [...(city.services ?? []), ...services] }, report, refilled: s.houses.length - before };
 }

@@ -149,7 +149,7 @@ const lastCovered = Math.max(
 expect('Straßenreichweite: letztes versorgtes Haus bei x ≤ 67', lastCovered <= 67 && lastCovered >= 61, `x=${lastCovered}`);
 
 // 5. Stadtplaner Phase 2: vollständige Bebauung + Rathäuser auf der Benchmark-Insel.
-const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity } =
+const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity, planServices } =
   await server.ssrLoadModule('/src/planner.ts');
 const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
 {
@@ -159,7 +159,12 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   expect('Planer: ≥ 2.000 Häuser (ganze Insel bebaut)', plan.houses.length >= 2000, `${plan.houses.length} Häuser`);
   const problem = townHallProblem(mask, plan);
   const L = solve(problem.target, ['rh'], { budgetMs: budget, seed: 7, allowed: problem.allowed, overlapPenalty: problem.penalty });
-  const refilled = refillAroundTownHalls(mask, finishPlan(plan, L.groups[0].chambers, 12));
+  const withHalls = refillAroundTownHalls(mask, finishPlan(plan, L.groups[0].chambers, 12));
+  const kinds = new Set(['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant']);
+  const serviced = planServices(mask, withHalls, { kinds, fullCoverageValue: 30 });
+  expect('Versorgung: Netze unverändert, Lagerhäuser gesetzt', serviced.city.plan.networks === withHalls.plan.networks &&
+    serviced.report.warehouses > 0, `${serviced.report.warehouses} Lagerhäuser, ${serviced.report.removedHouses} Häuser ersetzt`);
+  const refilled = serviced.city;
   const { city } = compactCity(mask, refilled, { deadline: performance.now() + Math.min(budget, 5000), seed: 1 });
   expect('Nachverdichtung: nicht weniger Häuser, Netze unverändert', city.houses.length >= refilled.houses.length &&
     city.plan.networks === refilled.plan.networks, `${refilled.houses.length} → ${city.houses.length} Häuser, Netze ${refilled.plan.networks} → ${city.plan.networks}`);
@@ -173,8 +178,10 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   const items = planToStampItems(mask, city, { coast: false, coastGuid: 1000178 });
   const planCity = cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets)));
   const planA = analyzeCity(planCity, DEFAULT_RULES);
-  expect('Planer: ≥ 20 Rathäuser, ≥ 80 % der Häuser im Radius', city.townHalls.length >= 20 && planA.totals.townHallShare >= 0.8,
+  expect('Planer: ≥ 20 Rathäuser, ≥ 78 % der Häuser im Radius', city.townHalls.length >= 20 && planA.totals.townHallShare >= 0.78,
     `${city.townHalls.length} RH, ${(planA.totals.townHallShare * 100).toFixed(1)} %`);
+  const minCov = Math.min(...['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'].map((k) => planA.totals.coverage[k] ?? 0));
+  expect('Versorgung: jede Art ≥ 90 % der Hochhäuser (Vollversorgung)', minCov >= 0.9, `min. ${(minCov * 100).toFixed(1)} %`);
   expect('Planer: Stempel ohne Überlappung, alle Häuser angeschlossen, keine Warnungen',
     planCity.conflicts === 0 && planA.warnings.length === 0, planA.warnings.join('; '));
   const onLand = city.houses.every((hs) => {

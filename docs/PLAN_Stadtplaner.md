@@ -471,7 +471,34 @@ Insel 2 (Einwohner laut Analyse, gleiche Regeln): 390.444 → 392.992
 1–2 Kacheln breiten Küstenrändern; im ganzen Rest passen ohne Straßenpflicht
 nur noch ≈ 8 Häuser. Ideal des 8er-Rasters ohne Ränder/Rathäuser: 2.253.
 
-## 18. Noch offene Fragen
+## 18. Phase 3 umgesetzt: Versorgung
+
+`src/services.ts` setzt Kaufhaus, Einrichtungshaus, Drogerie, Universität und
+Gaskraftwerk in den fertigen Wohnplan (nach Rathäusern, vor der
+Nachverdichtung) und danach Lagerhäuser:
+- Kandidaten: alle Plätze (beide Drehungen) auf Land ohne Rathaus/anderes
+  Gebäude mit Straßenanschluss; Häuser dürfen weichen, Straßen nur als
+  Querstraßen-Stück (Netz bleibt zusammenhängend, alle Häuser/Gebäude
+  angeschlossen). Je 4×4-Feld die zwei günstigsten Plätze.
+- Abdeckung je Kandidat per Breitensuche über Straßen (wie die Analyse).
+- Je Art: gierig nach Gewinn = Σ Wert neu versorgter Häuser − Σ Wert
+  verdrängter Häuser (225, im Rathausradius +31), dann lokale Suche
+  (überflüssige Gebäude entfernen, jedes Gebäude probeweise verlegen).
+  Werte je Haus: Kaufhaus 22,5 (+5 Item), Einrichtungshaus 10 (+5), Strom 5,
+  Universität 3 (+1), Drogerie 2,5 (+2,5); „Vollversorgung“ hebt jeden Wert
+  auf mindestens 30.
+- Lagerhäuser: gierige Überdeckung, bis jedes Gebäude mit Lagerbedarf eines in
+  seiner Straßenreichweite hat.
+Insel 2: Vollversorgung ≈ 8 Kaufhäuser, 8 Einrichtungshäuser, 8–9 Drogerien,
+8 Universitäten, 10 Kraftwerke, 7 Lagerhäuser; ≈ 175 Häuser ersetzt; alle
+Arten 91–99 %; Einwohner-Schätzung 395.000 → 459.000. „Max. Einwohner“:
+≈ 470.000, dabei Drogerie/Universität nur ≈ 55–70 %.
+Die Insel hat 4 getrennte Straßennetze (Flussarme); jedes Teil wird eigens
+versorgt – dort braucht ein Lagerhaus eine eigene Anlegestelle/Kontor.
+Offen für Phase 4: Regionalministerium (Wohlfahrt +15…+90, Stadtweites Netz
++22 für Kraftwerke) reduziert die Anzahl; Handwerker-Arbeitskraft (Pendler).
+
+## 19. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

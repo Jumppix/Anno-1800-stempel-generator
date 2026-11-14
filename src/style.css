@@ -818,3 +818,27 @@ button.ghost:disabled {
 .city-select .actions button:hover {
   border-color: var(--gold);
 }
+
+/* Unterblock in einer Karte (z. B. Versorgung im Planer) */
+.sub-block {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.sub-title {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.check-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 8px;
+}
+
+.sub-block + button.primary {
+  margin-top: 14px;
+}

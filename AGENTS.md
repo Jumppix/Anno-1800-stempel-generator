@@ -66,8 +66,10 @@ unnötig verändern.
   Insel mit je Band verschobenen Längsstraßen, gieriges Füllen, Straßenverlängerung, Gittersuche),
   `src/planner.ts` (Plan, Rathaus-Problem über `solve(..., { allowed, overlapPenalty })`,
   Rathäuser auf Querstraßen `crossRoadTiles`, `compactCity`), `src/compact.ts` (Nachverdichtung:
-  Fenster räumen/neu belegen, Rathäuser verschieben), `src/planner.worker.ts` (Gittersuche und
-  Nachverdichtung im Worker), `src/plannerUi.ts`,
+  Fenster räumen/neu belegen, Rathäuser verschieben), `src/planner.worker.ts` (Gittersuche,
+  Versorgung und Nachverdichtung im Worker), `src/plannerUi.ts`. Phase 3: `src/services.ts`
+  (Versorgungsgebäude + Lagerhäuser, gewichtetes Überdeckungsproblem mit lokaler Suche;
+  Zelltyp `SERVICE` in `fill.ts`, `CityPlan.services`),
   `src/coast.ts`. Generierte Wohnhäuser sind immer Bauernhäuser (1010343).
   Footprint in Kachelachsen: Preset `[x, z]` → bei Dir 0
   Breite z × Höhe x, bei 90°/270° vertauscht.
@@ -120,8 +122,9 @@ unnötig verändern.
 - Spielbarkeit des großen Ein-Stempel-Exports ist noch ein Praxistest.
 - Kein automatisierter End-to-End-/Browser-Test (nur `npm run check` für den
   Solver).
-- Stadtplaner: Versorgungsgebäude, Post, Lufthafen, Ministerium und
-  Produktion folgen in Phase 3–5 (`docs/PLAN_Stadtplaner.md`).
+- Stadtplaner: Post, Lufthafen, Ministerium und Produktion folgen in
+  Phase 4–5 (`docs/PLAN_Stadtplaner.md`); Versorgung (Phase 3) rechnet bis
+  dahin ohne Wohlfahrt/Stadtweites Netz.
 - Optimalität ist für große Inseln nicht bewiesen; Benchmark-Insel
   189 × 290: 41 HK / 25–26 Rathäuser (alter Solver: 33 HK).
 - Der Feldweg-GUID wird aus dem ersten importierten Stempel übernommen

@@ -129,6 +129,23 @@
               <option value="60000">60 s</option>
             </select>
           </label>
+          <div class="sub-block">
+            <div class="sub-title">Versorgung (über Straße)</div>
+            <div class="check-grid">
+              <label class="check-row"><input id="svc-departmentStore" type="checkbox" checked />Kaufhaus</label>
+              <label class="check-row"><input id="svc-furnitureStore" type="checkbox" checked />Einrichtungshaus</label>
+              <label class="check-row"><input id="svc-drugStore" type="checkbox" checked />Drogerie</label>
+              <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
+              <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
+            </div>
+            <label class="select-row">Ziel
+              <select id="svc-goal">
+                <option value="30" selected>Vollversorgung (≈ alle Häuser)</option>
+                <option value="0">Max. Einwohner (nur wo es sich lohnt)</option>
+              </select>
+            </label>
+            <p class="micro">Lagerhäuser werden automatisch ergänzt, sodass jedes Kaufhaus, Einrichtungshaus, jede Drogerie und jedes Kraftwerk eines in Reichweite hat.</p>
+          </div>
           <button id="plan-run" class="primary" type="button">Wohnraster planen</button>
           <p id="plan-status" class="hint"></p>
           <p class="hint">Die ganze Landfläche wird bebaut: Raster mit je Band verschobenen Längsstraßen, Rathäuser bevorzugt auf Querstraßen, danach schiebt die Nachverdichtung Häuser und Rathäuser lokal um, bis keine Restfläche mehr nutzbar ist. Häuser werden als Bauernhäuser exportiert – welche Linie Ingenieure (I) und Investoren (V) werden, zeigt die Ansicht bzw. der Bauplan.</p>

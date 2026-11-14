@@ -19,6 +19,7 @@ import {
   FREE,
   ROAD,
   HOUSE,
+  SERVICE,
   footprintFree,
   labelComponents,
   pruneRoads,
@@ -234,7 +235,13 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
           for (let yy = 0; yy < 4 && free; yy++) {
             for (let xx = 0; xx < 4; xx++) {
               const i = (ny + yy) * w + nx + xx;
-              if (cell[i] === ROAD) roadTiles.push(i);
+              if (cell[i] === ROAD) {
+                // Keine Straße wegnehmen, an der ein Versorgungsgebäude hängt.
+                if (cell[i - 1] === SERVICE || cell[i + 1] === SERVICE || cell[i - w] === SERVICE || cell[i + w] === SERVICE) {
+                  free = false;
+                }
+                roadTiles.push(i);
+              }
               else if (cell[i] !== FREE) free = false;
             }
           }
