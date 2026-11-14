@@ -95,6 +95,23 @@ expect('Beispielstadt: ≥ 150 Hochhäuser mit Panorama 5', intense >= 150, `${i
 expect('Beispielstadt: Universität deckt alle Häuser', demoA.totals.coverage.university === 1);
 expect('Beispielstadt: keine Warnungen', demoA.warnings.length === 0, demoA.warnings.join('; '));
 
+// 3b. Streifen-Regel auch für waagerechte 4×2-Gruppen: Spalten wechseln ab.
+const { assignTiers } = await server.ssrLoadModule('/src/analysis.ts');
+const horiz = { buildings: [], streets: [] };
+for (let g = 0; g < 3; g++) {
+  for (let c = 0; c < 4; c++) {
+    for (let r = 0; r < 2; r++) horiz.buildings.push({ guid: 1010343, x: g * 13 + 1 + c * 3, y: 1 + r * 3, w: 3, h: 3, turns: 0 });
+  }
+}
+for (let x = 0; x < 40; x++) horiz.streets.push({ x, y: 0, guid: 1010035 }, { x, y: 7, guid: 1010035 });
+const horizCity = cityFromStamp(decodeStampFull(buildGenericStamp(horiz.buildings, 'ow', horiz.streets)));
+const horizTiers = assignTiers(horizCity.buildings, DEFAULT_RULES);
+const colOk = horizCity.buildings.every((b) => {
+  const col = Math.round((b.x - Math.min(...horizCity.buildings.map((o) => o.x))) / 3);
+  return horizTiers.tier.get(b.index) === (col % 2 === 0 ? 'engineer' : 'investor') || col >= 4;
+});
+expect('Streifen-Regel: waagerechte Gruppe abwechselnd I/V', colOk && horizTiers.conflicts === 0, `${horizTiers.conflicts} Konflikte`);
+
 // 4. Straßenreichweite: Kaufhaus (62) an einer langen Straße versorgt bis Entfernung 62.
 const line = { buildings: [], streets: [] };
 for (let x = 0; x < 120; x++) line.streets.push({ x, y: 0, guid: 1010035 });

@@ -103,12 +103,19 @@ export function analyzeCity(city: City, rules: RuleConfig): Analysis {
   const welfare = welfareBonus(rules);
   const wideWeb = cityWideWebBonus(rules);
 
-  // --- Wohnhäuser vorbereiten
-  const residences: ResidenceInfo[] = city.buildings
-    .filter((b) => b.entry.kind === 'residence' && b.entry.tier)
+  // --- Wohnhäuser vorbereiten und Schichten zuordnen
+  const houses = city.buildings.filter((b) => b.entry.kind === 'residence');
+  const tiers = assignTiers(houses, rules);
+  if (tiers.conflicts) {
+    warnings.push(
+      `Streifen-Regel nicht überall eindeutig: ${tiers.conflicts} Nachbarpaare passen nicht (Panorama dort geringer).`,
+    );
+  }
+  const residences: ResidenceInfo[] = houses
+    .filter((b) => tiers.tier.has(b.index))
     .map((b) => ({
       building: b,
-      tier: b.entry.tier as Tier,
+      tier: tiers.tier.get(b.index) as Tier,
       hasRoad: roadsOf[b.index].length > 0,
       services: {},
       townHall: null,
@@ -245,8 +252,16 @@ export function analyzeCity(city: City, rules: RuleConfig): Analysis {
     }
   }
   if (city.conflicts) warnings.push(`${city.conflicts} Kacheln sind zugleich Straße und Gebäude.`);
-  const unknown = city.buildings.filter((b) => b.entry.name.startsWith('Unbekannt')).length;
-  if (unknown) warnings.push(`${unknown} unbekannte Gebäude (Mods?) – Größe als 1×1 angenommen.`);
+  const unknownList = city.buildings.filter((b) => b.entry.name.startsWith('Unbekannt'));
+  const unknown = unknownList.length;
+  if (unknown) {
+    const guids = [...new Set(unknownList.map((b) => b.guid))];
+    warnings.push(
+      `${unknown} unbekannte Gebäude (Mods?) – Größe als 1×1 angenommen. GUIDs: ${guids.slice(0, 8).join(', ')}${
+        guids.length > 8 ? ' …' : ''
+      }`,
+    );
+  }
 
   // --- Summen
   const byTier: Record<Tier, number> = { artisan: 0, engineer: 0, investor: 0 };
@@ -282,4 +297,72 @@ export function analyzeCity(city: City, rules: RuleConfig): Analysis {
       unknown,
     },
   };
+}
+
+/**
+ * Schichten der Wohnhäuser. Bei der Streifen-Regel werden die 3×3-Häuser als
+ * Graph zweigefärbt: Häuser links/rechts daneben (direkt oder über eine
+ * Straße, Abstand 3–4) bekommen die andere Schicht, Häuser in derselben
+ * Spalte darüber/darunter (Abstand 3–4) die gleiche. Jede zusammenhängende
+ * Gruppe beginnt in ihrer linken Spalte mit `firstTier`.
+ */
+export function assignTiers(
+  houses: readonly CityBuilding[],
+  rules: RuleConfig,
+): { tier: Map<number, Tier>; conflicts: number } {
+  const tier = new Map<number, Tier>();
+  if (rules.tierMode === 'stamp') {
+    for (const h of houses) if (h.entry.tier) tier.set(h.index, h.entry.tier);
+    return { tier, conflicts: 0 };
+  }
+  const grid = houses.filter((h) => h.w === 3 && h.h === 3);
+  const at = new Map<string, CityBuilding>();
+  for (const h of grid) at.set(`${h.x},${h.y}`, h);
+  const neighbours = (h: CityBuilding): Array<[CityBuilding, number]> => {
+    const out: Array<[CityBuilding, number]> = [];
+    for (const dx of [-4, -3, 3, 4]) {
+      for (let dy = -2; dy <= 2; dy++) {
+        const o = at.get(`${h.x + dx},${h.y + dy}`);
+        if (o) out.push([o, 1]);
+      }
+    }
+    for (const dy of [-4, -3, 3, 4]) {
+      const o = at.get(`${h.x},${h.y + dy}`);
+      if (o) out.push([o, 0]);
+    }
+    return out;
+  };
+  const color = new Map<number, number>();
+  let conflicts = 0;
+  const sorted = [...grid].sort((a, b) => a.x - b.x || a.y - b.y);
+  for (const start of sorted) {
+    if (color.has(start.index)) continue;
+    const component: CityBuilding[] = [];
+    color.set(start.index, 0);
+    const queue = [start];
+    while (queue.length) {
+      const h = queue.shift() as CityBuilding;
+      component.push(h);
+      const c = color.get(h.index) as number;
+      for (const [o, diff] of neighbours(h)) {
+        const want = c ^ diff;
+        const have = color.get(o.index);
+        if (have === undefined) {
+          color.set(o.index, want);
+          queue.push(o);
+        } else if (have !== want && o.index > h.index) {
+          conflicts++;
+        }
+      }
+    }
+    // Linkeste Spalte der Gruppe = firstTier.
+    const left = component.reduce((a, b) => (b.x < a.x || (b.x === a.x && b.y < a.y) ? b : a));
+    const flip = color.get(left.index) === 1;
+    const other: Tier = rules.firstTier === 'engineer' ? 'investor' : 'engineer';
+    for (const h of component) {
+      const c = (color.get(h.index) as number) ^ (flip ? 1 : 0);
+      tier.set(h.index, c === 0 ? rules.firstTier : other);
+    }
+  }
+  return { tier, conflicts };
 }

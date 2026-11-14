@@ -56,6 +56,13 @@ export interface RuleConfig {
   skyscraperLevel: 3;
   /** Welfare-Bonus auch für Feuerwache, Polizei, Hospital (Wiki unklar). */
   welfareForInstitutions: boolean;
+  /**
+   * Schichten der Wohnhäuser: 'stripes' = Streifen-Regel (Nachbarn links/rechts
+   * andere Schicht, darüber/darunter gleiche), 'stamp' = wie im Stempel.
+   */
+  tierMode: 'stripes' | 'stamp';
+  /** Schicht der linken Spalte bei der Streifen-Regel. */
+  firstTier: 'engineer' | 'investor';
 }
 
 export const DEFAULT_RULES: RuleConfig = {
@@ -65,6 +72,8 @@ export const DEFAULT_RULES: RuleConfig = {
   policy: 'cityWideWeb',
   skyscraperLevel: 3,
   welfareForInstitutions: false,
+  tierMode: 'stripes',
+  firstTier: 'engineer',
 };
 
 /** Palast: Pflaster-Basisreichweite 71, je Flügel +3. */

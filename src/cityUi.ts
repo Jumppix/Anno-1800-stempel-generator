@@ -85,6 +85,8 @@ export class CityUi {
   private readonly institutions = el<HTMLInputElement>('#rule-institutions');
   private readonly ruleInfo = el<HTMLElement>('#rule-info');
   private readonly layerSelect = el<HTMLSelectElement>('#city-layer');
+  private readonly tierMode = el<HTMLSelectElement>('#rule-tiers');
+  private readonly firstTier = el<HTMLSelectElement>('#rule-first');
   private readonly stats = el<HTMLElement>('#city-stats');
   private readonly warnings = el<HTMLElement>('#city-warnings');
   private readonly tip = el<HTMLElement>('#city-tip');
@@ -113,7 +115,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.wings, this.prestige, this.institutions]) {
+    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.firstTier]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.ministry.addEventListener('change', () => {
@@ -167,6 +169,8 @@ export class CityUi {
       ministry: this.ministry.value as Ministry,
       policy: (this.policy.value || 'none') as Policy,
       welfareForInstitutions: this.institutions.checked,
+      tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'stripes',
+      firstTier: this.firstTier.value === 'investor' ? 'investor' : 'engineer',
     };
     this.updateRuleInfo();
     this.reanalyze();
@@ -458,6 +462,10 @@ export class CityUi {
     const lines = [`<strong>${escapeHtml(b.entry.name)}</strong> · ${b.w}×${b.h}`];
     const r = this.resByIndex.get(idx);
     if (r) {
+      if (r.building.entry.tier !== r.tier) {
+        const label = r.tier === 'engineer' ? 'Ingenieur' : r.tier === 'investor' ? 'Investor' : 'Handwerker';
+        lines.push(`gerechnet als ${label}-Hochhaus Stufe 3`);
+      }
       if (r.tier !== 'artisan') {
         lines.push(`Panorama: ${PANORAMA_NAMES[r.panorama]} (Wert ${r.panoramaValue})`);
       }

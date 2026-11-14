@@ -60,6 +60,10 @@ const E = (entry: CatalogEntry): CatalogEntry => entry;
 
 /** Gebäude mit bekannter Spielmechanik. */
 export const CATALOG_LIST: readonly CatalogEntry[] = [
+  // Im normalen Spielmodus enthalten Stempel nur Bauernhäuser; Ingenieure und
+  // Investoren werden danach im Spiel ausgebaut. Ohne feste Schicht (tier).
+  E({ guid: 1010343, kind: 'residence', name: 'Bauernhaus', size: [3, 3] }),
+  E({ guid: 1010344, kind: 'residence', name: 'Arbeiterhaus', size: [3, 3] }),
   E({ guid: 1010345, kind: 'residence', name: 'Handwerkerhaus', size: [3, 3], tier: 'artisan' }),
   E({ guid: 1010346, kind: 'residence', name: 'Ingenieurshaus', size: [3, 3], tier: 'engineer' }),
   E({ guid: 1010347, kind: 'residence', name: 'Investorenhaus', size: [3, 3], tier: 'investor' }),

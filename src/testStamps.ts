@@ -8,6 +8,9 @@ interface Layout {
   streets: StampStreet[];
 }
 
+/** Bauernhaus: im normalen Spiel die einzige Wohnhaus-Art in Stempeln. */
+export const FARMER_HOUSE = 1010343;
+
 function place(guid: number, x: number, y: number, turns: number): StampBuilding {
   const { w, h } = footprint(lookup(guid), turns);
   return { guid, x, y, w, h, turns };
@@ -68,8 +71,9 @@ export function catalogTestLayout(): Layout {
 }
 
 /**
- * Beispielstadt: 8er-Gruppen (Ingenieur-Spalte | Investor-Spalte) im
- * Pflasterraster 7 × 13, darunter eine Reihe Versorgungsgebäude.
+ * Beispielstadt: 8er-Gruppen im Pflasterraster 7 × 13 aus Bauernhäusern (wie
+ * Stempel aus dem normalen Spiel), darunter eine Reihe Versorgungsgebäude.
+ * Die Schichten ergeben sich in der Analyse aus der Streifen-Regel.
  */
 export function demoCityLayout(groupsX = 6, groupsY = 4): Layout {
   const buildings: StampBuilding[] = [];
@@ -85,8 +89,7 @@ export function demoCityLayout(groupsX = 6, groupsY = 4): Layout {
     for (let gy = 0; gy < groupsY; gy++) {
       for (let c = 0; c < 2; c++) {
         for (let r = 0; r < 4; r++) {
-          const guid = c === 0 ? 1010346 : 1010347;
-          buildings.push(place(guid, gx * 7 + 1 + c * 3, gy * 13 + 1 + r * 3, 0));
+          buildings.push(place(FARMER_HOUSE, gx * 7 + 1 + c * 3, gy * 13 + 1 + r * 3, 0));
         }
       }
     }

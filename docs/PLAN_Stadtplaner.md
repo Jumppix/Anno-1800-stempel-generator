@@ -362,7 +362,19 @@ Schätzung, Warnungen, Katalog-Teststempel, Beispielstadt, Tests in
 Größen, Drehung, Lufthafen-Module) und einen Stempel der fertigen Stadt in der
 Analyse prüfen (Kalibrierung: stimmen Versorgung/Panorama mit dem Spiel?).
 
-## 13. Noch offene Fragen
+## 13. Ergebnis Spieltest Phase 1
+
+- Katalog-Teststempel: im Spiel eingefügt, **alle Gebäude vorhanden**.
+- Stadt-Stempel aus dem normalen Spiel enthalten **nur Bauernhäuser**
+  (GUID 1010343); Ingenieure/Investoren lassen sich nur im Kreativmodus
+  stempeln. Konsequenzen:
+  - Analyse: Schichten werden per Streifen-Regel zugeordnet (Graph-
+    Zweifärbung: links/rechts andere Schicht, übereinander gleiche; auch über
+    eine Straße). Umschaltbar auf „wie im Stempel“.
+  - **Generator (ab Phase 2) exportiert Bauernhäuser**; der Nutzer baut im
+    Spiel aus. Die Schicht je Haus wird zusätzlich als Bauplan angezeigt.
+
+## 14. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).
