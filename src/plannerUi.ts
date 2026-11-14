@@ -1,5 +1,5 @@
-// Oberfläche „Wohnraster planen“ (Stadtplaner Phase 2). Nutzt die im Modus
-// „Verwaltung“ geladene Insel, plant Raster + Rathäuser und zeigt das Ergebnis
+// Oberfläche „Wohnraster planen“ (Stadtplaner Phase 2). Nutzt die geladene
+// Inselform (in beiden Modi dieselbe), plant Raster + Rathäuser und zeigt das Ergebnis
 // in der Stadt-Ansicht (CityUi) mit allen Analyse-Ebenen.
 
 import type { CityUi } from './cityUi';
@@ -83,7 +83,7 @@ export class PlannerUi {
     this.runButton.disabled = !src || this.running;
     this.islandInfo.textContent = src
       ? `Insel: ${src.label}`
-      : 'Keine Insel geladen – bitte zuerst im Modus „Verwaltung“ die Feldweg-Stempel der Insel laden.';
+      : 'Keine Insel geladen – oben unter „Inselform aus Stempeln“ die Feldweg-Stempel laden und im Tab „Anordnen“ ausrichten.';
   }
 
   private async run(): Promise<void> {

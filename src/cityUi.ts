@@ -96,6 +96,8 @@ export class CityUi {
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly isActive: () => boolean,
+    /** Wird aufgerufen, wenn ein Stempel/Plan geladen wurde (Ansicht wechseln). */
+    private readonly onShow: () => void = () => undefined,
   ) {
     this.wings.value = String(this.rules.palaceWings);
     this.prestige.value = String(this.rules.prestige);
@@ -216,6 +218,7 @@ export class CityUi {
       this.sourceName = name;
       this.edits = { houses: new Map(), groups: new Map() };
       this.reanalyze();
+      this.onShow();
     } catch (error) {
       this.info.textContent = `${name}: ${error instanceof Error ? error.message : 'Fehler beim Lesen'}`;
     }

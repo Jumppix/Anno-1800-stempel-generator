@@ -21,7 +21,7 @@
           <button id="mode-city" type="button">Stadtplaner</button>
         </nav>
 
-        <section class="card" data-mode="admin">
+        <section class="card" data-mode="admin city">
           <h2>Inselform aus Stempeln</h2>
           <p class="hint">Insel mit Feldwegen füllen, Auswahl als Stempel speichern und hier laden. Mehrere Teile werden zu einer Gesamtinsel zusammengesetzt – per Drag oder X/Y ausrichten.</p>
           <label class="file-button">
@@ -38,7 +38,7 @@
           </label>
         </section>
 
-        <section class="card" data-mode="admin">
+        <section class="card" data-mode="admin city">
           <h2>Teile</h2>
           <div id="part-list" class="part-list"></div>
           <button id="align-all" class="ghost" type="button" disabled>Alle automatisch ausrichten</button>
@@ -204,12 +204,12 @@
       <main class="stage">
         <canvas id="canvas"></canvas>
         <div id="city-tip" class="city-tip" hidden></div>
-        <div class="stage-tabs" data-mode="admin">
+        <div class="stage-tabs" data-mode="admin city">
           <button id="tab-arrange" class="active" type="button">Anordnen</button>
           <button id="tab-result" type="button">Ergebnis</button>
         </div>
-        <div id="stage-hint" class="stage-hint" data-mode="admin">Inselform aus Stempeln laden</div>
-        <div class="legend" data-mode="city" hidden>
+        <div id="stage-hint" class="stage-hint" data-mode="admin city">Inselform aus Stempeln laden</div>
+        <div id="legend-city" class="legend" hidden>
           <span><i class="swatch" style="background:#4fa3a5"></i>I = Ingenieure</span>
           <span><i class="swatch" style="background:#d9a441"></i>V = Investoren</span>
           <span><i class="swatch" style="background:rgba(80,180,100,.95)"></i>versorgt</span>

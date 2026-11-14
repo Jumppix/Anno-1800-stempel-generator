@@ -85,8 +85,13 @@ wird nie im Repository gespeichert; es ist nur für den Workflow gedacht.
 
 ### Stadtplaner (Modus oben links umschalten)
 
-**Wohnraster planen** (Phase 2): Nutzt die im Modus „Verwaltung“ geladene
-Insel. Ein Gitter aus Pflasterstraßen nimmt 8er-Gruppen auf (eine Linie aus 4
+Der Stadtplaner ist eigenständig nutzbar: Die Karten „Inselform aus Stempeln“
+und „Teile“ sowie der Tab „Anordnen“ (2D-Editor mit Drag & X/Y) gibt es in
+beiden Modi; die Insel ist zwischen den Modi geteilt. Der Tab „Plan / Analyse“
+zeigt Plan bzw. analysierten Stadt-Stempel. Der HK/RH-Solver rechnet nur im
+Modus „Verwaltung“.
+
+**Wohnraster planen** (Phase 2): Nutzt die geladene Insel. Ein Gitter aus Pflasterstraßen nimmt 8er-Gruppen auf (eine Linie aus 4
 Ingenieuren, eine aus 4 Investoren; senkrecht oder waagerecht, Ausrichtung und
 Verschiebung werden durchprobiert). Nur vollständige Gruppen samt Ringstraße auf
 Land – die Küste baut der Spieler selbst. Danach optimiert der Rathaus-Solver

@@ -37,6 +37,7 @@ const stampFile = el<HTMLInputElement>('#stamp-file');
 const stampInfo = el<HTMLElement>('#stamp-info');
 const clearStamp = el<HTMLButtonElement>('#clear-stamp');
 const stageHint = el<HTMLElement>('#stage-hint');
+const legendCity = el<HTMLElement>('#legend-city');
 const partList = el<HTMLElement>('#part-list');
 const alignAll = el<HTMLButtonElement>('#align-all');
 const tabArrange = el<HTMLButtonElement>('#tab-arrange');
@@ -79,6 +80,9 @@ let chunks: Chunk[] = [];
 let stamps: Uint8Array[] = [];
 let view: 'arrange' | 'result' = 'arrange';
 let mode: 'admin' | 'city' = 'admin';
+const currentAppMode = (): 'admin' | 'city' => mode;
+// Wird weiter unten erzeugt; update() kann vorher schon laufen.
+let plannerUi: PlannerUi | null = null;
 let placementView: PlacementView | null = null;
 
 // Hintergrund-Optimierung
@@ -203,7 +207,9 @@ function updateModeTexts(): void {
   const mode = buildingMode();
   const types = modeTypes(mode);
   brandTitle.textContent =
-    mode === 'both' ? 'Verwaltungs-Planer' : mode === 'rh' ? 'Rathaus-Planer' : 'Handelskammer-Planer';
+    currentAppMode() === 'city'
+      ? 'Stadtplaner'
+      : mode === 'both' ? 'Verwaltungs-Planer' : mode === 'rh' ? 'Rathaus-Planer' : 'Handelskammer-Planer';
   legendBuilding.textContent = types.map((t) => BUILDINGS[t].label).join(' / ');
   legendRadius.textContent = `Radius ${types.map((t) => BUILDINGS[t].radius).join(' / ')}`;
   const colors = types.map((t) => `rgb(${BUILDINGS[t].rgb.join(', ')})`);
@@ -295,7 +301,11 @@ function setView(next: 'arrange' | 'result'): void {
 }
 
 function drawStage(): void {
-  if (mode === 'city') {
+  legendCity.hidden = !(mode === 'city' && view === 'result');
+  if (mode === 'city' && view === 'result') {
+    stageHint.hidden = true;
+    placementView = null;
+    canvas.style.cursor = 'default';
     cityUi.draw();
     return;
   }
@@ -431,7 +441,8 @@ function update(): void {
   combined = combineParts(parts);
   updateModeTexts();
   const key = combined ? maskKey(combined, buildingMode()) : `empty:${buildingMode()}`;
-  if (key !== solveKey) {
+  // Der HK/RH-Solver läuft nur im Modus „Verwaltung“; der Stadtplaner nutzt nur die Inselform.
+  if (mode === 'admin' && key !== solveKey) {
     solveKey = key;
     startSolve(false);
   } else {
@@ -441,6 +452,7 @@ function update(): void {
   updateImportInfo();
   clearStamp.hidden = parts.length === 0;
   alignAll.disabled = parts.length < 2;
+  plannerUi?.refreshIsland();
 }
 
 function updateOffsetInputs(part: IslandPart): void {
@@ -626,7 +638,7 @@ zipButton.addEventListener('click', () => {
 });
 
 canvas.addEventListener('pointerdown', (event) => {
-  if (mode !== 'admin' || view !== 'arrange' || !placementView || !combined) return;
+  if (view !== 'arrange' || !placementView || !combined) return;
   const rect = canvas.getBoundingClientRect();
   const px = event.clientX - rect.left;
   const py = event.clientY - rect.top;
@@ -691,8 +703,14 @@ singleStamp.addEventListener('change', rebuildOutputs);
 buildingEl.addEventListener('change', update);
 optimizeMore.addEventListener('click', () => startSolve(true));
 
-const cityUi = new CityUi(canvas, () => mode === 'city');
-const plannerUi = new PlannerUi(cityUi, () =>
+const cityUi = new CityUi(
+  canvas,
+  () => mode === 'city' && view === 'result',
+  () => {
+    if (mode === 'city') setView('result');
+  },
+);
+plannerUi = new PlannerUi(cityUi, () =>
   combined
     ? {
         mask: { w: combined.w, h: combined.h, data: combined.data, landCount: combined.landCount },
@@ -711,14 +729,17 @@ function setMode(next: 'admin' | 'city'): void {
   modeAdmin.classList.toggle('active', next === 'admin');
   modeCity.classList.toggle('active', next === 'city');
   for (const node of document.querySelectorAll<HTMLElement>('[data-mode]')) {
-    node.hidden = node.dataset.mode !== next;
+    node.hidden = !(node.dataset.mode ?? '').split(' ').includes(next);
   }
-  canvas.style.cursor = next === 'city' ? 'default' : canvas.style.cursor;
+  tabResult.textContent = next === 'city' ? 'Plan / Analyse' : 'Ergebnis';
   if (next === 'city') {
     brandTitle.textContent = 'Stadtplaner';
-    plannerUi.refreshIsland();
-  } else updateModeTexts();
-  drawStage();
+    plannerUi?.refreshIsland();
+    drawStage();
+  } else {
+    // Zurück in „Verwaltung“: HK/RH für die aktuelle Insel (neu) berechnen.
+    update();
+  }
 }
 
 modeAdmin.addEventListener('click', () => setMode('admin'));
