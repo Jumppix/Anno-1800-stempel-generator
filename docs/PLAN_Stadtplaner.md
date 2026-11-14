@@ -445,7 +445,33 @@ breite Ränder, dort passt kein 3×3-Haus). Längere Gruppen: 10er 2.109,
 gebäude etc. Häuser; der Optimierer wählt Plätze mit minimalem Verlust
 (Ränder, Rathaus-Reste) und maximaler Abdeckung.
 
-## 17. Noch offene Fragen
+## 17. Nachverdichtung: Platz an Rathäusern und Rändern nutzen
+
+Wunsch: „alles ein bisschen schieben und anpassen“, das Rechteckmuster muss
+nicht überall durchgehen. Umgesetzt in drei Stufen:
+1. **Bandverschiebung** (`optimizeShifts` in `src/fill.ts`): Jedes Band
+   zwischen zwei Querstraßen bekommt seine eigene Lage der Längsstraßen
+   (Koordinatenabstieg über alle Bänder). Insel 2 ohne Rathäuser:
+   2.086 → 2.107 Häuser.
+2. **Rathäuser auf Querstraßen** (`crossRoadTiles` in `src/planner.ts`):
+   Die Häuser hängen an den Längsstraßen; Querstraßen verbinden nur. Ein
+   Rathaus darf auf Querstraßen-Abschnitten/T-Einmündungen stehen, wenn das
+   Netz zusammenhängend bleibt (Prüfung je 4er-Fenster, in `finishPlan` noch
+   einmal). Kostet ≈ 2 statt 4 Häuser.
+3. **Nachverdichtung** (`src/compact.ts`): Fenster (Rathaus ± 9, Restflächen,
+   zufällige Stellen 11–19 Kacheln) räumen, mit vielen Reihenfolgen neu
+   belegen, optional eine zusätzliche Straßenkachel; Rathäuser bis 6 Kacheln
+   verschieben (Abstand ≥ 40 bleibt, Straße nur ohne Netztrennung). Annahme
+   nur bei höherem Wert (Häuser × 225 + Häuser im Radius × 31). Läuft in Web
+   Workern mit verschiedenen Seeds, bester gewinnt.
+
+Insel 2 (Einwohner laut Analyse, gleiche Regeln): 390.444 → 392.992
+(Bänder) → 395.795 (+ Querstraßen) → 398.216 (+ Nachverdichtung), Häuser
+2.012 → 2.054, freie Kacheln 7,4 % → 6,0 %. Die Restfläche besteht fast nur aus
+1–2 Kacheln breiten Küstenrändern; im ganzen Rest passen ohne Straßenpflicht
+nur noch ≈ 8 Häuser. Ideal des 8er-Rasters ohne Ränder/Rathäuser: 2.253.
+
+## 18. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

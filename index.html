@@ -114,16 +114,24 @@
           <label class="select-row">Min. Häuser je Rathaus
             <input id="plan-mincover" type="number" min="0" max="200" step="1" value="12" />
           </label>
-          <label class="select-row">Rechenzeit
+          <label class="select-row">Rechenzeit Rathäuser
             <select id="plan-budget">
               <option value="2000">Schnell · 2 s</option>
               <option value="6000" selected>Gründlich · 6 s</option>
               <option value="20000">Sehr gründlich · 20 s</option>
             </select>
           </label>
+          <label class="select-row">Nachverdichtung
+            <select id="plan-compact">
+              <option value="0">Aus</option>
+              <option value="10000">10 s</option>
+              <option value="20000" selected>20 s</option>
+              <option value="60000">60 s</option>
+            </select>
+          </label>
           <button id="plan-run" class="primary" type="button">Wohnraster planen</button>
           <p id="plan-status" class="hint"></p>
-          <p class="hint">Nur vollständige Gruppen mit Ringstraße auf Land; die Küste bleibt frei für dich. Häuser werden als Bauernhäuser exportiert – welche Linie Ingenieure (I) und Investoren (V) werden, zeigt die Ansicht bzw. der Bauplan.</p>
+          <p class="hint">Die ganze Landfläche wird bebaut: Raster mit je Band verschobenen Längsstraßen, Rathäuser bevorzugt auf Querstraßen, danach schiebt die Nachverdichtung Häuser und Rathäuser lokal um, bis keine Restfläche mehr nutzbar ist. Häuser werden als Bauernhäuser exportiert – welche Linie Ingenieure (I) und Investoren (V) werden, zeigt die Ansicht bzw. der Bauplan.</p>
           <div id="plan-export" hidden>
             <label class="check-row">
               <input id="plan-coast" type="checkbox" checked />

@@ -63,8 +63,11 @@ unnötig verändern.
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
   `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
   `src/testStamps.ts`. Phase 2: `src/fill.ts` (vollständige Bebauung: Gitter über die ganze
-  Insel, gieriges Füllen, Straßenverlängerung, Gittersuche), `src/planner.ts` (Plan, Rathaus-Problem
-  über `solve(..., { allowed, overlapPenalty })`), `src/plannerUi.ts`,
+  Insel mit je Band verschobenen Längsstraßen, gieriges Füllen, Straßenverlängerung, Gittersuche),
+  `src/planner.ts` (Plan, Rathaus-Problem über `solve(..., { allowed, overlapPenalty })`,
+  Rathäuser auf Querstraßen `crossRoadTiles`, `compactCity`), `src/compact.ts` (Nachverdichtung:
+  Fenster räumen/neu belegen, Rathäuser verschieben), `src/planner.worker.ts` (Gittersuche und
+  Nachverdichtung im Worker), `src/plannerUi.ts`,
   `src/coast.ts`. Generierte Wohnhäuser sind immer Bauernhäuser (1010343).
   Footprint in Kachelachsen: Preset `[x, z]` → bei Dir 0
   Breite z × Höhe x, bei 90°/270° vertauscht.

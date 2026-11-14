@@ -149,7 +149,7 @@ const lastCovered = Math.max(
 expect('Straßenreichweite: letztes versorgtes Haus bei x ≤ 67', lastCovered <= 67 && lastCovered >= 61, `x=${lastCovered}`);
 
 // 5. Stadtplaner Phase 2: vollständige Bebauung + Rathäuser auf der Benchmark-Insel.
-const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles } =
+const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity } =
   await server.ssrLoadModule('/src/planner.ts');
 const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
 {
@@ -159,9 +159,17 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   expect('Planer: ≥ 2.000 Häuser (ganze Insel bebaut)', plan.houses.length >= 2000, `${plan.houses.length} Häuser`);
   const problem = townHallProblem(mask, plan);
   const L = solve(problem.target, ['rh'], { budgetMs: budget, seed: 7, allowed: problem.allowed, overlapPenalty: problem.penalty });
-  const city = refillAroundTownHalls(mask, finishPlan(plan, L.groups[0].chambers, 12));
+  const refilled = refillAroundTownHalls(mask, finishPlan(plan, L.groups[0].chambers, 12));
+  const { city } = compactCity(mask, refilled, { deadline: performance.now() + Math.min(budget, 5000), seed: 1 });
+  expect('Nachverdichtung: nicht weniger Häuser, Netze unverändert', city.houses.length >= refilled.houses.length &&
+    city.plan.networks === refilled.plan.networks, `${refilled.houses.length} → ${city.houses.length} Häuser, Netze ${refilled.plan.networks} → ${city.plan.networks}`);
+  let rhClose = 0;
+  for (let i = 0; i < city.townHalls.length; i++) for (let j = i + 1; j < city.townHalls.length; j++) {
+    if (Math.hypot(city.townHalls[i].x - city.townHalls[j].x, city.townHalls[i].y - city.townHalls[j].y) < 40) rhClose++;
+  }
+  expect('Planer: Rathäuser mit Abstand ≥ 40', rhClose === 0, `${rhClose} Paare zu nah`);
   const free = freeTiles(mask, city);
-  expect('Planer: < 9 % freie Restkacheln (inkl. Rathaus-Reste)', free / mask.landCount < 0.09, `${((100 * free) / mask.landCount).toFixed(1)} %`);
+  expect('Planer: < 7 % freie Restkacheln (inkl. Rathaus-Reste)', free / mask.landCount < 0.07, `${((100 * free) / mask.landCount).toFixed(1)} %`);
   const items = planToStampItems(mask, city, { coast: false, coastGuid: 1000178 });
   const planCity = cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets)));
   const planA = analyzeCity(planCity, DEFAULT_RULES);

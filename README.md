@@ -99,12 +99,24 @@ Insel wird bebaut (`src/fill.ts`):
    Straßennetz, ungenutzte Straßenenden werden abgebaut.
 2. Restflächen gierig mit Häusern füllen (passgenaue Plätze zuerst).
 3. Straßen um 1–2 Kacheln verlängern, wo das weitere Häuser anschließt.
-4. Ausrichtung/Verschiebung des Gitters nach der Gesamtzahl der Häuser wählen.
+4. Ausrichtung/Verschiebung des Gitters nach der Gesamtzahl der Häuser wählen;
+   danach jedes Band zwischen zwei Querstraßen einzeln verschieben
+   (Längsstraßen müssen nicht über die ganze Insel fluchten).
 5. Rathäuser: Solver mit Ziel „Hausmittelpunkte im Radius 20“, Bauplatz Land
-   ohne Straße, Abzug 6 je verdrängtem Haus; danach Lücken neu füllen.
+   ohne Längsstraße – Querstraßen-Abschnitte und T-Einmündungen sind erlaubt,
+   wenn das Netz zusammenhängend bleibt (kostet ≈ 2 statt 4 Häuser) –, Abzug 10
+   je verdrängtem Haus; danach Lücken neu füllen.
+6. Nachverdichtung (`src/compact.ts`, Web Worker, mehrere Kerne mit
+   verschiedenen Seeds): Fenster um Rathäuser, Restflächen und zufällige
+   Stellen werden geräumt und neu belegt (viele Reihenfolgen, optional eine
+   neue Straßenkachel); Rathäuser dürfen dabei bis zu 6 Kacheln rücken, auch
+   auf Querstraßen. Übernommen wird nur, was Häuser × 225 + Häuser im
+   Rathausradius × 31 erhöht.
 
-Insel 2 (189 × 290): ≈ 2.090 Häuser ohne bzw. ≈ 2.010 mit 25 Rathäusern
-(vorher 1.500 nur mit vollen Gruppen); Rest ≈ 6–8 % schmale Ränder.
+Insel 2 (189 × 290): ≈ 2.110 Häuser ohne bzw. ≈ 2.055 mit 25 Rathäusern
+(vorher 2.010), geschätzte Einwohner 390.400 → 398.300 (+2 %); Rest ≈ 6 %,
+fast nur 1–2 Kacheln breite Küstenränder. Theoretisches Ideal des 8er-Rasters
+ohne Ränder und Rathäuser: 2.253 Häuser.
 Export: Bauernhäuser, Pflasterstraßen, Rathäuser, optional Feldweg auf freien
 Randkacheln; ein Stempel oder Teile bis 13.500 Kacheln; Bauplan als Bild.
 

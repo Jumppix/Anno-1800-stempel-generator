@@ -12,6 +12,7 @@
 import { outerBoundary } from './coast';
 import { FARMER_HOUSE, STREET_GUIDS } from './catalog';
 import { BLOCKED, extendRoads, FREE, greedyFill, HOUSE, ROAD, WATER, type FillResult, type FillState } from './fill';
+import { compact, type CompactOptions, type CompactResult } from './compact';
 import type { LandMask, OverlapPenalty } from './solver';
 import type { StampBuilding, StampStreet } from './stamp';
 
@@ -50,7 +51,7 @@ export interface GridPlan {
 }
 
 /** Abzug je verdrängtem Haus in „abgedeckten Häusern“. */
-export const HOUSE_PENALTY = 6;
+export const HOUSE_PENALTY = 10;
 
 export function planGrid(mask: LandMask, options: GridOptions): GridPlan {
   const { w, h, data } = mask;
@@ -159,6 +160,7 @@ export function planGrid(mask: LandMask, options: GridOptions): GridPlan {
 export function townHallProblem(
   mask: LandMask,
   plan: GridPlan,
+  options: { onCrossRoads?: boolean } = {},
 ): { target: LandMask; allowed: Uint8Array; penalty: OverlapPenalty } {
   const { w, h } = plan;
   const centers = new Uint8Array(w * h);
@@ -170,12 +172,115 @@ export function townHallProblem(
     }
   });
   const allowed = new Uint8Array(w * h);
-  for (let i = 0; i < allowed.length; i++) allowed[i] = mask.data[i] && !plan.roads[i] ? 1 : 0;
+  const crossRoad = options.onCrossRoads === false ? new Uint8Array(w * h) : crossRoadTiles(plan);
+  for (let i = 0; i < allowed.length; i++) allowed[i] = mask.data[i] && (!plan.roads[i] || crossRoad[i]) ? 1 : 0;
   return {
     target: { w, h, data: centers, landCount: plan.houses.length },
     allowed,
     penalty: { ids, weight: HOUSE_PENALTY },
   };
+}
+
+/**
+ * Querstraßen-Kacheln, auf denen ein Rathaus stehen darf: Bei senkrechten
+ * Gruppen hängen die Häuser an den Längsstraßen; die Querstraßen verbinden
+ * nur. Ein Rathaus darauf kostet etwa zwei statt vier Häuser. Erlaubt sind
+ * Kacheln, die keine durchgehende Längsstraße sind (Querstraße, T-Einmündung),
+ * in Abschnitten von mindestens 4 Kacheln, deren Wegfall das Netz nicht trennt.
+ * `finishPlan` prüft den Zusammenhang am Ende noch einmal.
+ */
+export function crossRoadTiles(plan: GridPlan): Uint8Array {
+  const { w, h, roads } = plan;
+  const out = new Uint8Array(roads.length);
+  const vertical = plan.orientation === 'vertical';
+  const cand = new Uint8Array(roads.length);
+  for (let i = 0; i < roads.length; i++) {
+    if (!roads[i]) continue;
+    const x = i % w;
+    const y = (i - x) / w;
+    const a = vertical ? (y > 0 ? roads[i - w] : 0) : x > 0 ? roads[i - 1] : 0;
+    const b = vertical ? (y < h - 1 ? roads[i + w] : 0) : x < w - 1 ? roads[i + 1] : 0;
+    // Entlang der Querstraße muss es weitergehen.
+    const c = vertical ? (x > 0 ? roads[i - 1] : 0) : y > 0 ? roads[i - w] : 0;
+    const d = vertical ? (x < w - 1 ? roads[i + 1] : 0) : y < h - 1 ? roads[i + w] : 0;
+    if (!(a && b) && (c || d)) cand[i] = 1;
+  }
+  const step = vertical ? 1 : w;
+  const lines = vertical ? h : w;
+  const length = vertical ? w : h;
+  const removed = new Uint8Array(roads.length);
+  for (let l = 0; l < lines; l++) {
+    const at = (k: number): number => (vertical ? l * w + k : k * w + l);
+    let k = 0;
+    while (k < length) {
+      if (!cand[at(k)]) {
+        k++;
+        continue;
+      }
+      let end = k;
+      while (end < length && cand[at(end)]) end++;
+      for (let s = k; s + 4 <= end; s++) {
+        const tiles = [at(s), at(s) + step, at(s) + 2 * step, at(s) + 3 * step];
+        for (const t of tiles) removed[t] = 1;
+        if (!separates(roads, w, h, removed, tiles)) for (const t of tiles) out[t] = 1;
+        for (const t of tiles) removed[t] = 0;
+      }
+      k = end;
+    }
+  }
+  return out;
+}
+
+/** Trennt das Entfernen von `tiles` die angrenzenden Straßenkacheln voneinander? */
+function separates(roads: Uint8Array, w: number, h: number, removed: Uint8Array, tiles: number[]): boolean {
+  const neighbours = (i: number): number[] => {
+    const x = i % w;
+    const y = (i - x) / w;
+    const out: number[] = [];
+    if (x > 0) out.push(i - 1);
+    if (x < w - 1) out.push(i + 1);
+    if (y > 0) out.push(i - w);
+    if (y < h - 1) out.push(i + w);
+    return out;
+  };
+  const ends = new Set<number>();
+  for (const t of tiles) for (const n of neighbours(t)) if (roads[n] && !removed[n]) ends.add(n);
+  if (ends.size <= 1) return false;
+  const list = [...ends];
+  const seen = new Set<number>([list[0]]);
+  const queue = [list[0]];
+  let found = 1;
+  for (let q = 0; q < queue.length; q++) {
+    for (const n of neighbours(queue[q])) {
+      if (!roads[n] || removed[n] || seen.has(n)) continue;
+      seen.add(n);
+      if (ends.has(n) && ++found === ends.size) return false;
+      queue.push(n);
+    }
+  }
+  return true;
+}
+
+/** Zahl der Straßennetze, wenn `removed` (Kacheln) zusätzlich fehlen. */
+function networksWithout(roads: Uint8Array, w: number, removed: Uint8Array): number {
+  const r = new Uint8Array(roads.length);
+  for (let i = 0; i < r.length; i++) r[i] = roads[i] && !removed[i] ? 1 : 0;
+  return countNetworks(r, w);
+}
+
+function housesWithoutAccess(houses: readonly PlannedHouse[], roads: Uint8Array, w: number, h: number): Set<PlannedHouse> {
+  const out = new Set<PlannedHouse>();
+  for (const hs of houses) {
+    let ok = false;
+    for (let d = 0; d < 3 && !ok; d++) {
+      if (hs.y > 0 && roads[(hs.y - 1) * w + hs.x + d]) ok = true;
+      else if (hs.y + 3 < h && roads[(hs.y + 3) * w + hs.x + d]) ok = true;
+      else if (hs.x > 0 && roads[(hs.y + d) * w + hs.x - 1]) ok = true;
+      else if (hs.x + 3 < w && roads[(hs.y + d) * w + hs.x + 3]) ok = true;
+    }
+    if (!ok) out.add(hs);
+  }
+  return out;
 }
 
 export interface CityPlan {
@@ -195,26 +300,53 @@ export function finishPlan(
   townHalls: ReadonlyArray<{ x: number; y: number }>,
   minCovered: number,
 ): CityPlan {
-  const covers = (t: { x: number; y: number }, list: readonly PlannedHouse[]): number =>
-    list.filter((hs) => Math.hypot(hs.x + 1 - (t.x + 1.5), hs.y + 1 - (t.y + 1.5)) <= 20 + 1e-9).length;
+  const { w, h } = plan;
   const overlaps = (t: { x: number; y: number }, hs: PlannedHouse): boolean =>
     hs.x < t.x + 4 && hs.x + 3 > t.x && hs.y < t.y + 4 && hs.y + 3 > t.y;
+  const footprint = (list: ReadonlyArray<{ x: number; y: number }>): Uint8Array => {
+    const m = new Uint8Array(w * h);
+    for (const t of list) for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) m[(t.y + dy) * w + t.x + dx] = 1;
+    return m;
+  };
+  const onRoad = (t: { x: number; y: number }): boolean => {
+    for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) if (plan.roads[(t.y + dy) * w + t.x + dx]) return true;
+    return false;
+  };
 
-  let kept = [...townHalls];
-  let houses = [...plan.houses];
+  // Rathäuser auf Querstraßen nur, wenn das Straßennetz zusammenhängend bleibt.
+  const baseNetworks = plan.networks;
+  let kept: Array<{ x: number; y: number }> = [];
+  for (const t of townHalls) {
+    if (onRoad(t) && networksWithout(plan.roads, w, footprint([...kept, t])) > baseNetworks) continue;
+    kept.push(t);
+  }
+
+  const build = (list: ReadonlyArray<{ x: number; y: number }>): { houses: PlannedHouse[]; roads: Uint8Array } => {
+    const fp = footprint(list);
+    const roads = new Uint8Array(plan.roads.length);
+    for (let i = 0; i < roads.length; i++) roads[i] = plan.roads[i] && !fp[i] ? 1 : 0;
+    const standing = plan.houses.filter((hs) => !list.some((t) => overlaps(t, hs)));
+    const cut = housesWithoutAccess(standing, roads, w, h);
+    return { houses: standing.filter((hs) => !cut.has(hs)), roads };
+  };
+  const covers = (t: { x: number; y: number }, list: readonly PlannedHouse[]): number =>
+    list.filter((hs) => Math.hypot(hs.x + 1 - (t.x + 1.5), hs.y + 1 - (t.y + 1.5)) <= 20 + 1e-9).length;
+
   // Wiederholen, bis jedes Rathaus nach dem Entfernen genug Häuser abdeckt.
+  let state = build(kept);
   for (let round = 0; round < 5; round++) {
-    houses = plan.houses.filter((hs) => !kept.some((t) => overlaps(t, hs)));
-    const next = kept.filter((t) => covers(t, houses) >= minCovered);
+    const next = kept.filter((t) => covers(t, state.houses) >= minCovered);
     if (next.length === kept.length) break;
     kept = next;
+    state = build(kept);
   }
-  houses = plan.houses.filter((hs) => !kept.some((t) => overlaps(t, hs)));
+  let roadCount = 0;
+  for (let i = 0; i < state.roads.length; i++) roadCount += state.roads[i];
   return {
-    plan,
+    plan: { ...plan, roads: state.roads, roadCount, networks: countNetworks(state.roads, w), houses: state.houses },
     townHalls: kept,
-    houses,
-    removedHouses: plan.houses.length - houses.length,
+    houses: state.houses,
+    removedHouses: plan.houses.length - state.houses.length,
     droppedTownHalls: townHalls.length - kept.length,
   };
 }
@@ -353,8 +485,7 @@ export function freeTiles(mask: LandMask, city: CityPlan): number {
   return free;
 }
 
-/** Nach dem Setzen der Rathäuser die Lücken wieder mit Häusern füllen. */
-export function refillAroundTownHalls(mask: LandMask, city: CityPlan): CityPlan & { refilled: number } {
+function cityToState(mask: LandMask, city: CityPlan): FillState {
   const { w, h } = mask;
   const cell = new Uint8Array(w * h);
   for (let i = 0; i < cell.length; i++) cell[i] = mask.data[i] ? (city.plan.roads[i] ? ROAD : FREE) : WATER;
@@ -365,13 +496,14 @@ export function refillAroundTownHalls(mask: LandMask, city: CityPlan): CityPlan 
   for (const t of city.townHalls) {
     for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) cell[(t.y + dy) * w + t.x + dx] = BLOCKED;
   }
-  const before = s.houses.length;
-  greedyFill(s);
-  extendRoads(s);
-  const roads = new Uint8Array(w * h);
+  return s;
+}
+
+function stateToCity(s: FillState, city: CityPlan, townHalls: Array<{ x: number; y: number }>): CityPlan {
+  const roads = new Uint8Array(s.w * s.h);
   let roadCount = 0;
   for (let i = 0; i < roads.length; i++) {
-    if (cell[i] === ROAD) {
+    if (s.cell[i] === ROAD) {
       roads[i] = 1;
       roadCount++;
     }
@@ -379,8 +511,32 @@ export function refillAroundTownHalls(mask: LandMask, city: CityPlan): CityPlan 
   const houses = s.houses.map((hs) => ({ x: hs.x, y: hs.y, line: hs.line, group: -1 }));
   return {
     ...city,
-    plan: { ...city.plan, roads, roadCount, networks: countNetworks(roads, w), houses },
+    plan: { ...city.plan, roads, roadCount, networks: countNetworks(roads, s.w), houses },
     houses,
-    refilled: s.houses.length - before,
+    townHalls,
   };
+}
+
+/** Nach dem Setzen der Rathäuser die Lücken wieder mit Häusern füllen. */
+export function refillAroundTownHalls(mask: LandMask, city: CityPlan): CityPlan & { refilled: number } {
+  const s = cityToState(mask, city);
+  const before = s.houses.length;
+  greedyFill(s);
+  extendRoads(s);
+  return { ...stateToCity(s, city, [...city.townHalls]), refilled: s.houses.length - before };
+}
+
+/**
+ * Nachverdichtung (compact.ts): Häuser und Rathäuser lokal verschieben, um
+ * Restflächen zu nutzen. Liefert den neuen Plan und die Bilanz.
+ */
+export function compactCity(
+  mask: LandMask,
+  city: CityPlan,
+  options: CompactOptions,
+): { city: CityPlan; result: CompactResult } {
+  const s = cityToState(mask, city);
+  const townHalls = city.townHalls.map((t) => ({ x: t.x, y: t.y }));
+  const result = compact(s, townHalls, options);
+  return { city: stateToCity(s, city, townHalls), result };
 }
