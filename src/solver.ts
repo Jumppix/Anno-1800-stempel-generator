@@ -61,6 +61,18 @@ export interface SolveOptions {
   warmStart?: Partial<Record<BuildingId, ReadonlyArray<{ x: number; y: number }>>>;
   /** Bereits gesetzte Gebäude anderer Typen: ihre Flächen sind belegt. */
   blocked?: ReadonlyArray<Chamber>;
+  /**
+   * Erlaubte Bauflächen (statt mask.data). mask.data zählt dann nur noch als
+   * Abdeckungsziel – z. B. Hausmittelpunkte beim Rathaus-Plan.
+   */
+  allowed?: Uint8Array;
+  /** Abzug je verdrängtem Objekt (ids: Kachel → Objekt-ID + 1, 0 = frei). */
+  overlapPenalty?: OverlapPenalty;
+}
+
+export interface OverlapPenalty {
+  ids: Int32Array;
+  weight: number;
 }
 
 const now = (): number =>
@@ -136,6 +148,7 @@ class Packer {
     mask: LandMask,
     allowed: Uint8Array,
     readonly spec: BuildingSpec,
+    penalty?: OverlapPenalty,
   ) {
     const { w, h, data } = mask;
     const S = spec.size;
@@ -194,6 +207,20 @@ class Packer {
         if (x >= 0 && y >= 0 && x < w && y < h && data[y * w + x]) c++;
       }
       this.cov[k] = c;
+    }
+    if (penalty) {
+      // Jedes Objekt (z. B. Haus), das die Fläche berührt, kostet `weight`.
+      const seen = new Set<number>();
+      for (let k = 0; k < this.n; k++) {
+        seen.clear();
+        for (let dy = 0; dy < S; dy++) {
+          for (let dx = 0; dx < S; dx++) {
+            const id = penalty.ids[(this.cy[k] + dy) * w + this.cx[k] + dx];
+            if (id) seen.add(id);
+          }
+        }
+        this.cov[k] -= penalty.weight * seen.size;
+      }
     }
 
     // Statischer Grad (Kandidaten im Konfliktbereich) über Zeilen-Präfixsummen.
@@ -863,7 +890,7 @@ export function solve(mask: LandMask, types: readonly BuildingId[], options: Sol
   const budget = Math.max(50, options.budgetMs ?? 3000);
   const start = now();
   const seed = options.seed ?? 12345;
-  const allowed = Uint8Array.from(mask.data);
+  const allowed = Uint8Array.from(options.allowed ?? mask.data);
   const block = (c: Chamber): void => {
     const size = BUILDINGS[c.type].size;
     for (let dy = 0; dy < size; dy++) {
@@ -887,7 +914,7 @@ export function solve(mask: LandMask, types: readonly BuildingId[], options: Sol
     const share = (budget * weights[ti]) / wsum;
     const typeStart = now();
     const typeEnd = Math.min(start + budget, typeStart + share);
-    const p = new Packer(mask, allowed, spec);
+    const p = new Packer(mask, allowed, spec, options.overlapPenalty);
     const rnd = mulberry32(seed + ti * 7919);
 
     const emit = (s: Snapshot, force = false): void => {

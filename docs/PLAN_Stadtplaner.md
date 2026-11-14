@@ -389,7 +389,26 @@ Panorama. Klick tauscht die Gruppe, Umschalt+Klick ein einzelnes Haus.
 Tooltip zeigt die Aufschlüsselung wie im Spiel. Für den Generator gilt
 dieselbe Gruppenregel (Bauplan je Gruppe).
 
-## 14. Noch offene Fragen
+## 14. Phase 2 umgesetzt (Wohnraster + Rathäuser)
+
+- Gitter aus 1er-Pflasterstraßen, Periode 7 × (3·n + 1) bzw. transponiert;
+  Ausrichtung (senkrecht/waagerecht/automatisch) und alle Verschiebungen
+  werden durchprobiert; nur Gruppen, deren Zelle + Ringstraße komplett auf Land
+  liegt (Küste plant der Nutzer).
+- Rathäuser: vorhandener Solver mit Ziel „Hausmittelpunkte im Radius 20“,
+  Bauplatz Land ohne Straße, Abzug 3 je verdrängtem Haus; danach verdrängte
+  Häuser entfernen, Rathäuser mit < N Häusern verwerfen.
+- Insel 2 (189 × 290): 191–196 Gruppen ≈ 1.500 Häuser, 24–25 Rathäuser,
+  ≈ 82–86 % der Häuser im Rathausradius, alle Häuser Panorama ≥ 4,
+  Schätzung ≈ 264.000 Einwohner ohne Items und ohne Versorgung.
+- Export: Bauernhäuser + Pflaster + Rathäuser (+ Feldweg-Inselrand), ein
+  Stempel oder Bänder bis 13.500 Kacheln, Bauplan-Bild.
+
+**Nächste Phase (3):** Versorgung – Kaufhaus, Einrichtungshaus, Drogerie,
+Universität, Gaskraftwerke (+ Lagerhäuser) als Sonderzellen in Rathaus-
+Lücken, Ministeriums-/Erlass-Effekte.
+
+## 15. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

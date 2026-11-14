@@ -377,7 +377,8 @@ export function assignTiers(
   for (const members of groups) {
     const xs = [...new Set(members.map((m) => m.x))].sort((a, b) => a - b);
     const ys = [...new Set(members.map((m) => m.y))].sort((a, b) => a - b);
-    const vertical = ys.length >= xs.length;
+    // Genau 2 Spalten → senkrecht (auch Reste neben Rathäusern), genau 2 Reihen → waagerecht.
+    const vertical = xs.length === 2 || (ys.length !== 2 && ys.length >= xs.length);
     const id = Math.min(...members.map((m) => m.index));
     for (const m of members) {
       parity.set(m.index, vertical ? xs.indexOf(m.x) % 2 : ys.indexOf(m.y) % 2);

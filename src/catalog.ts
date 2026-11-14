@@ -97,6 +97,9 @@ const VARIANTS: Readonly<Record<number, number>> = {
   134631: 134629, 135191: 134629, 135192: 134629, 135193: 134629, 135194: 134629,
 };
 
+/** Bauernhaus: im normalen Spiel die einzige Wohnhaus-Art in Stempeln. */
+export const FARMER_HOUSE = 1010343;
+
 export const STREET_GUIDS = {
   dirt: 1000178,
   paved: 1010035,

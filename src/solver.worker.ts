@@ -1,7 +1,7 @@
 // Rechnet die Platzierung im Hintergrund, damit die Oberfläche während der
 // (absichtlich längeren) Optimierung bedienbar bleibt. Zwischenstände werden
 // laufend zurückgeschickt.
-import { solve, type Chamber, type LandMask, type Layout } from './solver';
+import { solve, type Chamber, type LandMask, type Layout, type OverlapPenalty } from './solver';
 import type { BuildingId } from './buildings';
 
 export interface SolveJob {
@@ -12,6 +12,8 @@ export interface SolveJob {
   seed: number;
   warmStart?: Partial<Record<BuildingId, Array<{ x: number; y: number }>>>;
   blocked?: Chamber[];
+  allowed?: Uint8Array;
+  overlapPenalty?: OverlapPenalty;
 }
 
 export interface SolveMessage {
@@ -34,6 +36,8 @@ scope.onmessage = (event) => {
     seed: job.seed,
     warmStart: job.warmStart,
     blocked: job.blocked,
+    allowed: job.allowed,
+    overlapPenalty: job.overlapPenalty,
     onProgress: (partial) =>
       scope.postMessage({
         id: job.id,

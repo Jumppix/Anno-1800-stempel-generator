@@ -18,7 +18,7 @@
 
         <nav class="mode-switch" aria-label="Modus">
           <button id="mode-admin" class="active" type="button">Verwaltung (HK/RH)</button>
-          <button id="mode-city" type="button">Stadt-Analyse</button>
+          <button id="mode-city" type="button">Stadtplaner</button>
         </nav>
 
         <section class="card" data-mode="admin">
@@ -89,7 +89,57 @@
           <p class="hint">Nach <code>Documents\Anno 1800\stamps\&lt;Region&gt;\&lt;Ordner&gt;</code> kopieren und Anno neu starten.</p>
         </section>
         <section class="card" data-mode="city" hidden>
-          <h2>Stadt-Stempel</h2>
+          <h2>Wohnraster planen</h2>
+          <p id="plan-island" class="hint">–</p>
+          <label class="select-row">Gruppen
+            <select id="plan-orientation">
+              <option value="auto">Automatisch (meiste Häuser)</option>
+              <option value="vertical">Senkrecht (2 × 4)</option>
+              <option value="horizontal">Waagerecht (4 × 2)</option>
+            </select>
+          </label>
+          <label class="select-row">Häuser je Linie
+            <select id="plan-line">
+              <option value="3">3 (6er-Gruppe)</option>
+              <option value="4" selected>4 (8er-Gruppe)</option>
+              <option value="5">5 (10er-Gruppe)</option>
+              <option value="6">6 (12er-Gruppe)</option>
+              <option value="8">8 (16er-Gruppe)</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input id="plan-townhalls" type="checkbox" checked />
+            Rathäuser einplanen (maximal viele Häuser im Radius 20)
+          </label>
+          <label class="select-row">Min. Häuser je Rathaus
+            <input id="plan-mincover" type="number" min="0" max="200" step="1" value="12" />
+          </label>
+          <label class="select-row">Rechenzeit
+            <select id="plan-budget">
+              <option value="2000">Schnell · 2 s</option>
+              <option value="6000" selected>Gründlich · 6 s</option>
+              <option value="20000">Sehr gründlich · 20 s</option>
+            </select>
+          </label>
+          <button id="plan-run" class="primary" type="button">Wohnraster planen</button>
+          <p id="plan-status" class="hint"></p>
+          <p class="hint">Nur vollständige Gruppen mit Ringstraße auf Land; die Küste bleibt frei für dich. Häuser werden als Bauernhäuser exportiert – welche Linie Ingenieure (I) und Investoren (V) werden, zeigt die Ansicht bzw. der Bauplan.</p>
+          <div id="plan-export" hidden>
+            <label class="check-row">
+              <input id="plan-coast" type="checkbox" checked />
+              Inselrand als Feldweg (zum Ausrichten)
+            </label>
+            <label class="check-row">
+              <input id="plan-split" type="checkbox" />
+              In Stempel bis 13.500 Kacheln aufteilen
+            </label>
+            <div id="plan-stamps" class="stamp-list"></div>
+            <button id="plan-image" class="ghost" type="button">Bauplan als Bild speichern</button>
+          </div>
+        </section>
+
+        <section class="card" data-mode="city" hidden>
+          <h2>Stadt-Stempel analysieren</h2>
           <p class="hint">Einen Ausschnitt deiner fertigen Stadt im Spiel als Stempel speichern und hier laden – mit Häusern, Straßen und Versorgungsgebäuden.</p>
           <label class="file-button">
             <input id="city-file" type="file" />

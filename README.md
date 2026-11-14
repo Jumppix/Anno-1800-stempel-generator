@@ -83,9 +83,20 @@ wird nie im Repository gespeichert; es ist nur für den Workflow gedacht.
    `Documents\Anno 1800\stamps\<Region>\<Projektname>\`
    Danach Anno 1800 neu starten.
 
-### Stadt-Analyse (Modus oben links umschalten)
+### Stadtplaner (Modus oben links umschalten)
 
-Erster Baustein des geplanten Stadtplaners (`docs/PLAN_Stadtplaner.md`, Phase 1):
+**Wohnraster planen** (Phase 2): Nutzt die im Modus „Verwaltung“ geladene
+Insel. Ein Gitter aus Pflasterstraßen nimmt 8er-Gruppen auf (eine Linie aus 4
+Ingenieuren, eine aus 4 Investoren; senkrecht oder waagerecht, Ausrichtung und
+Verschiebung werden durchprobiert). Nur vollständige Gruppen samt Ringstraße auf
+Land – die Küste baut der Spieler selbst. Danach optimiert der Rathaus-Solver
+die Rathäuser auf möglichst viele **Hausmittelpunkte im Radius 20**; Bauplatz
+ist Land ohne Straße, jedes verdrängte Haus kostet 3 abgedeckte Häuser.
+Export: Bauernhäuser (im normalen Spiel die einzige stempelbare Wohnhaus-Art),
+Pflasterstraßen, Rathäuser, optional Inselrand als Feldweg; ein Stempel oder
+Teile bis 13.500 Kacheln; Bauplan als Bild (I/V je Haus).
+
+**Stadt-Stempel analysieren** (Phase 1):
 
 1. Einen Ausschnitt der fertigen Stadt im Spiel als Stempel speichern und unter
    „Stadt-Stempel wählen“ laden (oder „Beispielstadt öffnen“).
@@ -136,6 +147,9 @@ Reines TypeScript + Vite, keine Framework-Abhängigkeit außer `fflate` für ZIP
 | `src/analysis.ts` | Versorgung, Ministeriumsbereich, Rathaus/Post/HK-Radien, Panorama, Einwohner-Schätzung, Warnungen |
 | `src/cityUi.ts` | Oberfläche der Stadt-Analyse |
 | `src/testStamps.ts` | Katalog-Teststempel und Beispielstadt |
+| `src/planner.ts` | Wohnraster (Gitter, Gruppen), Rathaus-Problem, Plan → Stempel, Bänder |
+| `src/plannerUi.ts` | Oberfläche „Wohnraster planen“ |
+| `src/coast.ts` | äußerer Inselrand (Verwaltung und Stadtplaner) |
 | `src/stamp.ts` | Anno-Stempel schreiben: `BuildingInfo`, `StreetInfo`, `StreetCount`, Region |
 | `src/render.ts` | Ergebnisansicht: Abdeckung, Lücken, Küstenrahmen, HKs, Radien |
 | `src/placement.ts` | 2D-Anordnen-Ansicht: pixelgenaue Teile, Kachelraster, Drag-Hit-Test |

@@ -4,7 +4,7 @@
 // Gebäudetypen wird erst Typ 1 auf allen Kernen gelöst, dann Typ 2 um dessen
 // Flächen herum.
 import { BUILDINGS, type BuildingId } from './buildings';
-import { emptyLayout, type Chamber, type Group, type LandMask, type Layout } from './solver';
+import { emptyLayout, type Chamber, type Group, type LandMask, type Layout, type OverlapPenalty } from './solver';
 import type { SolveJob, SolveMessage } from './solver.worker';
 
 export interface RunUpdate {
@@ -40,6 +40,7 @@ export class SolveRunner {
     types: readonly BuildingId[],
     budgetMs: number,
     warm: Layout | null,
+    extras: { allowed?: Uint8Array; overlapPenalty?: OverlapPenalty } = {},
   ): Promise<void> {
     this.cancel();
     const gen = this.generation;
@@ -70,7 +71,7 @@ export class SolveRunner {
     for (let ti = 0; ti < types.length; ti++) {
       const type = types[ti];
       const share = (budgetMs * weights[ti]) / wsum;
-      const best = await this.runType(gen, count, mask, type, share, blocked, warmGroup(type), (g) =>
+      const best = await this.runType(gen, count, mask, type, share, blocked, warmGroup(type), extras, (g) =>
         emit([...finished, g, ...pending(ti + 1)], true),
       );
       if (gen !== this.generation) return;
@@ -89,6 +90,7 @@ export class SolveRunner {
     budgetMs: number,
     blocked: readonly Chamber[],
     warm: Group | undefined,
+    extras: { allowed?: Uint8Array; overlapPenalty?: OverlapPenalty },
     onBest: (g: Group) => void,
   ): Promise<Group> {
     return new Promise((resolve) => {
@@ -124,6 +126,8 @@ export class SolveRunner {
           seed: (Date.now() % 1_000_000) * 31 + i * 7919 + BUILDINGS[type].radius,
           warmStart: warm ? { [type]: warm.chambers.map((c) => ({ x: c.x, y: c.y })) } : undefined,
           blocked: [...blocked],
+          allowed: extras.allowed,
+          overlapPenalty: extras.overlapPenalty,
         };
         worker.postMessage(job);
       }

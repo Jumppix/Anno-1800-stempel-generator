@@ -62,7 +62,10 @@ unnötig verändern.
   verschiedene IDs nutzen).
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
   `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
-  `src/testStamps.ts`. Footprint in Kachelachsen: Preset `[x, z]` → bei Dir 0
+  `src/testStamps.ts`. Phase 2: `src/planner.ts` (Wohnraster, Rathaus-Problem
+  über `solve(..., { allowed, overlapPenalty })`), `src/plannerUi.ts`,
+  `src/coast.ts`. Generierte Wohnhäuser sind immer Bauernhäuser (1010343).
+  Footprint in Kachelachsen: Preset `[x, z]` → bei Dir 0
   Breite z × Höhe x, bei 90°/270° vertauscht.
 - `src/placement.ts`: 2D-Anordnen-Ansicht, pixelgenaue Zeichnung,
   Kachelraster, Drag-Hit-Test.
@@ -111,6 +114,8 @@ unnötig verändern.
 - Spielbarkeit des großen Ein-Stempel-Exports ist noch ein Praxistest.
 - Kein automatisierter End-to-End-/Browser-Test (nur `npm run check` für den
   Solver).
+- Stadtplaner: Versorgungsgebäude, Post, Lufthafen, Ministerium und
+  Produktion folgen in Phase 3–5 (`docs/PLAN_Stadtplaner.md`).
 - Optimalität ist für große Inseln nicht bewiesen; Benchmark-Insel
   189 × 290: 41 HK / 25–26 Rathäuser (alter Solver: 33 HK).
 - Der Feldweg-GUID wird aus dem ersten importierten Stempel übernommen

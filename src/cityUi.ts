@@ -190,6 +190,21 @@ export class CityUi {
     this.ruleInfo.textContent = parts.join(' · ');
   }
 
+  /** Einen erzeugten Stempel (z. B. Plan) anzeigen und analysieren. */
+  show(bytes: Uint8Array, name: string): void {
+    this.load(bytes, name);
+  }
+
+  setLayer(layer: Layer): void {
+    this.layer = layer;
+    this.layerSelect.value = layer;
+    this.draw();
+  }
+
+  canvasElement(): HTMLCanvasElement {
+    return this.canvas;
+  }
+
   private async loadFile(file: File): Promise<void> {
     this.load(new Uint8Array(await file.arrayBuffer()), file.name);
     this.fileInput.value = '';

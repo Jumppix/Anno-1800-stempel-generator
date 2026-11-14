@@ -1,15 +1,12 @@
 // Erzeugte Stempel für Spieltests und die Analyse-Vorschau.
 
-import { CATALOG_LIST, footprint, lookup, STREET_GUIDS } from './catalog';
+import { CATALOG_LIST, FARMER_HOUSE, footprint, lookup, STREET_GUIDS } from './catalog';
 import type { StampBuilding, StampStreet } from './stamp';
 
 interface Layout {
   buildings: StampBuilding[];
   streets: StampStreet[];
 }
-
-/** Bauernhaus: im normalen Spiel die einzige Wohnhaus-Art in Stempeln. */
-export const FARMER_HOUSE = 1010343;
 
 function place(guid: number, x: number, y: number, turns: number): StampBuilding {
   const { w, h } = footprint(lookup(guid), turns);
