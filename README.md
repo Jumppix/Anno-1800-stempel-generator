@@ -210,10 +210,11 @@ Reale 189 × 290-Insel (25.823 Landkacheln, aus einem Screenshot rekonstruiert,
 | neuer Solver, 2 s, 1 Kern | 40–41 | ≈ 85 % | 25 | ≈ 87 % |
 | neuer Solver, 6 s+, mehrere Kerne | 41 | ≈ 86 % | 25–26 | ≈ 88 % |
 
-Hunderte unabhängige Läufe (bis 60 s) fanden nie mehr als 41 HK; 26 Rathäuser
-wurden selten gefunden. Ein Beweis der Optimalität ist für Inseln dieser Größe
-mit exakten Verfahren (ganzzahlige Optimierung) nicht in vertretbarer Zeit
-möglich; für kleine Inseln stimmt der Solver mit dem exakten Optimum überein.
+Viele unabhängige Läufe (bis 60 s) fanden nie mehr als 41 HK; 26 Rathäuser
+wurden selten gefunden (etwa 1 von 20–50 Läufen). Ein Optimalitätsbeweis ist
+für Inseln dieser Größe mit exakter ganzzahliger Optimierung (HiGHS) nicht in
+vertretbarer Zeit gelungen. Exakt bestätigt ist bisher nur eine kleine
+Testinsel (≈ 2.300 Landkacheln): Optimum 4 HK, vom Solver gefunden.
 
 ### Inselrand im Stempel
 
