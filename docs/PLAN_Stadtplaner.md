@@ -396,7 +396,7 @@ dieselbe Gruppenregel (Bauplan je Gruppe).
   werden durchprobiert; nur Gruppen, deren Zelle + Ringstraße komplett auf Land
   liegt (Küste plant der Nutzer).
 - Rathäuser: vorhandener Solver mit Ziel „Hausmittelpunkte im Radius 20“,
-  Bauplatz Land ohne Straße, Abzug 3 je verdrängtem Haus; danach verdrängte
+  Bauplatz Land ohne Straße, Abzug 6 (vorher 3) je verdrängtem Haus; danach verdrängte
   Häuser entfernen, Rathäuser mit < N Häusern verwerfen.
 - Insel 2 (189 × 290): 191–196 Gruppen ≈ 1.500 Häuser, 24–25 Rathäuser,
   ≈ 82–86 % der Häuser im Rathausradius, alle Häuser Panorama ≥ 4,
@@ -430,7 +430,22 @@ Lücken, Ministeriums-/Erlass-Effekte.
   Bonus-Bedürfnisse (Post, Seife, Schokolade, Shampoo …); die Schätzung bleibt
   bewusst ein Vergleichswert, kein exakter Spielwert.
 
-## 16. Noch offene Fragen
+## 16. Korrektur: ganze Insel bebauen (kein freier Küstenstreifen)
+
+Missverständnis geklärt: „Küste baut der Nutzer selbst“ meinte den
+**Wasserbereich** (Kontor, Werften, Speicherstadt). Die eingegebene Fläche ist
+nur Land und soll **bis zur letzten Kachel** mit Wohnhäusern bebaut werden.
+→ `src/fill.ts`: Gitter über die ganze Insel inkl. angeschnittener Zellen,
+gieriges Füllen, Straßenverlängerung (1–2 Kacheln), Gittersuche nach
+Häuserzahl; nach den Rathäusern Lücken neu füllen.
+Insel 2: 1.568 → 2.086 Häuser (+33 %) ohne Rathäuser; Rest ≈ 6 % (1–2 Kacheln
+breite Ränder, dort passt kein 3×3-Haus). Längere Gruppen: 10er 2.109,
+12er 2.136, 16er 2.154 Häuser (wählbar).
+**Folge für Phase 3+:** Da kein Land mehr frei ist, ersetzen Versorgungs-
+gebäude etc. Häuser; der Optimierer wählt Plätze mit minimalem Verlust
+(Ränder, Rathaus-Reste) und maximaler Abdeckung.
+
+## 17. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

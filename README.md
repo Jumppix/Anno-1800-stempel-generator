@@ -91,15 +91,22 @@ beiden Modi; die Insel ist zwischen den Modi geteilt. Der Tab „Plan / Analyse�
 zeigt Plan bzw. analysierten Stadt-Stempel. Der HK/RH-Solver rechnet nur im
 Modus „Verwaltung“.
 
-**Wohnraster planen** (Phase 2): Nutzt die geladene Insel. Ein Gitter aus Pflasterstraßen nimmt 8er-Gruppen auf (eine Linie aus 4
-Ingenieuren, eine aus 4 Investoren; senkrecht oder waagerecht, Ausrichtung und
-Verschiebung werden durchprobiert). Nur vollständige Gruppen samt Ringstraße auf
-Land – die Küste baut der Spieler selbst. Danach optimiert der Rathaus-Solver
-die Rathäuser auf möglichst viele **Hausmittelpunkte im Radius 20**; Bauplatz
-ist Land ohne Straße, jedes verdrängte Haus kostet 3 abgedeckte Häuser.
-Export: Bauernhäuser (im normalen Spiel die einzige stempelbare Wohnhaus-Art),
-Pflasterstraßen, Rathäuser, optional Inselrand als Feldweg; ein Stempel oder
-Teile bis 13.500 Kacheln; Bauplan als Bild (I/V je Haus).
+**Wohnraster planen** (Phase 2): Die **gesamte Landfläche** der geladenen
+Insel wird bebaut (`src/fill.ts`):
+1. 8er-Raster aus Pflasterstraßen (eine Linie aus 4 Ingenieuren, eine aus 4
+   Investoren; senkrecht oder waagerecht) über die ganze Insel – auch
+   angeschnittene Gruppen am Rand; je Landstück bleibt ein zusammenhängendes
+   Straßennetz, ungenutzte Straßenenden werden abgebaut.
+2. Restflächen gierig mit Häusern füllen (passgenaue Plätze zuerst).
+3. Straßen um 1–2 Kacheln verlängern, wo das weitere Häuser anschließt.
+4. Ausrichtung/Verschiebung des Gitters nach der Gesamtzahl der Häuser wählen.
+5. Rathäuser: Solver mit Ziel „Hausmittelpunkte im Radius 20“, Bauplatz Land
+   ohne Straße, Abzug 6 je verdrängtem Haus; danach Lücken neu füllen.
+
+Insel 2 (189 × 290): ≈ 2.090 Häuser ohne bzw. ≈ 2.010 mit 25 Rathäusern
+(vorher 1.500 nur mit vollen Gruppen); Rest ≈ 6–8 % schmale Ränder.
+Export: Bauernhäuser, Pflasterstraßen, Rathäuser, optional Feldweg auf freien
+Randkacheln; ein Stempel oder Teile bis 13.500 Kacheln; Bauplan als Bild.
 
 **Stadt-Stempel analysieren** (Phase 1):
 

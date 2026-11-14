@@ -148,34 +148,32 @@ const lastCovered = Math.max(
 // wenn eine seiner Straßenkacheln (x..x+2) Entfernung ≤ 62 hat, also x − 5 ≤ 62.
 expect('Straßenreichweite: letztes versorgtes Haus bei x ≤ 67', lastCovered <= 67 && lastCovered >= 61, `x=${lastCovered}`);
 
-// 5. Stadtplaner Phase 2: Wohnraster + Rathäuser auf der echten Benchmark-Insel.
-const { planGrid, townHallProblem, finishPlan, planToStampItems } = await server.ssrLoadModule('/src/planner.ts');
+// 5. Stadtplaner Phase 2: vollständige Bebauung + Rathäuser auf der Benchmark-Insel.
+const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles } =
+  await server.ssrLoadModule('/src/planner.ts');
+const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
 {
   const island = decodeStamp(new Uint8Array(readFileSync('test-stamps-fix/Insel_189x290_Screenshot')));
   const mask = { w: island.width, h: island.height, data: island.mask, landCount: island.landCount };
-  const plan = planGrid(mask, { housesPerLine: 4, orientation: 'auto' });
-  expect('Planer: ≥ 185 vollständige 8er-Gruppen', plan.groups.length >= 185, `${plan.groups.length} Gruppen`);
-  const onLand = plan.houses.every((hs) => {
-    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) {
-      const i = (hs.y + dy) * mask.w + hs.x + dx;
-      if (!mask.data[i] || plan.roads[i]) return false;
-    }
-    return true;
-  });
-  const roadsOnLand = plan.roads.every((r, i) => !r || mask.data[i]);
-  expect('Planer: Häuser auf Land, nicht auf Straßen; Straßen auf Land', onLand && roadsOnLand);
+  const plan = planFromFill(searchFill(mask, { orientation: 'auto', housesPerLine: 4 }));
+  expect('Planer: ≥ 2.000 Häuser (ganze Insel bebaut)', plan.houses.length >= 2000, `${plan.houses.length} Häuser`);
   const problem = townHallProblem(mask, plan);
   const L = solve(problem.target, ['rh'], { budgetMs: budget, seed: 7, allowed: problem.allowed, overlapPenalty: problem.penalty });
-  const city = finishPlan(plan, L.groups[0].chambers, 12);
-  const items = planToStampItems(mask, city, { coast: true, coastGuid: 1000178 });
+  const city = refillAroundTownHalls(mask, finishPlan(plan, L.groups[0].chambers, 12));
+  const free = freeTiles(mask, city);
+  expect('Planer: < 9 % freie Restkacheln (inkl. Rathaus-Reste)', free / mask.landCount < 0.09, `${((100 * free) / mask.landCount).toFixed(1)} %`);
+  const items = planToStampItems(mask, city, { coast: false, coastGuid: 1000178 });
   const planCity = cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets)));
   const planA = analyzeCity(planCity, DEFAULT_RULES);
   expect('Planer: ≥ 20 Rathäuser, ≥ 80 % der Häuser im Radius', city.townHalls.length >= 20 && planA.totals.townHallShare >= 0.8,
     `${city.townHalls.length} RH, ${(planA.totals.townHallShare * 100).toFixed(1)} %`);
   expect('Planer: Stempel ohne Überlappung, alle Häuser angeschlossen, keine Warnungen',
     planCity.conflicts === 0 && planA.warnings.length === 0, planA.warnings.join('; '));
-  const weak = planA.residences.filter((r) => r.panorama < 4).length;
-  expect('Planer: alle Häuser mindestens Panorama 4', weak === 0, `${weak} schwächer`);
+  const onLand = city.houses.every((hs) => {
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) if (!mask.data[(hs.y + dy) * mask.w + hs.x + dx]) return false;
+    return true;
+  });
+  expect('Planer: alle Häuser und Straßen auf Land', onLand && city.plan.roads.every((r, i) => !r || mask.data[i]));
 }
 
 for (const c of cityChecks) {

@@ -3,10 +3,13 @@
 // in der Stadt-Ansicht (CityUi) mit allen Analyse-Ebenen.
 
 import type { CityUi } from './cityUi';
+import { searchFill } from './fill';
 import {
   finishPlan,
-  planGrid,
+  freeTiles,
+  planFromFill,
   planToStampItems,
+  refillAroundTownHalls,
   splitBands,
   townHallProblem,
   type CityPlan,
@@ -95,8 +98,11 @@ export class PlannerUi {
     this.exportBox.hidden = true;
     const started = performance.now();
     const orientation = this.orientation.value as 'auto' | Orientation;
-    const plan = planGrid(src.mask, { housesPerLine: Number(this.perLine.value) || 4, orientation });
-    this.status.textContent = `Raster: ${num(plan.groups.length)} Gruppen, ${num(plan.houses.length)} Häuser. Rathäuser werden optimiert …`;
+    this.status.textContent = 'Bebauung wird berechnet …';
+    await new Promise((r) => setTimeout(r, 30));
+    const fill = searchFill(src.mask, { orientation, housesPerLine: Number(this.perLine.value) || 4 });
+    const plan = planFromFill(fill);
+    this.status.textContent = `Bebauung: ${num(plan.houses.length)} Häuser. Rathäuser werden optimiert …`;
 
     let townHalls: Array<{ x: number; y: number }> = [];
     if (this.townHalls.checked && plan.houses.length) {
@@ -117,18 +123,24 @@ export class PlannerUi {
       });
     }
 
-    const city = finishPlan(plan, townHalls, Math.max(0, Number(this.minCover.value) || 0));
+    const finished = finishPlan(plan, townHalls, Math.max(0, Number(this.minCover.value) || 0));
+    const city = refillAroundTownHalls(src.mask, finished);
     this.result = { city, mask: src.mask, streetGuid: src.streetGuid };
     this.buildStamps();
     const secs = ((performance.now() - started) / 1000).toFixed(1);
+    const free = freeTiles(src.mask, city);
     const parts = [
-      `${plan.orientation === 'vertical' ? 'Senkrechte' : 'Waagerechte'} Gruppen: ${num(plan.groups.length)}`,
-      `${num(city.houses.length)} Häuser`,
+      `${num(city.houses.length)} Häuser (${plan.orientation === 'vertical' ? 'senkrechte' : 'waagerechte'} Gruppen, ${num(
+        fill.extraHouses,
+      )} frei gesetzt)`,
       `${city.townHalls.length} Rathäuser`,
     ];
-    if (city.removedHouses) parts.push(`${city.removedHouses} Häuser unter Rathäusern entfernt`);
+    if (city.removedHouses) {
+      parts.push(`${city.removedHouses} Häuser unter Rathäusern entfernt, ${city.refilled} drumherum neu gesetzt`);
+    }
     if (city.droppedTownHalls) parts.push(`${city.droppedTownHalls} Rathaus/-häuser mit zu wenig Häusern verworfen`);
-    if (plan.networks > 1) parts.push(`${plan.networks} getrennte Straßennetze (Inselteile)`);
+    parts.push(`${num(free)} freie Restkacheln (${((100 * free) / src.mask.landCount).toFixed(1)} %, meist schmale Ränder)`);
+    if (city.plan.networks > 1) parts.push(`${city.plan.networks} getrennte Straßennetze (Inselteile)`);
     this.status.textContent = `Fertig nach ${secs} s · ${parts.join(' · ')}.`;
     this.running = false;
     this.refreshIsland();

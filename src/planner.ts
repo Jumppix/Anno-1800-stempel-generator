@@ -1,10 +1,8 @@
 // Stadtplaner Phase 2: Wohnraster aus 8er-Gruppen und Rathäuser.
 //
-// Raster: Ein Gitter aus 1 Kachel breiten Pflasterstraßen; jede Masche
-// (Zelle) nimmt eine Gruppe auf – senkrecht 2 Spalten × R Reihen, waagerecht
-// R Spalten × 2 Reihen (Häuser 3×3). Eine Gruppe wird nur gesetzt, wenn Zelle
-// und Ringstraße vollständig auf Land liegen; die Küste plant der Nutzer selbst.
-// Ausrichtung und Verschiebung des Gitters werden vollständig durchprobiert.
+// Die ganze Landfläche wird bebaut (fill.ts): 8er-Raster über die ganze Insel
+// inkl. angeschnittener Zellen, Restflächen gierig gefüllt, Straßen bei Bedarf
+// verlängert. `planGrid` (nur volle Gruppen) bleibt als einfache Variante.
 //
 // Rathäuser: der Handelskammer-/Rathaus-Solver (solver.ts) mit eigenem Ziel –
 // abgedeckt werden Hausmittelpunkte (Mittelpunkt im Radius 20), Bauplatz ist
@@ -13,6 +11,7 @@
 
 import { outerBoundary } from './coast';
 import { FARMER_HOUSE, STREET_GUIDS } from './catalog';
+import { BLOCKED, extendRoads, FREE, greedyFill, HOUSE, ROAD, WATER, type FillResult, type FillState } from './fill';
 import type { LandMask, OverlapPenalty } from './solver';
 import type { StampBuilding, StampStreet } from './stamp';
 
@@ -27,8 +26,8 @@ export interface GridOptions {
 export interface PlannedHouse {
   x: number;
   y: number;
-  /** Linie innerhalb der Gruppe (0 = erste Spalte bzw. obere Reihe). */
-  line: 0 | 1;
+  /** Linie innerhalb der Gruppe (0 = erste Spalte bzw. obere Reihe), −1 = frei gesetzt. */
+  line: number;
   group: number;
 }
 
@@ -51,7 +50,7 @@ export interface GridPlan {
 }
 
 /** Abzug je verdrängtem Haus in „abgedeckten Häusern“. */
-export const HOUSE_PENALTY = 3;
+export const HOUSE_PENALTY = 6;
 
 export function planGrid(mask: LandMask, options: GridOptions): GridPlan {
   const { w, h, data } = mask;
@@ -286,4 +285,102 @@ export function splitBands(
   for (const b of items.buildings) get(b.y).buildings.push(b);
   for (const s of items.streets) get(s.y).streets.push(s);
   return [...bands.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+}
+
+// ---------------------------------------------------------------------------
+// Vollständige Bebauung (fill.ts) als Plan
+// ---------------------------------------------------------------------------
+
+function countNetworks(roads: Uint8Array, w: number): number {
+  let networks = 0;
+  const seen = new Uint8Array(roads.length);
+  for (let i = 0; i < roads.length; i++) {
+    if (!roads[i] || seen[i]) continue;
+    networks++;
+    const stack = [i];
+    seen[i] = 1;
+    while (stack.length) {
+      const j = stack.pop() as number;
+      const x = j % w;
+      for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, j - w, j + w]) {
+        if (k >= 0 && k < roads.length && roads[k] && !seen[k]) {
+          seen[k] = 1;
+          stack.push(k);
+        }
+      }
+    }
+  }
+  return networks;
+}
+
+export function planFromFill(r: FillResult): GridPlan {
+  const roads = new Uint8Array(r.cell.length);
+  let roadCount = 0;
+  for (let i = 0; i < roads.length; i++) {
+    if (r.cell[i] === ROAD) {
+      roads[i] = 1;
+      roadCount++;
+    }
+  }
+  const n = r.housesPerLine;
+  return {
+    w: r.w,
+    h: r.h,
+    orientation: r.orientation,
+    ox: r.ox,
+    oy: r.oy,
+    px: (r.orientation === 'vertical' ? 6 : 3 * n) + 1,
+    py: (r.orientation === 'vertical' ? 3 * n : 6) + 1,
+    groups: [],
+    houses: r.houses.map((hs) => ({ x: hs.x, y: hs.y, line: hs.line, group: -1 })),
+    roads,
+    roadCount,
+    networks: countNetworks(roads, r.w),
+  };
+}
+
+/** Freie Landkacheln (weder Haus, Straße noch Rathaus). */
+export function freeTiles(mask: LandMask, city: CityPlan): number {
+  const used = new Uint8Array(mask.data.length);
+  for (let i = 0; i < used.length; i++) if (city.plan.roads[i]) used[i] = 1;
+  const mark = (x: number, y: number, s: number): void => {
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) used[(y + dy) * mask.w + x + dx] = 1;
+  };
+  for (const hs of city.houses) mark(hs.x, hs.y, 3);
+  for (const t of city.townHalls) mark(t.x, t.y, 4);
+  let free = 0;
+  for (let i = 0; i < used.length; i++) if (mask.data[i] && !used[i]) free++;
+  return free;
+}
+
+/** Nach dem Setzen der Rathäuser die Lücken wieder mit Häusern füllen. */
+export function refillAroundTownHalls(mask: LandMask, city: CityPlan): CityPlan & { refilled: number } {
+  const { w, h } = mask;
+  const cell = new Uint8Array(w * h);
+  for (let i = 0; i < cell.length; i++) cell[i] = mask.data[i] ? (city.plan.roads[i] ? ROAD : FREE) : WATER;
+  const s: FillState = { w, h, cell, houses: city.houses.map((hs) => ({ x: hs.x, y: hs.y, line: hs.line })) };
+  for (const hs of city.houses) {
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) cell[(hs.y + dy) * w + hs.x + dx] = HOUSE;
+  }
+  for (const t of city.townHalls) {
+    for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) cell[(t.y + dy) * w + t.x + dx] = BLOCKED;
+  }
+  const before = s.houses.length;
+  greedyFill(s);
+  extendRoads(s);
+  const roads = new Uint8Array(w * h);
+  let roadCount = 0;
+  for (let i = 0; i < roads.length; i++) {
+    if (cell[i] === ROAD) {
+      roads[i] = 1;
+      roadCount++;
+    }
+  }
+  const houses = s.houses.map((hs) => ({ x: hs.x, y: hs.y, line: hs.line, group: -1 }));
+  return {
+    ...city,
+    plan: { ...city.plan, roads, roadCount, networks: countNetworks(roads, w), houses },
+    houses,
+    refilled: s.houses.length - before,
+  };
 }
