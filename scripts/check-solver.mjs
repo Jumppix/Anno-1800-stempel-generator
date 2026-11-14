@@ -95,7 +95,7 @@ expect('Beispielstadt: ≥ 150 Hochhäuser mit Panorama 5', intense >= 150, `${i
 expect('Beispielstadt: Universität deckt alle Häuser', demoA.totals.coverage.university === 1);
 expect('Beispielstadt: keine Warnungen', demoA.warnings.length === 0, demoA.warnings.join('; '));
 
-// 3b. Streifen-Regel auch für waagerechte 4×2-Gruppen: Spalten wechseln ab.
+// 3b. 8er-Gruppen: senkrecht → Spalten wechseln, waagerecht → Reihen wechseln.
 const { assignTiers } = await server.ssrLoadModule('/src/analysis.ts');
 const horiz = { buildings: [], streets: [] };
 for (let g = 0; g < 3; g++) {
@@ -106,31 +106,32 @@ for (let g = 0; g < 3; g++) {
 for (let x = 0; x < 40; x++) horiz.streets.push({ x, y: 0, guid: 1010035 }, { x, y: 7, guid: 1010035 });
 const horizCity = cityFromStamp(decodeStampFull(buildGenericStamp(horiz.buildings, 'ow', horiz.streets)));
 const horizTiers = assignTiers(horizCity.buildings, DEFAULT_RULES);
-const colOk = horizCity.buildings.every((b) => {
-  const col = Math.round((b.x - Math.min(...horizCity.buildings.map((o) => o.x))) / 3);
-  return horizTiers.tier.get(b.index) === (col % 2 === 0 ? 'engineer' : 'investor') || col >= 4;
-});
-expect('Streifen-Regel: waagerechte Gruppe abwechselnd I/V', colOk && horizTiers.conflicts === 0, `${horizTiers.conflicts} Konflikte`);
-
-// 3c. Spieltest-Fall: 2×4-Gruppe, links über die Straße einzelne Randhäuser.
-// Im Spiel: Haus der linken Gruppenspalte (Ingenieur) = Stufe 3 − 2 + Variety 3 = 4.
-const edge = { buildings: [], streets: [] };
-for (let r = 0; r < 4; r++) {
-  edge.buildings.push({ guid: 1010343, x: 5, y: 1 + r * 3, w: 3, h: 3, turns: 0 });
-  edge.buildings.push({ guid: 1010343, x: 8, y: 1 + r * 3, w: 3, h: 3, turns: 0 });
-}
-for (const y of [1, 4, 7]) edge.buildings.push({ guid: 1010343, x: 1, y, w: 3, h: 3, turns: 0 });
-for (let y = 0; y < 14; y++) edge.streets.push({ x: 4, y, guid: 1010035 }, { x: 11, y, guid: 1010035 });
-const edgeCity = cityFromStamp(decodeStampFull(buildGenericStamp(edge.buildings, 'ow', edge.streets)));
-const edgeA = analyzeCity(edgeCity, DEFAULT_RULES);
-const minGroupX = Math.min(...edgeCity.buildings.filter((b) => b.y === edgeCity.buildings[0].y).map((b) => b.x));
-const target = edgeA.residences.find(
-  (r) => r.building.x === minGroupX + 4 && r.building.y === Math.min(...edgeCity.buildings.map((b) => b.y)) + 3,
+const rowsOk = horizCity.buildings.every((b) =>
+  horizCity.buildings.every((o) => {
+    if (horizTiers.groupOf.get(o.index) !== horizTiers.groupOf.get(b.index)) return true;
+    const same = horizTiers.tier.get(o.index) === horizTiers.tier.get(b.index);
+    return (o.y === b.y) === same;
+  }),
 );
+expect('8er-Gruppe waagerecht: Reihe gleich, Reihen wechseln', rowsOk);
+
+// 3c. Spieltest-Fall: waagerechte Gruppe, Haus unten in der Mitte.
+// Im Spiel: Stufenwert 3, gleich hohe −2 (links/rechts), Variety +3 (Reihe darüber) = 4.
+const game = { buildings: [], streets: [] };
+for (let c = 0; c < 4; c++) {
+  for (let r = 0; r < 2; r++) game.buildings.push({ guid: 1010343, x: 1 + c * 3, y: 1 + r * 3, w: 3, h: 3, turns: 0 });
+}
+for (let x = 0; x < 14; x++) game.streets.push({ x, y: 0, guid: 1010035 });
+const gameCity = cityFromStamp(decodeStampFull(buildGenericStamp(game.buildings, 'ow', game.streets)));
+const gameA = analyzeCity(gameCity, DEFAULT_RULES);
+const minX = Math.min(...gameCity.buildings.map((b) => b.x));
+const maxY = Math.max(...gameCity.buildings.map((b) => b.y));
+const t = gameA.residences.find((r) => r.building.x === minX + 3 && r.building.y === maxY);
+const p = t?.panoramaParts;
 expect(
-  'Spieltest-Fall: Randhäuser kein Hochhaus, Nachbar = Ingenieur mit Wert 4',
-  target && target.tier === 'engineer' && target.panoramaValue === 4 && edgeA.nonSkyscrapers.length === 3,
-  target ? `${target.tier}, Wert ${target.panoramaValue}, ${edgeA.nonSkyscrapers.length} Randhäuser` : 'Haus nicht gefunden',
+  'Spieltest-Fall: unten Mitte = 3 − 2 + 3 = 4 (beeindruckend)',
+  t && t.panoramaValue === 4 && p.sameOrHigher === -2 && p.variety === 3,
+  t ? `Wert ${t.panoramaValue}, gleich ${p.sameOrHigher}, Variety +${p.variety}` : 'Haus nicht gefunden',
 );
 
 // 4. Straßenreichweite: Kaufhaus (62) an einer langen Straße versorgt bis Entfernung 62.

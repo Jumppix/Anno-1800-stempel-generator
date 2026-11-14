@@ -4,7 +4,7 @@
 import type { BuildingKind, Tier } from './catalog';
 import { adjacentRoads, RoadSearch, type City, type CityBuilding } from './city';
 import {
-  type TierOverride,
+  type TierEdits,
   cityWideWebBonus,
   localDepartmentRange,
   PANORAMA_RADIUS,
@@ -60,8 +60,11 @@ export interface ServiceInfo {
 
 export interface Analysis {
   residences: ResidenceInfo[];
-  /** Wohnhäuser, die nicht als Hochhaus gerechnet werden (Randhäuser, manuell). */
+  /** Wohnhäuser ohne Schicht (nur im Modus „wie im Stempel“). */
   nonSkyscrapers: number[];
+  /** Gruppen-Zuordnung der Wohnhäuser (für Klick-Umschalten). */
+  groupOf: Map<number, number>;
+  groupState: Map<number, 0 | 1>;
   /** Anzahl Handelskammern, deren Radius den Mittelpunkt erreicht (≥ 2 = geclippt). */
   tradeUnionHits: Map<number, number>;
   services: ServiceInfo[];
@@ -87,7 +90,7 @@ const dist = (a: CityBuilding, b: CityBuilding): number => Math.hypot(a.cx - b.c
 export function analyzeCity(
   city: City,
   rules: RuleConfig,
-  overrides: ReadonlyMap<number, TierOverride> = new Map(),
+  edits: TierEdits = { houses: new Map(), groups: new Map() },
 ): Analysis {
   const warnings: string[] = [];
   const search = new RoadSearch(city);
@@ -114,17 +117,8 @@ export function analyzeCity(
 
   // --- Wohnhäuser vorbereiten und Schichten zuordnen
   const houses = city.buildings.filter((b) => b.entry.kind === 'residence');
-  const tiers = assignTiers(houses, rules);
-  for (const [index, o] of overrides) {
-    if (o === 'none') tiers.tier.delete(index);
-    else tiers.tier.set(index, o);
-  }
+  const tiers = assignTiers(houses, rules, edits);
   const nonSkyscrapers = houses.filter((h) => !tiers.tier.has(h.index)).map((h) => h.index);
-  if (tiers.conflicts) {
-    warnings.push(
-      `Streifen-Regel nicht überall eindeutig: ${tiers.conflicts} Nachbarpaare passen nicht (Panorama dort geringer).`,
-    );
-  }
   const residences: ResidenceInfo[] = houses
     .filter((b) => tiers.tier.has(b.index))
     .map((b) => ({
@@ -302,6 +296,8 @@ export function analyzeCity(
   return {
     residences,
     nonSkyscrapers,
+    groupOf: tiers.groupOf,
+    groupState: tiers.groupState,
     tradeUnionHits,
     services,
     ministryRoads,
@@ -321,82 +317,141 @@ export function analyzeCity(
   };
 }
 
+export interface TierAssignment {
+  tier: Map<number, Tier>;
+  /** Gebäudeindex → Gruppen-ID (kleinster Gebäudeindex der Gruppe). */
+  groupOf: Map<number, number>;
+  /** Gruppen-ID → aktuelle Ausrichtung (0: erste Linie Ingenieure). */
+  groupState: Map<number, 0 | 1>;
+}
+
 /**
- * Schichten der Wohnhäuser. Bei der Streifen-Regel werden die 3×3-Häuser als
- * Graph zweigefärbt: Häuser links/rechts daneben (direkt oder über eine
- * Straße, Abstand 3–4) bekommen die andere Schicht, Häuser in derselben
- * Spalte darüber/darunter (Abstand 3–4) die gleiche. Jede zusammenhängende
- * Gruppe beginnt in ihrer linken Spalte mit `firstTier`.
+ * Schichten der Wohnhäuser. Direkt aneinanderstoßende 3×3-Häuser bilden eine
+ * Gruppe (deine 8er-Gruppe: eine Linie aus 4 Ingenieuren, eine aus 4
+ * Investoren). Ist die Gruppe höher als breit, sind die Linien Spalten, sonst
+ * Reihen; benachbarte Linien wechseln die Schicht. Welche Linie Ingenieure
+ * sind, steht nicht im Stempel – je Gruppe wird die Ausrichtung mit dem
+ * meisten Panorama-Einwohnern gewählt (lokale Suche), außer der Nutzer hat sie
+ * per Klick festgelegt. Alle Häuser zählen als Hochhaus der gewählten Stufe.
  */
 export function assignTiers(
   houses: readonly CityBuilding[],
   rules: RuleConfig,
-): { tier: Map<number, Tier>; conflicts: number } {
+  edits: TierEdits = { houses: new Map(), groups: new Map() },
+): TierAssignment {
   const tier = new Map<number, Tier>();
+  const groupOf = new Map<number, number>();
+  const groupState = new Map<number, 0 | 1>();
   if (rules.tierMode === 'stamp') {
     for (const h of houses) if (h.entry.tier) tier.set(h.index, h.entry.tier);
-    return { tier, conflicts: 0 };
+    return { tier, groupOf, groupState };
   }
-  let grid = houses.filter((h) => h.w === 3 && h.h === 3);
+  const grid = houses.filter((h) => h.w === 3 && h.h === 3);
   const at = new Map<string, CityBuilding>();
   for (const h of grid) at.set(`${h.x},${h.y}`, h);
-  if (rules.requirePair) {
-    // Nur Häuser, die direkt (Abstand 3) neben einem anderen Haus stehen.
-    const paired = (h: CityBuilding): boolean => {
-      for (const dx of [-3, 3]) {
-        for (let dy = -2; dy <= 2; dy++) if (at.has(`${h.x + dx},${h.y + dy}`)) return true;
-      }
-      return false;
-    };
-    grid = grid.filter(paired);
-    at.clear();
-    for (const h of grid) at.set(`${h.x},${h.y}`, h);
-  }
-  const neighbours = (h: CityBuilding): Array<[CityBuilding, number]> => {
-    const out: Array<[CityBuilding, number]> = [];
-    for (const dx of [-4, -3, 3, 4]) {
-      for (let dy = -2; dy <= 2; dy++) {
-        const o = at.get(`${h.x + dx},${h.y + dy}`);
-        if (o) out.push([o, 1]);
-      }
-    }
-    for (const dy of [-4, -3, 3, 4]) {
-      const o = at.get(`${h.x},${h.y + dy}`);
-      if (o) out.push([o, 0]);
-    }
-    return out;
-  };
-  const color = new Map<number, number>();
-  let conflicts = 0;
-  const sorted = [...grid].sort((a, b) => a.x - b.x || a.y - b.y);
-  for (const start of sorted) {
-    if (color.has(start.index)) continue;
-    const component: CityBuilding[] = [];
-    color.set(start.index, 0);
+
+  // Gruppen: direkt anstoßende Häuser (gleiche Reihe ±3 oder gleiche Spalte ±3).
+  const groups: CityBuilding[][] = [];
+  const seen = new Set<number>();
+  for (const start of [...grid].sort((a, b) => a.index - b.index)) {
+    if (seen.has(start.index)) continue;
+    const members: CityBuilding[] = [];
     const queue = [start];
+    seen.add(start.index);
     while (queue.length) {
-      const h = queue.shift() as CityBuilding;
-      component.push(h);
-      const c = color.get(h.index) as number;
-      for (const [o, diff] of neighbours(h)) {
-        const want = c ^ diff;
-        const have = color.get(o.index);
-        if (have === undefined) {
-          color.set(o.index, want);
+      const h = queue.pop() as CityBuilding;
+      members.push(h);
+      for (const [dx, dy] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) {
+        const o = at.get(`${h.x + dx},${h.y + dy}`);
+        if (o && !seen.has(o.index)) {
+          seen.add(o.index);
           queue.push(o);
-        } else if (have !== want && o.index > h.index) {
-          conflicts++;
         }
       }
     }
-    // Linkeste Spalte der Gruppe = firstTier.
-    const left = component.reduce((a, b) => (b.x < a.x || (b.x === a.x && b.y < a.y) ? b : a));
-    const flip = color.get(left.index) === 1;
-    const other: Tier = rules.firstTier === 'engineer' ? 'investor' : 'engineer';
-    for (const h of component) {
-      const c = (color.get(h.index) as number) ^ (flip ? 1 : 0);
-      tier.set(h.index, c === 0 ? rules.firstTier : other);
+    groups.push(members);
+  }
+
+  // Linien-Parität je Haus (0/1) aus der Gruppenausrichtung.
+  const parity = new Map<number, number>();
+  for (const members of groups) {
+    const xs = [...new Set(members.map((m) => m.x))].sort((a, b) => a - b);
+    const ys = [...new Set(members.map((m) => m.y))].sort((a, b) => a - b);
+    const vertical = ys.length >= xs.length;
+    const id = Math.min(...members.map((m) => m.index));
+    for (const m of members) {
+      parity.set(m.index, vertical ? xs.indexOf(m.x) % 2 : ys.indexOf(m.y) % 2);
+      groupOf.set(m.index, id);
     }
   }
-  return { tier, conflicts };
+
+  // Panorama-Nachbarn (Mittelpunktabstand ≤ Radius).
+  const level = rules.skyscraperLevel;
+  const radius = PANORAMA_RADIUS[level];
+  const near = new Map<number, number[]>();
+  const cell = (v: number): number => Math.floor(v / 6);
+  const buckets = new Map<string, CityBuilding[]>();
+  for (const h of grid) {
+    const k = `${cell(h.cx)},${cell(h.cy)}`;
+    const list = buckets.get(k);
+    if (list) list.push(h);
+    else buckets.set(k, [h]);
+  }
+  for (const h of grid) {
+    const list: number[] = [];
+    for (let bx = cell(h.cx) - 1; bx <= cell(h.cx) + 1; bx++) {
+      for (let by = cell(h.cy) - 1; by <= cell(h.cy) + 1; by++) {
+        for (const o of buckets.get(`${bx},${by}`) ?? []) {
+          if (o !== h && dist(h, o) <= radius + 1e-9) list.push(o.index);
+        }
+      }
+    }
+    near.set(h.index, list);
+  }
+
+  const state = new Map<number, 0 | 1>();
+  for (const members of groups) {
+    const id = groupOf.get(members[0].index) as number;
+    state.set(id, edits.groups.get(id) ?? 0);
+  }
+  const tierOf = (index: number): Tier => {
+    const fixed = edits.houses.get(index);
+    if (fixed) return fixed;
+    const s = state.get(groupOf.get(index) as number) ?? 0;
+    return ((parity.get(index) as number) ^ s) === 0 ? 'engineer' : 'investor';
+  };
+  const residentsOf = (index: number): number => {
+    const t = tierOf(index) as 'engineer' | 'investor';
+    let v = level;
+    for (const o of near.get(index) ?? []) v += tierOf(o) === t ? -1 : 1;
+    return SKYSCRAPER_L3_RESIDENTS[t][Math.max(0, Math.min(5, v))];
+  };
+
+  // Lokale Suche: Gruppe umdrehen, wenn die betroffenen Häuser dadurch mehr Einwohner haben.
+  for (let pass = 0; pass < 20; pass++) {
+    let changed = false;
+    for (const members of groups) {
+      const id = groupOf.get(members[0].index) as number;
+      if (edits.groups.has(id)) continue;
+      const affected = new Set<number>();
+      for (const m of members) {
+        affected.add(m.index);
+        for (const o of near.get(m.index) ?? []) affected.add(o);
+      }
+      let before = 0;
+      for (const i of affected) before += residentsOf(i);
+      state.set(id, state.get(id) === 1 ? 0 : 1);
+      let after = 0;
+      for (const i of affected) after += residentsOf(i);
+      if (after > before) changed = true;
+      else state.set(id, state.get(id) === 1 ? 0 : 1);
+    }
+    if (!changed) break;
+  }
+
+  for (const h of grid) tier.set(h.index, tierOf(h.index));
+  // Wohnhäuser, die nicht 3×3 sind (selten): wie im Stempel, sonst Investor.
+  for (const h of houses) if (!tier.has(h.index)) tier.set(h.index, h.entry.tier ?? 'investor');
+  for (const [id, s] of state) groupState.set(id, s);
+  return { tier, groupOf, groupState };
 }

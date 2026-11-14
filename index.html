@@ -134,22 +134,12 @@
           </label>
           <label class="select-row">Schichten
             <select id="rule-tiers">
-              <option value="stripes">Streifen-Regel (Bauernhäuser)</option>
+              <option value="groups">8er-Gruppen (Bauernhäuser)</option>
               <option value="stamp">wie im Stempel</option>
             </select>
           </label>
-          <label class="select-row">Linke Spalte
-            <select id="rule-first">
-              <option value="engineer">Ingenieure</option>
-              <option value="investor">Investoren</option>
-            </select>
-          </label>
-          <label class="check-row">
-            <input id="rule-pair" type="checkbox" checked />
-            Einzelne Randhäuser (ohne Nachbarn links/rechts) nicht als Hochhaus
-          </label>
-          <p class="hint"><strong>Klick auf ein Haus</strong> stellt es um: Ingenieur → Investor → kein Hochhaus → automatisch.</p>
-          <p class="hint">Stempel aus dem normalen Spiel enthalten nur Bauernhäuser. Die Streifen-Regel ordnet zu: Nachbarn links/rechts (auch über die Straße) andere Schicht, übereinander gleiche Schicht.</p>
+          <p class="hint">Stempel aus dem normalen Spiel enthalten nur Bauernhäuser; alle zählen als Hochhaus Stufe 3. Aneinanderstoßende Häuser bilden eine Gruppe aus je einer Linie Ingenieure und Investoren (senkrechte Gruppe: Spalten, waagerechte: Reihen). Welche Linie was ist, wählt das Tool nach bestem Panorama.</p>
+          <p class="hint"><strong>Klick auf ein Haus</strong> tauscht Ingenieure/Investoren der ganzen Gruppe (so wie in deiner Stadt). <strong>Umschalt+Klick</strong>: einzelnes Haus Ingenieur → Investor → automatisch.</p>
           <p class="hint">Grün = versorgt/im Radius, Rot = fehlt. Panorama: Zahl 0–5 (5 = intensiv). Maus über ein Gebäude zeigt Details.</p>
         </section>
 

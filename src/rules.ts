@@ -57,22 +57,20 @@ export interface RuleConfig {
   /** Welfare-Bonus auch für Feuerwache, Polizei, Hospital (Wiki unklar). */
   welfareForInstitutions: boolean;
   /**
-   * Schichten der Wohnhäuser: 'stripes' = Streifen-Regel (Nachbarn links/rechts
-   * andere Schicht, darüber/darunter gleiche), 'stamp' = wie im Stempel.
+   * Schichten der Wohnhäuser: 'groups' = 8er-Gruppen aus je einer Linie
+   * Ingenieure und einer Linie Investoren (Ausrichtung je Gruppe mit bestem
+   * Panorama), 'stamp' = wie im Stempel.
    */
-  tierMode: 'stripes' | 'stamp';
-  /** Schicht der linken Spalte bei der Streifen-Regel. */
-  firstTier: 'engineer' | 'investor';
-  /**
-   * Häuser ohne direkten Nachbarn links/rechts (Abstand 3, also nicht Teil
-   * einer Doppelspalte) nicht als Hochhaus werten – im Spieltest waren solche
-   * Randhäuser keine Stufe-3-Hochhäuser.
-   */
-  requirePair: boolean;
+  tierMode: 'groups' | 'stamp';
 }
 
-/** Manuelle Festlegung einzelner Häuser (per Klick in der Analyse). */
-export type TierOverride = 'engineer' | 'investor' | 'none';
+/** Manuelle Festlegung (per Klick in der Analyse). */
+export interface TierEdits {
+  /** Einzelne Häuser: Gebäudeindex → Schicht. */
+  houses: Map<number, 'engineer' | 'investor'>;
+  /** Gruppen: kleinster Gebäudeindex der Gruppe → Ausrichtung 0/1. */
+  groups: Map<number, 0 | 1>;
+}
 
 export const DEFAULT_RULES: RuleConfig = {
   palaceWings: 40,
@@ -81,9 +79,7 @@ export const DEFAULT_RULES: RuleConfig = {
   policy: 'cityWideWeb',
   skyscraperLevel: 3,
   welfareForInstitutions: false,
-  tierMode: 'stripes',
-  firstTier: 'engineer',
-  requirePair: true,
+  tierMode: 'groups',
 };
 
 /** Palast: Pflaster-Basisreichweite 71, je Flügel +3. */

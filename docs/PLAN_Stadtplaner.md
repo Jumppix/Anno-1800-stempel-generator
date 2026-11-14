@@ -378,8 +378,16 @@ Analyse prüfen (Kalibrierung: stimmen Versorgung/Panorama mit dem Spiel?).
 0, „mindestens gleich hohe“ −2, „Resident Variety Bonus“ +3 → 4 =
 „Beeindruckend“ (+20 Einwohner, +12 %). Formel bestätigt. Abweichung im Tool kam
 von Randhäusern (einzelne Spalte links, im Spiel keine Stufe-3-Hochhäuser).
-→ Randhäuser ohne direkten Nachbarn links/rechts zählen standardmäßig nicht;
-Häuser per Klick umstellbar; Tooltip zeigt die Aufschlüsselung wie im Spiel.
+Nutzer: **alle Häuser sind Stufe-3-Hochhäuser**, keine automatische
+Sonderbehandlung. Zweiter Screenshot (waagerechte Gruppe, Haus unten Mitte:
+links/rechts gleiche Schicht −2, Reihe darüber +3 = 4) zeigt: **Eine 8er-Gruppe
+ist eine Linie aus 4 Ingenieuren + eine Linie aus 4 Investoren** – bei
+senkrechten Gruppen Spalten, bei waagerechten Reihen.
+→ Zuordnung jetzt gruppenbasiert: direkt anstoßende Häuser = Gruppe; Linien
+wechseln; welche Linie Ingenieure sind, wählt das Tool je Gruppe nach bestem
+Panorama. Klick tauscht die Gruppe, Umschalt+Klick ein einzelnes Haus.
+Tooltip zeigt die Aufschlüsselung wie im Spiel. Für den Generator gilt
+dieselbe Gruppenregel (Bauplan je Gruppe).
 
 ## 14. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
