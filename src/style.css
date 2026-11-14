@@ -627,3 +627,85 @@ button.ghost:disabled {
     opacity: 1;
   }
 }
+
+.mode-switch {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(6, 15, 22, 0.6);
+}
+
+.mode-switch button {
+  flex: 1;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mode-switch button.active {
+  background: var(--gold);
+  color: #12202b;
+  font-weight: 600;
+}
+
+.select-row input[type="number"] {
+  width: 160px;
+}
+
+.stat-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.stat-grid strong.small {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.warning-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: #e8a07a;
+}
+
+.warning-list li {
+  margin-bottom: 4px;
+}
+
+.warning-list li.ok {
+  color: var(--green);
+  list-style: none;
+  margin-left: -18px;
+}
+
+.city-tip {
+  position: absolute;
+  z-index: 5;
+  max-width: 270px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(6, 15, 22, 0.94);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.city-tip .muted {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+[hidden] {
+  display: none !important;
+}

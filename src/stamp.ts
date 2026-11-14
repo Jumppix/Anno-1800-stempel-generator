@@ -270,6 +270,91 @@ export function buildStamp(
   return compress(serialize(roots));
 }
 
+export interface StampBuilding {
+  guid: number;
+  /** Linke obere Kachel und belegte Größe in Kachelachsen (bereits gedreht). */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Vierteldrehungen 0–3 (Dir = turns · π/2). */
+  turns: number;
+  /** Gemeinsame ID für Komplexe (Lufthafen + Module); sonst fortlaufend. */
+  owner?: number;
+}
+
+/**
+ * Allgemeiner Stempel mit beliebigen Gebäuden und Straßen. Gleiche
+ * Koordinatenkonvention wie buildStamp: Rohposition = (−(cy − Ky), −(cx − Kx))
+ * mit dem Flächenmittelpunkt (cx, cy) und einem ganzzahligen Bezugspunkt K.
+ */
+export function buildGenericStamp(
+  items: ReadonlyArray<StampBuilding>,
+  region: RegionKey,
+  streets: readonly StampStreet[] = [],
+  icon?: number,
+): Uint8Array {
+  if (items.length === 0 && streets.length === 0) throw new Error('empty stamp');
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const b of items) {
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  }
+  for (const st of streets) {
+    minX = Math.min(minX, st.x);
+    minY = Math.min(minY, st.y);
+    maxX = Math.max(maxX, st.x + 1);
+    maxY = Math.max(maxY, st.y + 1);
+  }
+  const kx = Math.round((minX + maxX) / 2);
+  const ky = Math.round((minY + maxY) / 2);
+
+  const buildings: Node[] = items.map((b, i) => {
+    const cx = b.x + (b.w - 1) / 2;
+    const cy = b.y + (b.h - 1) / 2;
+    return tag(T_ITEM, [
+      attr(A_POS, f32pair(-(cy - ky), -(cx - kx))),
+      attr(A_DIR, f32(((b.turns % 4) * Math.PI) / 2)),
+      attr(A_GUID, i32(b.guid)),
+      attr(A_OWNER, i64(b.owner ?? i + 1)),
+    ]);
+  });
+
+  const streetGroups = new Map<number, StampStreet[]>();
+  for (const street of streets) {
+    const group = streetGroups.get(street.guid);
+    if (group) group.push(street);
+    else streetGroups.set(street.guid, [street]);
+  }
+  const streetNodes: Node[] = [];
+  for (const [guid, tiles] of streetGroups) {
+    streetNodes.push(attr(A_STREET, i32(guid)));
+    streetNodes.push(
+      tag(
+        T_ITEM,
+        tiles.map((st) =>
+          tag(T_ITEM, [attr(A_STREET, f32(-(st.y - ky))), attr(A_STREET, f32(-(st.x - kx)))]),
+        ),
+      ),
+    );
+  }
+
+  const roots: Node[] = [
+    attr(A_STAMP, i32(REGIONS[region].path)),
+    attr(A_ICON, i32(icon ?? items[0]?.guid ?? 0)),
+    tag(T_BUILDING, buildings),
+    tag(T_STREETS, streetNodes),
+    attr(A_STREET_COUNT, i32(streets.length)),
+    tag(T_RAIL, []),
+  ];
+  return compress(serialize(roots));
+}
+
 function compress(raw: Uint8Array): Uint8Array {
   const body = zlibSync(raw, { level: 9 });
   const tail = zlibSync(new Uint8Array(0), { level: 9 });

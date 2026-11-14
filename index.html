@@ -16,7 +16,12 @@
           </div>
         </header>
 
-        <section class="card">
+        <nav class="mode-switch" aria-label="Modus">
+          <button id="mode-admin" class="active" type="button">Verwaltung (HK/RH)</button>
+          <button id="mode-city" type="button">Stadt-Analyse</button>
+        </nav>
+
+        <section class="card" data-mode="admin">
           <h2>Inselform aus Stempeln</h2>
           <p class="hint">Insel mit Feldwegen füllen, Auswahl als Stempel speichern und hier laden. Mehrere Teile werden zu einer Gesamtinsel zusammengesetzt – per Drag oder X/Y ausrichten.</p>
           <label class="file-button">
@@ -33,13 +38,13 @@
           </label>
         </section>
 
-        <section class="card">
+        <section class="card" data-mode="admin">
           <h2>Teile</h2>
           <div id="part-list" class="part-list"></div>
           <button id="align-all" class="ghost" type="button" disabled>Alle automatisch ausrichten</button>
         </section>
 
-        <section class="card">
+        <section class="card" data-mode="admin">
           <h2>Gebäude &amp; Optimierung</h2>
           <label class="select-row">Gebäude
             <select id="building">
@@ -61,13 +66,13 @@
           <p class="hint">Radien gleichartiger Gebäude überlappen nie (Mittelpunktabstand ≥ 2 × Radius). Ziel: erst möglichst viele Gebäude, dann möglichst viel Land im Radius.</p>
         </section>
 
-        <section class="card stats">
+        <section class="card stats" data-mode="admin">
           <h2>Ergebnis</h2>
           <div id="stat-grid" class="stat-grid"></div>
           <p id="stat-micro" class="micro">4×4 · kein Straßenanschluss</p>
         </section>
 
-        <section class="card">
+        <section class="card" data-mode="admin">
           <h2>Stempel</h2>
           <label class="check-row">
             <input id="single-stamp" type="checkbox" checked />
@@ -83,16 +88,78 @@
           <button id="zip" class="primary" type="button">Alle als ZIP</button>
           <p class="hint">Nach <code>Documents\Anno 1800\stamps\&lt;Region&gt;\&lt;Ordner&gt;</code> kopieren und Anno neu starten.</p>
         </section>
+        <section class="card" data-mode="city" hidden>
+          <h2>Stadt-Stempel</h2>
+          <p class="hint">Einen Ausschnitt deiner fertigen Stadt im Spiel als Stempel speichern und hier laden – mit Häusern, Straßen und Versorgungsgebäuden.</p>
+          <label class="file-button">
+            <input id="city-file" type="file" />
+            <span>Stadt-Stempel wählen</span>
+          </label>
+          <p id="city-info" class="hint">Kein Stadt-Stempel geladen.</p>
+          <button id="city-demo" class="ghost" type="button">Beispielstadt öffnen</button>
+          <button id="catalog-stamp" class="ghost" type="button">Katalog-Teststempel herunterladen</button>
+          <p class="hint">Der Teststempel enthält jedes bekannte Gebäude (auch gedreht) und den Lufthafen mit Modulen – zum Prüfen von GUIDs, Größen und Drehung im Spiel.</p>
+        </section>
+
+        <section class="card" data-mode="city" hidden>
+          <h2>Palast &amp; Regionalministerium</h2>
+          <label class="select-row">Palastflügel
+            <input id="rule-wings" type="number" min="0" max="200" step="1" />
+          </label>
+          <label class="select-row">Prestige (0–25)
+            <input id="rule-prestige" type="number" min="0" max="25" step="1" />
+          </label>
+          <label class="select-row">Ministerium
+            <select id="rule-ministry">
+              <option value="welfare">Wohlfahrt</option>
+              <option value="labour">Arbeit</option>
+              <option value="none">keins</option>
+            </select>
+          </label>
+          <label class="select-row">Richtlinie
+            <select id="rule-policy"></select>
+          </label>
+          <label class="check-row">
+            <input id="rule-institutions" type="checkbox" />
+            Wohlfahrt auch für Feuerwehr/Polizei/Hospital
+          </label>
+          <p id="rule-info" class="micro"></p>
+          <p class="hint">Reichweiten mit Pflasterstraße laut Anno-Wiki. Das Regionalministerium reicht halb so weit wie der Palast; nur öffentliche Gebäude in seiner Straßenreichweite bekommen den Bonus.</p>
+        </section>
+
+        <section class="card" data-mode="city" hidden>
+          <h2>Ansicht</h2>
+          <label class="select-row">Ebene
+            <select id="city-layer"></select>
+          </label>
+          <p class="hint">Grün = versorgt/im Radius, Rot = fehlt. Panorama: Zahl 0–5 (5 = intensiv). Maus über ein Gebäude zeigt Details.</p>
+        </section>
+
+        <section class="card stats" data-mode="city" hidden>
+          <h2>Auswertung</h2>
+          <div id="city-stats" class="stat-grid"></div>
+          <ul id="city-warnings" class="warning-list"></ul>
+          <p class="micro">Schätzung: Ingenieure/Investoren als Hochhaus Stufe 3, Panorama nach Wiki-Regel, ohne Rathaus-Items.</p>
+        </section>
       </aside>
 
       <main class="stage">
         <canvas id="canvas"></canvas>
-        <div class="stage-tabs">
+        <div id="city-tip" class="city-tip" hidden></div>
+        <div class="stage-tabs" data-mode="admin">
           <button id="tab-arrange" class="active" type="button">Anordnen</button>
           <button id="tab-result" type="button">Ergebnis</button>
         </div>
-        <div id="stage-hint" class="stage-hint">Inselform aus Stempeln laden</div>
-        <div class="legend">
+        <div id="stage-hint" class="stage-hint" data-mode="admin">Inselform aus Stempeln laden</div>
+        <div class="legend" data-mode="city" hidden>
+          <span><i class="swatch" style="background:#4fa3a5"></i>I = Ingenieure</span>
+          <span><i class="swatch" style="background:#d9a441"></i>V = Investoren</span>
+          <span><i class="swatch" style="background:rgba(80,180,100,.95)"></i>versorgt</span>
+          <span><i class="swatch" style="background:rgba(210,80,70,.95)"></i>fehlt</span>
+          <span><i class="swatch" style="background:#4a5560"></i>Pflaster</span>
+          <span><i class="swatch" style="background:#5a4f3f"></i>Feldweg</span>
+        </div>
+        <div class="legend" data-mode="admin">
           <span><i id="legend-covered" class="swatch covered"></i>versorgt</span>
           <span><i class="swatch gap"></i>Lücke</span>
           <span><i class="swatch frame"></i>Feldweg-Rahmen</span>

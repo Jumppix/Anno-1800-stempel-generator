@@ -341,7 +341,28 @@ CPU-Kernen, die schon genutzt werden. Später denkbar für Massenberechnungen
 - Die automatische Ausrichtung findet die Versätze nicht (eigener Fehler,
   separat erfasst).
 
-## 12. Noch offene Fragen
+## 12. Antworten Runde 2 und Stand Phase 1
+
+- **Panorama-Radius: ≤** (Screenshots: Haus über die Straße schräg in genau
+  5,0 Kacheln ist markiert, 5,66 nicht). Mittelpunkt zu Mittelpunkt.
+- Ingenieur-Hochhaus im Spiel mit Items bis 400, Investor bis 602 Einwohner →
+  Rathaus-Items sind der größte Hebel.
+- Palastflügel und Prestige: konfigurierbar (umgesetzt).
+- Handwerker: zunächst Pendlerkai annehmen, später ggf. eigene Häuser planen.
+- Richtiger Screenshot zu Insel 2 geliefert (T1–T4 wie im ersten Screenshot).
+
+**Phase 1 umgesetzt (Modus „Stadt-Analyse“):** Gebäudekatalog mit Wiki-Werten,
+Regelparameter (Palast, Ministerium, Richtlinien), Stempel-Leser für Gebäude,
+allgemeiner Stempel-Schreiber mit Drehung, Straßen-Reichweite, Ministeriums-
+bereich, Rathaus/Post/HK-Radien, Clipping-Erkennung, Panorama, Einwohner-
+Schätzung, Warnungen, Katalog-Teststempel, Beispielstadt, Tests in
+`npm run check`.
+
+**Nächster Schritt vor Phase 2:** Katalog-Teststempel im Spiel setzen (GUIDs,
+Größen, Drehung, Lufthafen-Module) und einen Stempel der fertigen Stadt in der
+Analyse prüfen (Kalibrierung: stimmen Versorgung/Panorama mit dem Spiel?).
+
+## 13. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

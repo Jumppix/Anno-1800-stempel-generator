@@ -29,7 +29,9 @@ npm run check    # Solver auf den Teststempeln + Invarianten prüfen
 Der Build läuft mit `tsc --noEmit` (Typprüfung) und Vite. `npm run check`
 (`scripts/check-solver.mjs`) löst die Teststempel für HK, Rathaus und beide,
 prüft Fläche-auf-Land, Flächen- und Radiusüberlappung, Stempelaufteilung und
-Mindestanzahlen. Ein Spieltest bleibt für die Spielbarkeit nötig.
+Mindestanzahlen. Dazu Tests der Stadt-Analyse: Stempel-Roundtrip mit Drehung,
+die Clipping-Stempel aus dem Spiel, Panorama der Beispielstadt und die
+Straßenreichweite. Ein Spieltest bleibt für die Spielbarkeit nötig.
 
 ## GitHub Pages
 
@@ -81,6 +83,27 @@ wird nie im Repository gespeichert; es ist nur für den Workflow gedacht.
    `Documents\Anno 1800\stamps\<Region>\<Projektname>\`
    Danach Anno 1800 neu starten.
 
+### Stadt-Analyse (Modus oben links umschalten)
+
+Erster Baustein des geplanten Stadtplaners (`docs/PLAN_Stadtplaner.md`, Phase 1):
+
+1. Einen Ausschnitt der fertigen Stadt im Spiel als Stempel speichern und unter
+   „Stadt-Stempel wählen“ laden (oder „Beispielstadt öffnen“).
+2. Palastflügel, Prestige, Ministerium (Wohlfahrt/Arbeit) und Richtlinie
+   einstellen. Daraus folgen die Reichweite des Regionalministeriums (halbe
+   Palastreichweite) und der Reichweitenbonus öffentlicher Gebäude.
+3. Ebenen ansehen: Panorama je Hochhaus, geschätzte Einwohner, Versorgung je
+   Gebäudeart über Straßen (grün/rot), Rathaus- und Post-Radien, Wirkungsbereich
+   des Ministeriums, Handelskammern/Clipping. Maus über ein Gebäude zeigt Details.
+4. „Katalog-Teststempel herunterladen“ erzeugt einen Stempel mit jedem bekannten
+   Gebäude (auch gedreht) und dem Lufthafen mit Modulen – zum Prüfen von GUIDs,
+   Größen und Drehung im Spiel.
+
+Regeln (Wiki-Werte, Pflasterstraße): Reichweite über Straßen per Breitensuche ab
+den seitlich berührenden Straßenkacheln; Kreisradien zählen, wenn der
+Gebäudemittelpunkt im Radius liegt (≤); Panorama: Ausgangswert = Stufe, im
+Radius gleiche Stufe gleiche Schicht −1, andere Schicht +1, niedriger +1.
+
 ### Exportoptionen
 
 - **Alles in einen Stempel (Test)** – standardmäßig aktiv. Ignoriert die
@@ -107,6 +130,12 @@ Reines TypeScript + Vite, keine Framework-Abhängigkeit außer `fflate` für ZIP
 | `src/solver.ts` | Packung (Gitter-Starts, ILS, Abdeckungs-Politur), Validierung, Stempel-Aufteilung |
 | `src/solver.worker.ts` | Web Worker: rechnet einen Solver-Lauf im Hintergrund |
 | `src/solveRunner.ts` | verteilt Läufe mit verschiedenen Seeds auf mehrere Worker, nimmt den besten |
+| `src/catalog.ts` | Gebäudekatalog: GUID, Größe, Reichweite (Pflaster), Radius, Wohlfahrt; Presets für alle übrigen Gebäude (`src/data/presets.json`, MIT, Anno Designer) |
+| `src/rules.ts` | Palast/Regionalministerium, Richtlinien, Panorama- und Hochhaus-Tabellen |
+| `src/city.ts` | Stadtmodell aus Stempel (Gebäude + Straßen in Kachelachsen), Straßen-Breitensuche |
+| `src/analysis.ts` | Versorgung, Ministeriumsbereich, Rathaus/Post/HK-Radien, Panorama, Einwohner-Schätzung, Warnungen |
+| `src/cityUi.ts` | Oberfläche der Stadt-Analyse |
+| `src/testStamps.ts` | Katalog-Teststempel und Beispielstadt |
 | `src/stamp.ts` | Anno-Stempel schreiben: `BuildingInfo`, `StreetInfo`, `StreetCount`, Region |
 | `src/render.ts` | Ergebnisansicht: Abdeckung, Lücken, Küstenrahmen, HKs, Radien |
 | `src/placement.ts` | 2D-Anordnen-Ansicht: pixelgenaue Teile, Kachelraster, Drag-Hit-Test |

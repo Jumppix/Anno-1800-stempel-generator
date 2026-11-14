@@ -55,14 +55,23 @@ unnötig verändern.
 - `src/solver.worker.ts` / `src/solveRunner.ts`: Solver im Web Worker, mehrere
   Worker mit verschiedenen Seeds, bester gewinnt; bei „Beide“ erst HK, dann
   Rathäuser um die HK-Flächen.
-- `src/stamp.ts`: `buildStamp`, `StreetInfo`/`BuildingInfo`-Writer (GUID je
-  Gebäudetyp).
+- `src/stamp.ts`: `buildStamp` (HK/RH), `buildGenericStamp` (beliebige
+  Gebäude mit Drehung), `StreetInfo`/`BuildingInfo`-Writer.
+- `src/stampReader.ts`: zusätzlich `decodeStampFull` (Gebäude + Straßen mit
+  GUID; Attribut-IDs über das Namensverzeichnis, da Spiel- und App-Stempel
+  verschiedene IDs nutzen).
+- Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
+  `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
+  `src/testStamps.ts`. Footprint in Kachelachsen: Preset `[x, z]` → bei Dir 0
+  Breite z × Höhe x, bei 90°/270° vertauscht.
 - `src/placement.ts`: 2D-Anordnen-Ansicht, pixelgenaue Zeichnung,
   Kachelraster, Drag-Hit-Test.
 - `src/render.ts`: Ergebnisansicht.
 - `src/style.css`: Styling.
 - `research/`: Reverse-Engineering, Referenzstempel, keine Laufzeitabhängigkeit.
-- `test-parts/`, `test-stamps-fix/`: Testdaten ohne Endung.
+- `test-parts/`, `test-stamps-fix/`: Testdaten ohne Endung
+  (`test-parts/insel2/`: echte Insel in 4 überlappenden Teilen;
+  `test-stamps-fix/Clipping_*`: Clipping-Formationen aus dem Spiel).
 
 ## Invarianten (nicht brechen)
 

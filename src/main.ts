@@ -3,6 +3,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { emptyLayout, splitChunks, type Chunk, type LandMask, type Layout } from './solver';
 import { BUILDINGS, modeTypes, type BuildingMode } from './buildings';
 import { SolveRunner } from './solveRunner';
+import { CityUi } from './cityUi';
 import { buildStamp, REGIONS, type RegionKey, type StampStreet } from './stamp';
 import { decodeStamp } from './stampReader';
 import {
@@ -75,6 +76,7 @@ let layout: Layout = emptyLayout(EMPTY_MASK, ['hk']);
 let chunks: Chunk[] = [];
 let stamps: Uint8Array[] = [];
 let view: 'arrange' | 'result' = 'arrange';
+let mode: 'admin' | 'city' = 'admin';
 let placementView: PlacementView | null = null;
 
 // Hintergrund-Optimierung
@@ -291,6 +293,10 @@ function setView(next: 'arrange' | 'result'): void {
 }
 
 function drawStage(): void {
+  if (mode === 'city') {
+    cityUi.draw();
+    return;
+  }
   if (!combined || parts.length === 0) {
     stageHint.hidden = false;
     placementView = null;
@@ -663,7 +669,7 @@ zipButton.addEventListener('click', () => {
 });
 
 canvas.addEventListener('pointerdown', (event) => {
-  if (view !== 'arrange' || !placementView || !combined) return;
+  if (mode !== 'admin' || view !== 'arrange' || !placementView || !combined) return;
   const rect = canvas.getBoundingClientRect();
   const px = event.clientX - rect.left;
   const py = event.clientY - rect.top;
@@ -727,6 +733,26 @@ includeStreets.addEventListener('change', rebuildOutputs);
 singleStamp.addEventListener('change', rebuildOutputs);
 buildingEl.addEventListener('change', update);
 optimizeMore.addEventListener('click', () => startSolve(true));
+
+const cityUi = new CityUi(canvas, () => mode === 'city');
+const modeAdmin = el<HTMLButtonElement>('#mode-admin');
+const modeCity = el<HTMLButtonElement>('#mode-city');
+
+function setMode(next: 'admin' | 'city'): void {
+  mode = next;
+  modeAdmin.classList.toggle('active', next === 'admin');
+  modeCity.classList.toggle('active', next === 'city');
+  for (const node of document.querySelectorAll<HTMLElement>('[data-mode]')) {
+    node.hidden = node.dataset.mode !== next;
+  }
+  canvas.style.cursor = next === 'city' ? 'default' : canvas.style.cursor;
+  if (next === 'city') brandTitle.textContent = 'Stadt-Analyse';
+  else updateModeTexts();
+  drawStage();
+}
+
+modeAdmin.addEventListener('click', () => setMode('admin'));
+modeCity.addEventListener('click', () => setMode('city'));
 
 new ResizeObserver(() => drawStage()).observe(stage);
 

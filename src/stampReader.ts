@@ -55,6 +55,41 @@ function parseNode(data: Uint8Array, view: DataView, offset: number): [number, N
   return [offset, { id, kids }];
 }
 
+/** Namensverzeichnis (ID → Name) an einer Offset-Position des FileDB-Blocks. */
+function parseDictionary(data: Uint8Array, view: DataView, offset: number): Map<number, string> {
+  const out = new Map<number, string>();
+  if (offset < 0 || offset + 4 > data.length) return out;
+  const count = view.getInt32(offset, true);
+  if (count < 0 || count > 4096 || offset + 4 + count * 2 > data.length) return out;
+  const ids: number[] = [];
+  for (let i = 0; i < count; i++) ids.push(view.getUint16(offset + 4 + i * 2, true));
+  let p = offset + 4 + count * 2;
+  for (const id of ids) {
+    let name = '';
+    while (p < data.length && data[p] !== 0) name += String.fromCharCode(data[p++]);
+    p++;
+    out.set(id, name);
+  }
+  return out;
+}
+
+interface FileDB {
+  roots: Node[];
+  tags: Map<number, string>;
+  attrs: Map<number, string>;
+}
+
+function parseFileDBWithNames(data: Uint8Array): FileDB {
+  const roots = parseFileDB(data);
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const n = data.length;
+  return {
+    roots,
+    tags: parseDictionary(data, view, view.getInt32(n - 16, true)),
+    attrs: parseDictionary(data, view, view.getInt32(n - 12, true)),
+  };
+}
+
 function parseFileDB(data: Uint8Array): Node[] {
   if (data.length < 40) throw new Error('Die Datei ist zu klein für einen Anno-Stempel.');
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -166,3 +201,100 @@ export function decodeStamp(file: Uint8Array): ImportedIsland {
 
   return { width, height, mask, landCount: tiles.length, region, streetGuid };
 }
+
+// ---------------------------------------------------------------------------
+// Vollständiges Lesen: Gebäude und Straßen mit GUID (für die Stadt-Analyse)
+// ---------------------------------------------------------------------------
+
+export interface RawBuilding {
+  guid: number;
+  /** Mittelpunkt der Grundfläche in Stempel-Rohachsen. */
+  rawX: number;
+  rawY: number;
+  /** Drehung in Radiant (0, π/2, π, 3π/2). */
+  dir: number;
+}
+
+export interface RawStreet {
+  guid: number;
+  rawX: number;
+  rawY: number;
+}
+
+export interface DecodedStamp {
+  region: number | null;
+  icon: number | null;
+  buildings: RawBuilding[];
+  streets: RawStreet[];
+}
+
+/**
+ * Liest Gebäude und Straßen. Die Attribut-IDs unterscheiden sich zwischen
+ * Stempeln aus dem Spiel und aus dieser App, deshalb werden sie über das
+ * Namensverzeichnis am Dateiende aufgelöst.
+ */
+export function decodeStampFull(file: Uint8Array): DecodedStamp {
+  const { roots, tags, attrs } = parseFileDBWithNames(decompress(file));
+  const attrId = (name: string, fallback: number): number => {
+    for (const [id, n] of attrs) if (n === name) return id;
+    return fallback;
+  };
+  const tagId = (name: string, fallback: number): number => {
+    for (const [id, n] of tags) if (n === name) return id;
+    return fallback;
+  };
+  const A_POS = attrId('Pos', 0x8003);
+  const A_DIR = attrId('Dir', 0x8007);
+  const A_GUID = attrId('GUID', 0x8004);
+  const A_STAMP = attrId('StampPath', 0x8001);
+  const A_ICON = attrId('IconGUID', 0x8002);
+  const T_BUILDING = tagId('BuildingInfo', 2);
+  const T_STREETS = tagId('StreetInfo', 3);
+
+  const intOf = (node: Node | undefined): number | null =>
+    node?.raw && node.raw.length === 4 ? i32(node.raw) : null;
+
+  const buildings: RawBuilding[] = [];
+  const buildingRoot = roots.find((r) => r.id === T_BUILDING && r.kids);
+  for (const entry of buildingRoot?.kids ?? []) {
+    if (!entry.kids) continue;
+    let guid = 0;
+    let rawX = 0;
+    let rawY = 0;
+    let dir = 0;
+    for (const a of entry.kids) {
+      if (!a.raw) continue;
+      const dv = new DataView(a.raw.buffer, a.raw.byteOffset, a.raw.byteLength);
+      if (a.id === A_POS && a.raw.length >= 8) {
+        rawX = dv.getFloat32(0, true);
+        rawY = dv.getFloat32(4, true);
+      } else if (a.id === A_DIR && a.raw.length === 4) {
+        dir = dv.getFloat32(0, true);
+      } else if (a.id === A_GUID && a.raw.length === 4) {
+        guid = dv.getInt32(0, true);
+      }
+    }
+    if (guid) buildings.push({ guid, rawX, rawY, dir });
+  }
+
+  const streets: RawStreet[] = [];
+  const streetRoot = roots.find((r) => r.id === T_STREETS && r.kids);
+  let currentGuid = 0;
+  for (const kid of streetRoot?.kids ?? []) {
+    if (kid.raw && kid.raw.length === 4) {
+      currentGuid = i32(kid.raw);
+      continue;
+    }
+    const pairs: Array<[number, number]> = [];
+    collectPairs(kid, pairs);
+    for (const [fx, fy] of pairs) streets.push({ guid: currentGuid, rawX: fx, rawY: fy });
+  }
+
+  return {
+    region: intOf(roots.find((r) => r.id === A_STAMP)),
+    icon: intOf(roots.find((r) => r.id === A_ICON)),
+    buildings,
+    streets,
+  };
+}
+
