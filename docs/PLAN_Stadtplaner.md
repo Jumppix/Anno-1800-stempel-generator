@@ -374,6 +374,13 @@ Analyse prüfen (Kalibrierung: stimmen Versorgung/Panorama mit dem Spiel?).
   - **Generator (ab Phase 2) exportiert Bauernhäuser**; der Nutzer baut im
     Spiel aus. Die Schicht je Haus wird zusätzlich als Bauplan angezeigt.
 
+**Panorama-Kalibrierung (Spiel-Tooltip):** Stufenwert 3, „kleinere benachbarte“
+0, „mindestens gleich hohe“ −2, „Resident Variety Bonus“ +3 → 4 =
+„Beeindruckend“ (+20 Einwohner, +12 %). Formel bestätigt. Abweichung im Tool kam
+von Randhäusern (einzelne Spalte links, im Spiel keine Stufe-3-Hochhäuser).
+→ Randhäuser ohne direkten Nachbarn links/rechts zählen standardmäßig nicht;
+Häuser per Klick umstellbar; Tooltip zeigt die Aufschlüsselung wie im Spiel.
+
 ## 14. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4

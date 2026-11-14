@@ -112,6 +112,27 @@ const colOk = horizCity.buildings.every((b) => {
 });
 expect('Streifen-Regel: waagerechte Gruppe abwechselnd I/V', colOk && horizTiers.conflicts === 0, `${horizTiers.conflicts} Konflikte`);
 
+// 3c. Spieltest-Fall: 2×4-Gruppe, links über die Straße einzelne Randhäuser.
+// Im Spiel: Haus der linken Gruppenspalte (Ingenieur) = Stufe 3 − 2 + Variety 3 = 4.
+const edge = { buildings: [], streets: [] };
+for (let r = 0; r < 4; r++) {
+  edge.buildings.push({ guid: 1010343, x: 5, y: 1 + r * 3, w: 3, h: 3, turns: 0 });
+  edge.buildings.push({ guid: 1010343, x: 8, y: 1 + r * 3, w: 3, h: 3, turns: 0 });
+}
+for (const y of [1, 4, 7]) edge.buildings.push({ guid: 1010343, x: 1, y, w: 3, h: 3, turns: 0 });
+for (let y = 0; y < 14; y++) edge.streets.push({ x: 4, y, guid: 1010035 }, { x: 11, y, guid: 1010035 });
+const edgeCity = cityFromStamp(decodeStampFull(buildGenericStamp(edge.buildings, 'ow', edge.streets)));
+const edgeA = analyzeCity(edgeCity, DEFAULT_RULES);
+const minGroupX = Math.min(...edgeCity.buildings.filter((b) => b.y === edgeCity.buildings[0].y).map((b) => b.x));
+const target = edgeA.residences.find(
+  (r) => r.building.x === minGroupX + 4 && r.building.y === Math.min(...edgeCity.buildings.map((b) => b.y)) + 3,
+);
+expect(
+  'Spieltest-Fall: Randhäuser kein Hochhaus, Nachbar = Ingenieur mit Wert 4',
+  target && target.tier === 'engineer' && target.panoramaValue === 4 && edgeA.nonSkyscrapers.length === 3,
+  target ? `${target.tier}, Wert ${target.panoramaValue}, ${edgeA.nonSkyscrapers.length} Randhäuser` : 'Haus nicht gefunden',
+);
+
 // 4. Straßenreichweite: Kaufhaus (62) an einer langen Straße versorgt bis Entfernung 62.
 const line = { buildings: [], streets: [] };
 for (let x = 0; x < 120; x++) line.streets.push({ x, y: 0, guid: 1010035 });

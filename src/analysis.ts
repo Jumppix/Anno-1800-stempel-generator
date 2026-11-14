@@ -4,6 +4,7 @@
 import type { BuildingKind, Tier } from './catalog';
 import { adjacentRoads, RoadSearch, type City, type CityBuilding } from './city';
 import {
+  type TierOverride,
   cityWideWebBonus,
   localDepartmentRange,
   PANORAMA_RADIUS,
@@ -39,6 +40,8 @@ export interface ResidenceInfo {
   post: number | null;
   /** Panorama-Wert vor Begrenzung und Stärke 0–5 (nur Hochhäuser). */
   panoramaValue: number;
+  /** Aufschlüsselung wie im Spiel: kleinere, gleich hohe (gleiche Schicht), Variety Bonus. */
+  panoramaParts: { lower: number; sameOrHigher: number; variety: number };
   panorama: number;
   residents: number;
   /** Fehlende Einwohner-Bedürfnisse (Namen der Gebäudearten). */
@@ -57,6 +60,8 @@ export interface ServiceInfo {
 
 export interface Analysis {
   residences: ResidenceInfo[];
+  /** Wohnhäuser, die nicht als Hochhaus gerechnet werden (Randhäuser, manuell). */
+  nonSkyscrapers: number[];
   /** Anzahl Handelskammern, deren Radius den Mittelpunkt erreicht (≥ 2 = geclippt). */
   tradeUnionHits: Map<number, number>;
   services: ServiceInfo[];
@@ -79,7 +84,11 @@ export interface Analysis {
 
 const dist = (a: CityBuilding, b: CityBuilding): number => Math.hypot(a.cx - b.cx, a.cy - b.cy);
 
-export function analyzeCity(city: City, rules: RuleConfig): Analysis {
+export function analyzeCity(
+  city: City,
+  rules: RuleConfig,
+  overrides: ReadonlyMap<number, TierOverride> = new Map(),
+): Analysis {
   const warnings: string[] = [];
   const search = new RoadSearch(city);
   const roadsOf = city.buildings.map((b) => adjacentRoads(city, b));
@@ -106,6 +115,11 @@ export function analyzeCity(city: City, rules: RuleConfig): Analysis {
   // --- Wohnhäuser vorbereiten und Schichten zuordnen
   const houses = city.buildings.filter((b) => b.entry.kind === 'residence');
   const tiers = assignTiers(houses, rules);
+  for (const [index, o] of overrides) {
+    if (o === 'none') tiers.tier.delete(index);
+    else tiers.tier.set(index, o);
+  }
+  const nonSkyscrapers = houses.filter((h) => !tiers.tier.has(h.index)).map((h) => h.index);
   if (tiers.conflicts) {
     warnings.push(
       `Streifen-Regel nicht überall eindeutig: ${tiers.conflicts} Nachbarpaare passen nicht (Panorama dort geringer).`,
@@ -121,6 +135,7 @@ export function analyzeCity(city: City, rules: RuleConfig): Analysis {
       townHall: null,
       post: null,
       panoramaValue: 0,
+      panoramaParts: { lower: 0, sameOrHigher: 0, variety: 0 },
       panorama: 0,
       residents: 0,
       missing: [],
@@ -214,10 +229,16 @@ export function analyzeCity(city: City, rules: RuleConfig): Analysis {
   const sky = residences.filter((r) => r.tier === 'engineer' || r.tier === 'investor');
   for (const r of sky) {
     let v = level;
+    const parts = { lower: 0, sameOrHigher: 0, variety: 0 };
     for (const o of sky) {
       if (o === r) continue;
-      if (dist(r.building, o.building) <= radius + 1e-9) v += o.tier === r.tier ? -1 : 1;
+      if (dist(r.building, o.building) > radius + 1e-9) continue;
+      // Alle gleiche Stufe: andere Schicht = Variety Bonus, gleiche Schicht = −1.
+      if (o.tier === r.tier) parts.sameOrHigher--;
+      else parts.variety++;
     }
+    v += parts.lower + parts.sameOrHigher + parts.variety;
+    r.panoramaParts = parts;
     r.panoramaValue = v;
     r.panorama = Math.max(0, Math.min(5, v));
   }
@@ -280,6 +301,7 @@ export function analyzeCity(city: City, rules: RuleConfig): Analysis {
 
   return {
     residences,
+    nonSkyscrapers,
     tradeUnionHits,
     services,
     ministryRoads,
@@ -315,9 +337,21 @@ export function assignTiers(
     for (const h of houses) if (h.entry.tier) tier.set(h.index, h.entry.tier);
     return { tier, conflicts: 0 };
   }
-  const grid = houses.filter((h) => h.w === 3 && h.h === 3);
+  let grid = houses.filter((h) => h.w === 3 && h.h === 3);
   const at = new Map<string, CityBuilding>();
   for (const h of grid) at.set(`${h.x},${h.y}`, h);
+  if (rules.requirePair) {
+    // Nur Häuser, die direkt (Abstand 3) neben einem anderen Haus stehen.
+    const paired = (h: CityBuilding): boolean => {
+      for (const dx of [-3, 3]) {
+        for (let dy = -2; dy <= 2; dy++) if (at.has(`${h.x + dx},${h.y + dy}`)) return true;
+      }
+      return false;
+    };
+    grid = grid.filter(paired);
+    at.clear();
+    for (const h of grid) at.set(`${h.x},${h.y}`, h);
+  }
   const neighbours = (h: CityBuilding): Array<[CityBuilding, number]> => {
     const out: Array<[CityBuilding, number]> = [];
     for (const dx of [-4, -3, 3, 4]) {

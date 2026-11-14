@@ -15,6 +15,7 @@ import {
   type Ministry,
   type Policy,
   type RuleConfig,
+  type TierOverride,
 } from './rules';
 import { buildGenericStamp } from './stamp';
 import { decodeStampFull } from './stampReader';
@@ -87,6 +88,9 @@ export class CityUi {
   private readonly layerSelect = el<HTMLSelectElement>('#city-layer');
   private readonly tierMode = el<HTMLSelectElement>('#rule-tiers');
   private readonly firstTier = el<HTMLSelectElement>('#rule-first');
+  private readonly requirePair = el<HTMLInputElement>('#rule-pair');
+  private overrides = new Map<number, TierOverride>();
+  private nonSky = new Set<number>();
   private readonly stats = el<HTMLElement>('#city-stats');
   private readonly warnings = el<HTMLElement>('#city-warnings');
   private readonly tip = el<HTMLElement>('#city-tip');
@@ -115,7 +119,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.firstTier]) {
+    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.firstTier, this.requirePair]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.ministry.addEventListener('change', () => {
@@ -128,6 +132,7 @@ export class CityUi {
       this.draw();
     });
     canvas.addEventListener('pointermove', (event) => this.hover(event));
+    canvas.addEventListener('pointerdown', (event) => this.click(event));
     canvas.addEventListener('pointerleave', () => {
       this.tip.hidden = true;
     });
@@ -171,6 +176,7 @@ export class CityUi {
       welfareForInstitutions: this.institutions.checked,
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'stripes',
       firstTier: this.firstTier.value === 'investor' ? 'investor' : 'engineer',
+      requirePair: this.requirePair.checked,
     };
     this.updateRuleInfo();
     this.reanalyze();
@@ -197,6 +203,7 @@ export class CityUi {
     try {
       this.city = cityFromStamp(decodeStampFull(bytes));
       this.sourceName = name;
+      this.overrides.clear();
       this.reanalyze();
     } catch (error) {
       this.info.textContent = `${name}: ${error instanceof Error ? error.message : 'Fehler beim Lesen'}`;
@@ -205,8 +212,9 @@ export class CityUi {
 
   private reanalyze(): void {
     if (!this.city) return;
-    this.analysis = analyzeCity(this.city, this.rules);
+    this.analysis = analyzeCity(this.city, this.rules, this.overrides);
     this.resByIndex = new Map(this.analysis.residences.map((r) => [r.building.index, r]));
+    this.nonSky = new Set(this.analysis.nonSkyscrapers);
     this.updatePanel();
     this.draw();
   }
@@ -408,6 +416,7 @@ export class CityUi {
 
   private labelFor(b: CityBuilding): string {
     const r = this.resByIndex.get(b.index);
+    if (!r && b.entry.kind === 'residence') return '–';
     if (r) {
       if (this.layer === 'panorama' && r.tier !== 'artisan') return String(r.panorama);
       if (this.layer === 'residents') return String(r.residents);
@@ -438,22 +447,40 @@ export class CityUi {
     return short[b.entry.kind] ?? '';
   }
 
+  /** Gebäudeindex unter dem Mauszeiger, −1 = keiner. */
+  private buildingAt(event: PointerEvent): { idx: number; px: number; py: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
+    const c = this.city;
+    if (!c || !this.view) return { idx: -1, px, py };
+    const tx = Math.floor((px - this.view.ox) / this.view.scale);
+    const ty = Math.floor((py - this.view.oy) / this.view.scale);
+    if (tx < 0 || ty < 0 || tx >= c.w || ty >= c.h) return { idx: -1, px, py };
+    return { idx: c.occ[ty * c.w + tx] - 1, px, py };
+  }
+
+  /** Klick auf ein Wohnhaus: Ingenieur → Investor → kein Hochhaus → automatisch. */
+  private click(event: PointerEvent): void {
+    if (!this.isActive() || !this.city || !this.analysis) return;
+    const { idx } = this.buildingAt(event);
+    if (idx < 0 || this.city.buildings[idx].entry.kind !== 'residence') return;
+    const current = this.overrides.get(idx);
+    const next: TierOverride | undefined =
+      current === undefined ? 'engineer' : current === 'engineer' ? 'investor' : current === 'investor' ? 'none' : undefined;
+    if (next === undefined) this.overrides.delete(idx);
+    else this.overrides.set(idx, next);
+    this.reanalyze();
+    this.hover(event);
+  }
+
   private hover(event: PointerEvent): void {
     if (!this.isActive() || !this.city || !this.analysis || !this.view) {
       this.tip.hidden = true;
       return;
     }
-    const rect = this.canvas.getBoundingClientRect();
-    const px = event.clientX - rect.left;
-    const py = event.clientY - rect.top;
-    const tx = Math.floor((px - this.view.ox) / this.view.scale);
-    const ty = Math.floor((py - this.view.oy) / this.view.scale);
     const c = this.city;
-    if (tx < 0 || ty < 0 || tx >= c.w || ty >= c.h) {
-      this.tip.hidden = true;
-      return;
-    }
-    const idx = c.occ[ty * c.w + tx] - 1;
+    const { idx, px, py } = this.buildingAt(event);
     if (idx < 0) {
       this.tip.hidden = true;
       return;
@@ -467,13 +494,25 @@ export class CityUi {
         lines.push(`gerechnet als ${label}-Hochhaus Stufe 3`);
       }
       if (r.tier !== 'artisan') {
+        const p = r.panoramaParts;
         lines.push(`Panorama: ${PANORAMA_NAMES[r.panorama]} (Wert ${r.panoramaValue})`);
+        lines.push(
+          `<span class="muted">Stufe ${this.rules.skyscraperLevel} · kleinere +${p.lower} · gleich hohe ${p.sameOrHigher} · Variety +${p.variety}</span>`,
+        );
       }
+      if (this.overrides.has(idx)) lines.push('<span class="muted">manuell festgelegt</span>');
       lines.push(`Einwohner ≈ ${r.residents}${r.hasRoad ? '' : ' – kein Straßenanschluss!'}`);
       if (r.missing.length) {
         lines.push(`Fehlt: ${r.missing.map((k) => KIND_NAMES[k] ?? k).join(', ')}`);
       }
       lines.push(`Rathaus: ${r.townHall !== null ? 'ja' : 'nein'} · Post: ${r.post !== null ? 'ja' : 'nein'}`);
+    }
+    if (!r && this.nonSky.has(idx)) {
+      lines.push(
+        this.overrides.get(idx) === 'none'
+          ? 'kein Hochhaus (manuell)'
+          : 'kein Hochhaus (Randhaus ohne Nachbarn links/rechts)',
+      );
     }
     const s = this.analysis.services.find((x) => x.building === b);
     if (s) {

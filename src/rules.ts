@@ -63,7 +63,16 @@ export interface RuleConfig {
   tierMode: 'stripes' | 'stamp';
   /** Schicht der linken Spalte bei der Streifen-Regel. */
   firstTier: 'engineer' | 'investor';
+  /**
+   * Häuser ohne direkten Nachbarn links/rechts (Abstand 3, also nicht Teil
+   * einer Doppelspalte) nicht als Hochhaus werten – im Spieltest waren solche
+   * Randhäuser keine Stufe-3-Hochhäuser.
+   */
+  requirePair: boolean;
 }
+
+/** Manuelle Festlegung einzelner Häuser (per Klick in der Analyse). */
+export type TierOverride = 'engineer' | 'investor' | 'none';
 
 export const DEFAULT_RULES: RuleConfig = {
   palaceWings: 40,
@@ -74,6 +83,7 @@ export const DEFAULT_RULES: RuleConfig = {
   welfareForInstitutions: false,
   tierMode: 'stripes',
   firstTier: 'engineer',
+  requirePair: true,
 };
 
 /** Palast: Pflaster-Basisreichweite 71, je Flügel +3. */
@@ -122,7 +132,8 @@ export const SKYSCRAPER_L3_RESIDENTS: Readonly<Record<'engineer' | 'investor', r
   investor: [125, 150, 175, 200, 225, 250],
 };
 
-export const PANORAMA_NAMES = ['keins', 'schwach', 'mäßig', 'ordentlich', 'stark', 'intensiv'];
+/** Stärke 4 heißt im Spiel „Beeindruckend“ (Spieltest); die übrigen Namen sind übersetzt. */
+export const PANORAMA_NAMES = ['keins', 'schwach', 'mäßig', 'ordentlich', 'beeindruckend', 'intensiv'];
 
 /**
  * Öffentliche Gebäude, die ein Stufe-3-Hochhaus braucht, mit den Einwohnern,
