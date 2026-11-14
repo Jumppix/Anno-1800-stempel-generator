@@ -23,6 +23,77 @@ const cases = [
 ];
 
 let failed = 0;
+
+// ---------------------------------------------------------------------------
+// Ausrichten mehrerer Stempelteile: Laden in Reihenfolge (autoPlace) und
+// „Alle ausrichten“ (alignPart) müssen die im Spiel geprüfte Lage ergeben.
+// Erwartete Offsets relativ zum ersten Teil; Überlappung je Teil mit dem Rest.
+// ---------------------------------------------------------------------------
+const { autoPlace, alignPart, combineParts, overlapCount } = await server.ssrLoadModule('/src/island.ts');
+const alignCases = [
+  {
+    name: 'Insel_Teil_A+B',
+    parts: [
+      { file: 'test-parts/Insel_Teil_A', at: [0, 0] },
+      { file: 'test-parts/Insel_Teil_B', at: [0, -16] },
+    ],
+    overlaps: [326, 326],
+    island: { w: 29, h: 45, land: 931 },
+  },
+  {
+    // Im Spiel geprüft: Feldweg_01 (48,-22), Feldweg_02 (149,49),
+    // Feldweg_03 (138,-60), Kaistrasse (48,-172).
+    name: 'insel2 (4 Teile)',
+    parts: [
+      { file: 'test-parts/insel2/Feldweg_01', at: [0, 0] },
+      { file: 'test-parts/insel2/Feldweg_02', at: [101, 71] },
+      { file: 'test-parts/insel2/Feldweg_03', at: [90, -38] },
+      { file: 'test-parts/insel2/Kaistrasse', at: [0, -150] },
+    ],
+    overlaps: [3563, 1087, 3437, 382],
+    island: { w: 189, h: 290, land: 25630 },
+  },
+];
+for (const c of alignCases) {
+  const parts = c.parts.map((p, i) => {
+    const s = decodeStamp(new Uint8Array(readFileSync(p.file)));
+    return { id: `p${i}`, name: p.file, w: s.width, h: s.height, mask: s.mask, landCount: s.landCount, offsetX: 0, offsetY: 0 };
+  });
+  const verify = (mode) => {
+    const errors = [];
+    const [bx, by] = [parts[0].offsetX, parts[0].offsetY];
+    parts.forEach((part, i) => {
+      const [ex, ey] = c.parts[i].at;
+      const [x, y] = [part.offsetX - bx, part.offsetY - by];
+      if (x !== ex || y !== ey) errors.push(`${part.name}: (${x},${y}) statt (${ex},${ey})`);
+      const ov = overlapCount(parts, part);
+      if (ov !== c.overlaps[i]) errors.push(`${part.name}: Überlappung ${ov} statt ${c.overlaps[i]}`);
+    });
+    const island = combineParts(parts);
+    if (island.w !== c.island.w || island.h !== c.island.h || island.landCount !== c.island.land) {
+      errors.push(`Insel ${island.w}×${island.h}/${island.landCount} statt ${c.island.w}×${c.island.h}/${c.island.land}`);
+    }
+    console.log(`${errors.length ? 'FEHLER' : 'ok    '} Ausrichten ${c.name} (${mode}): ${island.w}×${island.h}, ${island.landCount} Land`);
+    for (const e of errors) console.log('       ', e);
+    if (errors.length) failed++;
+  };
+
+  const placed = [];
+  for (const part of parts) {
+    autoPlace(placed, part);
+    placed.push(part);
+  }
+  verify('Laden');
+
+  // Alle Teile ab dem zweiten weit weg schieben und neu ausrichten.
+  parts.slice(1).forEach((part, i) => {
+    part.offsetX = 500 + 50 * i;
+    part.offsetY = -400;
+  });
+  for (let i = 1; i < parts.length; i++) alignPart(parts.slice(0, i + 1), parts[i]);
+  verify('Alle ausrichten');
+}
+
 for (const c of cases) {
   const island = decodeStamp(new Uint8Array(readFileSync(c.file)));
   const mask = { w: island.width, h: island.height, data: island.mask, landCount: island.landCount };

@@ -22,7 +22,7 @@ npm ci
 npm run dev       # lokaler Dev-Server, Basis /
 npm run build     # tsc + Vite; Pflichtprüfung nach Änderungen
 npm run preview   # Produktionsbuild lokal
-npm run check     # Solver-Regressionstest + Invarianten (scripts/check-solver.mjs)
+npm run check     # Ausrichtung + Solver-Regressionstest + Invarianten (scripts/check-solver.mjs)
 ```
 
 Node 22+ wird in GitHub Actions verwendet. `package-lock.json` nicht
@@ -49,6 +49,10 @@ unnötig verändern.
 - `src/stampReader.ts`: Binärparser, Koordinatentransformation
   `(x, y) = (−rawY, −rawX)`, Gebäude/Straßen/GUIDs.
 - `src/island.ts`: `combineParts`, `overlapCount`, `autoPlace`, `alignPart`.
+  Ausrichtung: globale Suche per FFT-Kreuzkorrelation (`src/fft.ts`);
+  Widersprüche zählen nur, wo beide Teile Daten haben (Schnitt der
+  Auswahlrechtecke), da ein Stempel außerhalb seiner Auswahl keine Straßen
+  enthält.
 - `src/solver.ts`: `solve` (Gitter-Starts → Iterated Local Search mit
   (1,2)-Tausch → Simulated-Annealing-Politur der Abdeckung), `validateLayout`,
   `splitChunks`.
@@ -62,7 +66,9 @@ unnötig verändern.
 - `src/render.ts`: Ergebnisansicht.
 - `src/style.css`: Styling.
 - `research/`: Reverse-Engineering, Referenzstempel, keine Laufzeitabhängigkeit.
-- `test-parts/`, `test-stamps-fix/`: Testdaten ohne Endung.
+- `test-parts/`, `test-stamps-fix/`: Testdaten ohne Endung. `test-parts/insel2/`
+  ist der Ausrichtungs-Referenzfall (im Spiel geprüfte Offsets in
+  `scripts/check-solver.mjs`).
 
 ## Invarianten (nicht brechen)
 

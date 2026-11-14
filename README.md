@@ -29,7 +29,8 @@ npm run check    # Solver auf den Teststempeln + Invarianten prüfen
 Der Build läuft mit `tsc --noEmit` (Typprüfung) und Vite. `npm run check`
 (`scripts/check-solver.mjs`) löst die Teststempel für HK, Rathaus und beide,
 prüft Fläche-auf-Land, Flächen- und Radiusüberlappung, Stempelaufteilung und
-Mindestanzahlen. Ein Spieltest bleibt für die Spielbarkeit nötig.
+Mindestanzahlen. Vorher prüft es die automatische Ausrichtung der Teststempel
+aus `test-parts/` gegen die im Spiel bestätigten Offsets. Ein Spieltest bleibt für die Spielbarkeit nötig.
 
 ## GitHub Pages
 
@@ -103,6 +104,7 @@ Reines TypeScript + Vite, keine Framework-Abhängigkeit außer `fflate` für ZIP
 | `src/main.ts` | UI-Verdrahtung, Datei-Import, Teilezustand, Layout-/Exportfluss |
 | `src/stampReader.ts` | Anno-Stempel dekodieren: Gebäude, Straßen, Region, GUIDs, Koordinatentransformation |
 | `src/island.ts` | Teile kombinieren, Überlappung, automatische Ausrichtung |
+| `src/fft.ts` | 2D-FFT für die Kreuzkorrelation beim Ausrichten |
 | `src/buildings.ts` | Gebäudetypen: Handelskammer (GUID 1010516, R 15), Rathaus (GUID 100415, R 20) |
 | `src/solver.ts` | Packung (Gitter-Starts, ILS, Abdeckungs-Politur), Validierung, Stempel-Aufteilung |
 | `src/solver.worker.ts` | Web Worker: rechnet einen Solver-Lauf im Hintergrund |
@@ -142,7 +144,13 @@ Stempeldatei
   frühere Spiegelung in der 2D-Ansicht.
 - Mehrere Stempel werden über ihr Straßenmuster ausgerichtet
   (`alignPart`/`autoPlace` in `island.ts`). Die Überlappung ist der Anker; die
-  automatische Ausrichtung sucht den besten Versatz im Suchradius.
+  automatische Ausrichtung bewertet per FFT-Kreuzkorrelation (`src/fft.ts`)
+  **jeden** überlappenden Versatz. Ein Stempel kennt nur das Land in seinem
+  Auswahlrechteck, deshalb zählen Widersprüche (Straße hier, keine dort) nur
+  innerhalb des Rechtecks des neuen Teils **und** der Rechtecke der
+  platzierten Teile. Bewertung: gemeinsame Straßen + gemeinsames Wasser
+  − 32 × Widersprüche, mindestens 20 gemeinsame Straßenkacheln. Ohne passende
+  Überlappung landet ein neues Teil rechts neben der Insel.
 
 ### Gebäude und Regel
 
@@ -257,7 +265,9 @@ Manuell mit den Testdaten:
 
 1. `test-stamps-fix/Insel_96x65_Feldwege` laden.
 2. Ergebnis und Stempel erzeugen; ein Stempel mit allen HKs und dem Rand.
-3. Optional `test-parts/Insel_Teil_A` + `Insel_Teil_B` laden und die
+3. Optional `test-parts/Insel_Teil_A` + `Insel_Teil_B` oder
+   `test-parts/insel2/` (Feldweg_01, Feldweg_02, Feldweg_03, Kaistrasse in
+   dieser Reihenfolge; ergibt 189 × 290 mit 25.630 Landkacheln) laden und die
    automatische Ausrichtung prüfen.
 4. Exportierten Stempel im Spiel testen (insbesondere Randposition und
    HK-Platzierung).
