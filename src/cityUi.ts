@@ -101,6 +101,8 @@ export class CityUi {
   readonly camera = new Camera();
   /** Angewähltes Gebäude (Index), −1 = keins. */
   private selected = -1;
+  /** Straßenreichweite des angewählten öffentlichen Gebäudes (zwischengespeichert). */
+  private selCover: { idx: number; analysis: Analysis; roads: Uint8Array; houses: Set<number> } | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -417,20 +419,32 @@ export class CityUi {
 
     // Straßen; bei Versorgungs-/Ministeriumsebene erreichte Straßen hervorheben.
     const reached = this.reachedRoads(c, a);
+    const cover = this.selectionCover(c, a);
     for (let y = Math.max(0, vis.y0); y < Math.min(c.h, vis.y1); y++) {
       for (let x = Math.max(0, vis.x0); x < Math.min(c.w, vis.x1); x++) {
-      const i = y * c.w + x;
-      if (!c.road[i]) continue;
-      ctx.fillStyle = reached?.[i] ? 'rgba(90, 190, 110, 0.85)' : c.road[i] === 1010035 ? '#4a5560' : '#5a4f3f';
-      ctx.fillRect(ox + x * scale, oy + y * scale, scale + 0.3, scale + 0.3);
+        const i = y * c.w + x;
+        if (!c.road[i]) continue;
+        ctx.fillStyle = cover?.roads[i]
+          ? 'rgba(143, 211, 255, 0.9)'
+          : reached?.[i]
+            ? 'rgba(90, 190, 110, 0.85)'
+            : c.road[i] === 1010035
+              ? '#4a5560'
+              : '#5a4f3f';
+        ctx.fillRect(ox + x * scale, oy + y * scale, scale + 0.3, scale + 0.3);
       }
     }
 
     // Radius des angewählten Gebäudes: Fläche leicht aufhellen, Linie folgt nach den Gebäuden.
     const sel = this.selected >= 0 ? c.buildings[this.selected] : null;
     const selRadius = sel?.entry.radius ?? 0;
-    const inSelRadius = (b: CityBuilding): boolean =>
-      !sel || !selRadius || b === sel || Math.hypot(b.cx - sel.cx, b.cy - sel.cy) <= selRadius + 1e-9;
+    // Bei Radius-Gebäuden: Mittelpunkt im Kreis; bei öffentlichen Gebäuden mit
+    // Straßenreichweite: Wohnhäuser, die über die Straße erreicht werden.
+    const inSelRadius = (b: CityBuilding): boolean => {
+      if (!sel || b === sel) return true;
+      if (cover) return b.entry.kind !== 'residence' || cover.houses.has(b.index);
+      return !selRadius || Math.hypot(b.cx - sel.cx, b.cy - sel.cy) <= selRadius + 1e-9;
+    };
     if (sel && selRadius) {
       ctx.beginPath();
       ctx.arc(ox + (sel.cx + 0.5) * scale, oy + (sel.cy + 0.5) * scale, selRadius * scale, 0, Math.PI * 2);
@@ -636,6 +650,23 @@ export class CityUi {
     ctx.stroke();
   }
 
+  /** Straßen und Wohnhäuser in Reichweite des angewählten öffentlichen Gebäudes. */
+  private selectionCover(c: City, a: Analysis): { roads: Uint8Array; houses: Set<number> } | null {
+    if (this.selected < 0) return null;
+    if (this.selCover && this.selCover.idx === this.selected && this.selCover.analysis === a) return this.selCover;
+    const b = c.buildings[this.selected];
+    const info = a.services.find((x) => x.building === b);
+    if (!info || !info.hasRoad) return null;
+    const search = new RoadSearch(c);
+    search.run(adjacentRoads(c, b), info.range);
+    const roads = new Uint8Array(c.w * c.h);
+    for (let i = 0; i < roads.length; i++) if (search.distance(i)) roads[i] = 1;
+    const houses = new Set<number>();
+    for (const r of a.residences) if (search.reaches(adjacentRoads(c, r.building))) houses.add(r.building.index);
+    this.selCover = { idx: this.selected, analysis: a, roads, houses };
+    return this.selCover;
+  }
+
   private reachedRoads(c: City, a: Analysis): Uint8Array | null {
     if (this.layer === 'ministry') return a.ministryRoads;
     if (!SERVICE_KINDS.includes(this.layer as BuildingKind)) return null;
@@ -801,6 +832,9 @@ export class CityUi {
     if (s) {
       const bonus = s.range - s.baseRange;
       lines.push(`Reichweite ${s.range}${bonus ? ` (${s.baseRange} + ${bonus})` : ''} · versorgt ${s.covers} Häuser`);
+      if (idx === this.selected) {
+        lines.push('<span class="muted">Hellblau: erreichte Straßen · abgedunkelt: Häuser außerhalb der Reichweite</span>');
+      }
       lines.push(`Im Ministeriumsbereich: ${s.inMinistry ? 'ja' : 'nein'}`);
       if (s.warehouseInRange !== null) lines.push(`Lager in Reichweite: ${s.warehouseInRange ? 'ja' : 'nein'}`);
     }
