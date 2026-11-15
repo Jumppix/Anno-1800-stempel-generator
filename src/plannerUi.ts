@@ -6,6 +6,8 @@ import { CITY_PAD } from './city';
 import type { CityUi } from './cityUi';
 import type { FillResult } from './fill';
 import {
+  editCity,
+  editTargetAt,
   finishPlan,
   freeTiles,
   planFromFill,
@@ -136,6 +138,8 @@ export class PlannerUi {
     this.runButton.addEventListener('click', () => void this.run());
     this.split.addEventListener('change', () => this.buildStamps());
     el<HTMLButtonElement>('#plan-image').addEventListener('click', () => this.saveImage());
+    el<HTMLButtonElement>('#plan-reopt').addEventListener('click', () => void this.reoptimize());
+    el<HTMLButtonElement>('#plan-undo').addEventListener('click', () => this.undo());
     el<HTMLButtonElement>('#plan-report-save').addEventListener('click', () => {
       if (this.reportText) download('Wohnraster_Bauliste.txt', new Blob([this.reportText], { type: 'text/plain;charset=utf-8' }));
     });
@@ -279,6 +283,8 @@ export class PlannerUi {
     this.running = true;
     this.runButton.disabled = true;
     this.exportBox.hidden = true;
+    this.cityUi.setEditor(null);
+    this.history = [];
     const started = performance.now();
     const orientation = this.orientation.value as 'auto' | Orientation;
     this.status.textContent = 'Bebauung wird berechnet …';
@@ -671,6 +677,7 @@ export class PlannerUi {
     const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y)];
     const minX = xs.reduce((m, v) => Math.min(m, v), Infinity);
     const minY = ys.reduce((m, v) => Math.min(m, v), Infinity);
+    this.offset = { dx: CITY_PAD - minX, dy: CITY_PAD - minY };
     this.cityUi.show(
       full,
       'Wohnraster-Plan',
@@ -683,6 +690,7 @@ export class PlannerUi {
       },
       this.result.planned ? new Map(this.result.planned) : undefined,
     );
+    this.cityUi.setEditor({ edit: (op) => this.edit(op), undo: () => this.undo() });
     this.stampList.innerHTML = this.stamps
       .map((_, i) => {
         const b = bands[i];
@@ -700,6 +708,122 @@ export class PlannerUi {
   }
 
   private reportText = '';
+
+  // --- Bearbeiten (Phase 6, Teil 2) -------------------------------------------
+  /** Maske → Stadtkachel der aktuellen Anzeige. */
+  private offset = { dx: 0, dy: 0 };
+  private history: Array<{
+    city: CityPlan;
+    planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
+    /** Lage (Maske) des bearbeiteten Gebäudes vorher – wird nach Rückgängig wieder angewählt. */
+    select?: { x: number; y: number };
+  }> = [];
+  private toastTimer = 0;
+
+  private toast(message: string, error = false): void {
+    const box = el<HTMLElement>('#plan-toast');
+    box.textContent = message;
+    box.classList.toggle('error', error);
+    box.hidden = false;
+    clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => (box.hidden = true), error ? 4500 : 3000);
+  }
+
+  /** Geplante Stufen über die Lage auf neue Hausindizes übertragen. */
+  private static remapPlanned(
+    before: CityPlan,
+    after: CityPlan,
+    planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>,
+  ): Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }> | undefined {
+    if (!planned) return undefined;
+    const byPos = new Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
+    before.houses.forEach((hs, k) => {
+      const st = planned.get(k);
+      if (st) byPos.set(`${hs.x},${hs.y}`, st);
+    });
+    const out = new Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
+    after.houses.forEach((hs, k) => {
+      const st = byPos.get(`${hs.x},${hs.y}`);
+      if (st) out.set(k, st);
+    });
+    return out;
+  }
+
+  private edit(op: { type: 'move' | 'rotate' | 'remove'; x: number; y: number; dx: number; dy: number }): void {
+    if (!this.result || this.running) return;
+    const { mask, city } = this.result;
+    const mx = op.x - this.offset.dx;
+    const my = op.y - this.offset.dy;
+    const target = editTargetAt(city, mx, my);
+    if (!target) {
+      this.toast('Dieses Gebäude lässt sich nicht bearbeiten.', true);
+      return;
+    }
+    const r = editCity(mask, city, target, op.type === 'move' ? { type: 'move', dx: op.dx, dy: op.dy } : { type: op.type });
+    if (!r.ok) {
+      this.toast(r.message, true);
+      this.cityUi.draw();
+      return;
+    }
+    this.history.push({ city, planned: this.result.planned, select: { x: mx, y: my } });
+    if (this.history.length > 50) this.history.shift();
+    this.result = { ...this.result, city: r.city, planned: PlannerUi.remapPlanned(city, r.city, this.result.planned) };
+    this.buildStamps();
+    // Bearbeitetes Gebäude wieder anwählen.
+    if (op.type !== 'remove') {
+      const pos = target.kind === 'townHall' ? r.city.townHalls[target.index] : r.city.services?.[target.index];
+      if (pos) this.cityUi.selectTile(pos.x + this.offset.dx, pos.y + this.offset.dy);
+    }
+    this.toast(`${r.message}${this.result.planned ? ' · neue Häuser ohne Stufe – „Stufen & Post neu berechnen“' : ''}`);
+  }
+
+  private undo(): void {
+    if (this.running) return;
+    const last = this.history.pop();
+    if (!last || !this.result) {
+      this.toast('Nichts rückgängig zu machen.');
+      return;
+    }
+    this.result = { ...this.result, city: last.city, planned: last.planned };
+    this.buildStamps();
+    if (last.select) this.cityUi.selectTile(last.select.x + this.offset.dx, last.select.y + this.offset.dy);
+    this.toast('Rückgängig gemacht.');
+  }
+
+  /** Nach Änderungen: Hochhaus-Stufen und Briefkästen neu (Gebäude bleiben, wo sie sind). */
+  private async reoptimize(): Promise<void> {
+    if (!this.result || this.running) return;
+    this.running = true;
+    this.runButton.disabled = true;
+    const button = el<HTMLButtonElement>('#plan-reopt');
+    button.disabled = true;
+    try {
+      const { mask } = this.result;
+      // Briefkästen neu planen (sie hängen von den Einwohnern ab).
+      let city: CityPlan = { ...this.result.city, services: (this.result.city.services ?? []).filter((sv) => sv.kind !== 'postBox') };
+      this.toast('Hochhaus-Stufen werden neu berechnet …');
+      const levelMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
+      const levels = await this.levels(mask, city, this.levelMode.value as LevelMode, levelMs);
+      let planned = levels.planned;
+      const rules = this.cityUi.currentRules();
+      if (el<HTMLInputElement>('#plan-post').checked && rules.mail !== 'none') {
+        this.toast('Briefkästen werden neu geplant …');
+        const r = await this.post(mask, city, rules, planned);
+        const remapped = PlannerUi.remapPlanned(city, r.city, planned);
+        city = { ...r.city, removedHouses: city.removedHouses };
+        planned = remapped ?? planned;
+      }
+      this.history.push({ city: this.result.city, planned: this.result.planned });
+      this.result = { ...this.result, city, planned };
+      this.buildStamps();
+      const t = this.cityUi.totals();
+      this.toast(`Neu berechnet: ${t ? `${num(t.residents)} Einwohner` : 'fertig'}`);
+    } finally {
+      this.running = false;
+      button.disabled = false;
+      this.refreshIsland();
+    }
+  }
 
   /** Bauliste (Anzahl je Gebäude) und Einwohner-Bericht des fertigen Plans. */
   private buildReport(

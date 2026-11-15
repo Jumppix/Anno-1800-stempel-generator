@@ -754,8 +754,26 @@ Recherche (Wiki „Needs“, „Mail“, „Post Office“, „Post Box“, „N
   geprüft; lagen alle an einer Stelle, deren Straßen das Netz getrennt
   hätten, hieß es „kein Platz gefunden“ (je nach Rathaus-Lösung etwa jeder
   zweite Lauf mit Produktion). Jetzt wird weitergesucht (höchstens ≈ 3 s).
-- Teil 2 (offen): Bearbeiten per Drag (Gebäude verschieben, Zellen sperren,
-  Rest neu optimieren).
+
+### Teil 2: Plan bearbeiten
+- Im fertigen Plan ein Sonderbauwerk anklicken (Rathaus, Laden, Kraftwerk,
+  Lagerhaus, Handelskammer, Produktion, Briefkasten, Lufthafen-Komplex …),
+  dann **mit der linken Maustaste ziehen** (gestrichelte Vorschau samt
+  Radius), **R** drehen, **Entf** entfernen, **Strg+Z** rückgängig (50
+  Schritte), **Esc** Auswahl aufheben; Knöpfe auch im Infofeld.
+- `editCity` (`src/planner.ts`): Häuser unter der neuen Fläche weichen,
+  Straßen darunter nur, wenn das Netz nicht zerfällt; Gebäude (außer Rathaus)
+  brauchen danach eine Straße; Häuser ohne Anschluss werden entfernt, die
+  frei gewordene Fläche wird mit Häusern aufgefüllt. Abgelehnt wird mit
+  Hinweis: außerhalb der Insel / Wasser, auf anderem Gebäude oder Brücke,
+  Netz würde getrennt, kein Straßenanschluss, **Radius überlappt ein
+  gleichartiges Gebäude** (Rathaus 40, Handelskammer 30, Post 24).
+  Lufthafen und Module bewegen sich gemeinsam (nicht drehbar).
+- „Stufen & Post neu berechnen“: Hochhaus-Stufen und Briefkästen für den
+  bearbeiteten Plan neu (Gebäude bleiben, wo sie sind). Neue Häuser haben bis
+  dahin keine geplante Stufe.
+- „Zellen sperren“ aus dem ursprünglichen Entwurf entfällt: Verschieben +
+  Neuberechnen deckt den Zweck ab, ohne die Planung neu zu starten.
 
 ## 25. Noch offene Fragen
 - Lagerhaus-Reichweite für Produktion (Annahme 20 Straßenkacheln).

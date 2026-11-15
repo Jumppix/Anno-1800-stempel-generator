@@ -24,6 +24,12 @@ import { catalogTestLayout, demoCityLayout } from './testStamps';
 
 type Layer = 'overview' | 'panorama' | 'residents' | 'townHall' | 'post' | 'ministry' | 'clipping' | BuildingKind;
 
+/** Bearbeiten im Plan: Koordinaten der linken oberen Kachel in der Stadt. */
+export interface PlanEditor {
+  edit(op: { type: 'move' | 'rotate' | 'remove'; x: number; y: number; dx: number; dy: number }): void;
+  undo(): void;
+}
+
 const KIND_NAMES: Partial<Record<BuildingKind, string>> = {};
 for (const e of CATALOG_LIST) KIND_NAMES[e.kind] ??= e.name;
 KIND_NAMES.powerPlant = 'Strom (Kraftwerk)';
@@ -114,6 +120,10 @@ export class CityUi {
   readonly camera = new Camera();
   /** Angewähltes Gebäude (Index), −1 = keins. */
   private selected = -1;
+  /** Bearbeiten des Plans (nur für Pläne des Planers, nicht für geladene Stempel). */
+  private editor: PlanEditor | null = null;
+  /** Laufendes Verschieben: angewähltes Gebäude, Startkachel, aktueller Versatz. */
+  private drag: { idx: number; tx: number; ty: number; dx: number; dy: number; id: number } | null = null;
   /** Straßenreichweite des angewählten öffentlichen Gebäudes (zwischengespeichert). */
   private selCover: { idx: number; analysis: Analysis; roads: Uint8Array; houses: Set<number> } | null = null;
 
@@ -157,11 +167,20 @@ export class CityUi {
     });
     canvas.addEventListener('pointermove', (event) => this.hover(event));
     canvas.addEventListener('pointerdown', (event) => this.click(event));
+    canvas.addEventListener('pointermove', (event) => this.dragMove(event));
+    canvas.addEventListener('pointerup', (event) => this.dragEnd(event));
+    canvas.addEventListener('pointercancel', () => {
+      this.drag = null;
+      this.draw();
+    });
+    window.addEventListener('keydown', (event) => this.key(event));
     this.selectBox.addEventListener('click', (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
       if (!button) return;
       const act = button.dataset.act;
       if (act === 'close') this.select(-1);
+      else if (act === 'rotate') this.editSelected('rotate');
+      else if (act === 'remove') this.editSelected('remove');
       else if (act === 'group') this.flipGroup(this.selected);
       else if (act === 'house') this.cycleHouse(this.selected);
     });
@@ -273,6 +292,7 @@ export class CityUi {
   }
 
   private async loadFile(file: File): Promise<void> {
+    this.editor = null;
     this.load(new Uint8Array(await file.arrayBuffer()), file.name);
     this.fileInput.value = '';
   }
@@ -338,6 +358,12 @@ export class CityUi {
       const cur = this.edits.houses.get(idx);
       const next = cur === undefined ? 'Ingenieur' : cur === 'engineer' ? 'Investor' : 'automatisch';
       actions.push(`<button type="button" data-act="house">Nur dieses Haus: ${next}</button>`);
+    }
+    const kind = c.buildings[idx].entry.kind;
+    if (this.editor && kind !== 'residence') {
+      actions.push('<button type="button" data-act="rotate">↻ Drehen (R)</button>');
+      actions.push('<button type="button" data-act="remove">✕ Entfernen (Entf)</button>');
+      actions.push('<span class="muted">Zum Verschieben das Gebäude mit der linken Maustaste ziehen · Strg+Z: rückgängig</span>');
     }
     this.selectBox.innerHTML = `<button type="button" class="close" data-act="close" title="Auswahl aufheben">×</button>
       <div class="lines">${this.describe(idx).join('<br>')}</div>
@@ -530,6 +556,28 @@ export class CityUi {
     }
 
     ctx.globalAlpha = 1;
+    // Vorschau beim Verschieben: gestrichelter Umriss an der Zielstelle.
+    if (this.drag && (this.drag.dx || this.drag.dy)) {
+      const b = c.buildings[this.drag.idx];
+      if (b) {
+        const gx = ox + (b.x + this.drag.dx) * scale;
+        const gy = oy + (b.y + this.drag.dy) * scale;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+        ctx.fillRect(gx, gy, b.w * scale, b.h * scale);
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(gx + 1, gy + 1, b.w * scale - 2, b.h * scale - 2);
+        ctx.setLineDash([]);
+        if (b.entry.radius) {
+          ctx.beginPath();
+          ctx.arc(gx + (b.cx - b.x + 0.5) * scale, gy + (b.cy - b.y + 0.5) * scale, b.entry.radius * scale, 0, Math.PI * 2);
+          ctx.setLineDash([8, 6]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+    }
     // Kreisradien der Ebene (Rathaus, Handelskammer, Post) über den Gebäuden:
     // leicht getönte Fläche, kräftige Linie mit dunklem Rand, Mittelpunkt.
     if (this.layer === 'townHall' || this.layer === 'post' || this.layer === 'clipping') {
@@ -843,6 +891,15 @@ export class CityUi {
     if (event.button !== 0 || !this.isActive() || !this.city || !this.analysis) return;
     const { idx } = this.buildingAt(event);
     const residence = idx >= 0 && this.city.buildings[idx].entry.kind === 'residence';
+    if (this.editor && idx >= 0 && idx === this.selected && !residence && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+      const t = this.tileAt(event);
+      this.drag = { idx, tx: t.x, ty: t.y, dx: 0, dy: 0, id: event.pointerId };
+      this.canvas.setPointerCapture(event.pointerId);
+      this.canvas.style.cursor = 'grabbing';
+      this.tip.hidden = true;
+      event.preventDefault();
+      return;
+    }
     if (residence && event.shiftKey) {
       this.cycleHouse(idx);
       this.select(idx);
@@ -923,7 +980,77 @@ export class CityUi {
     return lines;
   }
 
+  /** Bearbeiten erlauben (Planer) oder abschalten (null). */
+  setEditor(editor: PlanEditor | null): void {
+    this.editor = editor;
+    this.updateSelection();
+  }
+
+  /** Gebäude an einer Stadtkachel anwählen (z. B. nach dem Verschieben). */
+  selectTile(x: number, y: number): void {
+    const c = this.city;
+    if (!c || x < 0 || y < 0 || x >= c.w || y >= c.h) return;
+    this.select(c.occ[y * c.w + x] - 1);
+  }
+
+  private tileAt(event: PointerEvent): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    if (!this.view) return { x: 0, y: 0 };
+    return {
+      x: Math.floor((event.clientX - rect.left - this.view.ox) / this.view.scale),
+      y: Math.floor((event.clientY - rect.top - this.view.oy) / this.view.scale),
+    };
+  }
+
+  private dragMove(event: PointerEvent): void {
+    if (!this.drag || event.pointerId !== this.drag.id) return;
+    const t = this.tileAt(event);
+    const dx = t.x - this.drag.tx;
+    const dy = t.y - this.drag.ty;
+    if (dx !== this.drag.dx || dy !== this.drag.dy) {
+      this.drag.dx = dx;
+      this.drag.dy = dy;
+      this.draw();
+    }
+  }
+
+  private dragEnd(event: PointerEvent): void {
+    if (!this.drag || event.pointerId !== this.drag.id) return;
+    const d = this.drag;
+    this.drag = null;
+    if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
+    this.canvas.style.cursor = '';
+    const b = this.city?.buildings[d.idx];
+    if (b && this.editor && (d.dx || d.dy)) this.editor.edit({ type: 'move', x: b.x, y: b.y, dx: d.dx, dy: d.dy });
+    else this.draw();
+  }
+
+  private editSelected(type: 'rotate' | 'remove'): void {
+    const b = this.selected >= 0 ? this.city?.buildings[this.selected] : null;
+    if (!b || !this.editor || b.entry.kind === 'residence') return;
+    this.editor.edit({ type, x: b.x, y: b.y, dx: 0, dy: 0 });
+  }
+
+  /** Tasten: R drehen, Entf entfernen, Strg+Z rückgängig, Esc Auswahl aufheben. */
+  private key(event: KeyboardEvent): void {
+    if (!this.isActive() || !this.editor) return;
+    const target = event.target as HTMLElement | null;
+    if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      this.editor.undo();
+      event.preventDefault();
+    } else if (event.key === 'r' || event.key === 'R') {
+      this.editSelected('rotate');
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      this.editSelected('remove');
+      event.preventDefault();
+    } else if (event.key === 'Escape') {
+      this.select(-1);
+    }
+  }
+
   private hover(event: PointerEvent): void {
+    if (this.drag) return;
     if (!this.isActive() || !this.city || !this.analysis || !this.view) {
       this.tip.hidden = true;
       return;

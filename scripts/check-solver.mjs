@@ -149,7 +149,7 @@ const lastCovered = Math.max(
 expect('Straßenreichweite: letztes versorgtes Haus bei x ≤ 67', lastCovered <= 67 && lastCovered >= 61, `x=${lastCovered}`);
 
 // 5. Stadtplaner Phase 2: vollständige Bebauung + Rathäuser auf der Benchmark-Insel.
-const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity, planServices } =
+const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity, planServices, editCity } =
   await server.ssrLoadModule('/src/planner.ts');
 const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
 {
@@ -215,6 +215,29 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
     expect('Optionale Gebäude: Feuerwachen erreichen ≥ 95 % der Häuser, Netz unverändert',
       fire >= 0.95 && opt.city.plan.networks === dense.plan.networks,
       `${opt.report.placed.fireStation} Feuerwachen, ${(fire * 100).toFixed(1)} %`);
+  }
+  {
+    // Phase 6: Plan bearbeiten – Kaufhaus verschieben/drehen, ungültige Züge ablehnen.
+    const ki = city.services.findIndex((sv) => sv.kind === 'departmentStore');
+    let moved = null;
+    for (const [dx, dy] of [[7, 0], [-7, 0], [0, 7], [0, -7], [14, 0], [0, 14], [3, 0], [0, 3]]) {
+      const r = editCity(mask, city, { kind: 'service', index: ki }, { type: 'move', dx, dy });
+      if (r.ok) { moved = r; break; }
+    }
+    const rot = moved && editCity(mask, moved.city, { kind: 'service', index: ki }, { type: 'rotate' });
+    const ok = (r) => {
+      const it = planToStampItems(mask, r.city, { coast: false, coastGuid: 1000178 });
+      const c = cityFromStamp(decodeStampFull(buildGenericStamp(it.buildings, 'ow', it.streets)));
+      return c.conflicts === 0 && r.city.plan.networks === city.plan.networks;
+    };
+    const water = editCity(mask, city, { kind: 'service', index: ki }, { type: 'move', dx: -500, dy: 0 });
+    // Rathaus 0 genau auf Rathaus 1 schieben → abgelehnt (Fläche oder Radius).
+    const t0 = city.townHalls[0];
+    const t1 = city.townHalls[1];
+    const onto = editCity(mask, city, { kind: 'townHall', index: 0 }, { type: 'move', dx: t1.x - t0.x + 6, dy: t1.y - t0.y });
+    expect('Bearbeiten: Kaufhaus verschieben/drehen ohne Überlappung, Netz unverändert; ungültige Züge abgelehnt',
+      !!moved && ok(moved) && (!rot.ok || ok(rot)) && !water.ok && !onto.ok,
+      `${moved?.message}; ${rot?.message}; ${water.message}; ${onto.message}`);
   }
   let rhClose = 0;
   for (let i = 0; i < city.townHalls.length; i++) for (let j = i + 1; j < city.townHalls.length; j++) {

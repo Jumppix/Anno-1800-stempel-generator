@@ -10,8 +10,8 @@
 // Häuser. Danach werden verdrängte Häuser entfernt.
 
 import { outerBoundary } from './coast';
-import { FARMER_HOUSE, STREET_GUIDS } from './catalog';
-import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, pruneBridges, replaceRoadStubs, ROAD, SERVICE, WATER, type FillResult, type FillState } from './fill';
+import { FARMER_HOUSE, lookup, STREET_GUIDS } from './catalog';
+import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, pruneBridges, replaceRoadStubs, ROAD, SERVICE, touchesRoad, WATER, type FillResult, type FillState } from './fill';
 import { placePostBoxes, type PostReport } from './post';
 import { compact, type CompactOptions, type CompactResult } from './compact';
 import { placeServices, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
@@ -653,4 +653,195 @@ export function planPost(
   const { boxes, report, removedHouses } = placePostBoxes(s, residentsAt, need, valuePerTon);
   const next = removedHouses ? stateToCity(s, city, [...city.townHalls]) : city;
   return { city: { ...next, services: [...(city.services ?? []), ...boxes] }, report: { ...report, removedHouses } };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6: Plan von Hand bearbeiten (verschieben, drehen, entfernen)
+// ---------------------------------------------------------------------------
+
+/** Ein Sonderbauwerk im Plan: Rathaus (Index) oder Versorgungsgebäude (Index). */
+export type EditTarget = { kind: 'townHall'; index: number } | { kind: 'service'; index: number };
+
+export interface EditResult {
+  city: CityPlan;
+  ok: boolean;
+  message: string;
+  /** Verdrängte (bzw. ohne Anschluss entfernte) und neu gebaute Häuser. */
+  removedHouses: number;
+  addedHouses: number;
+}
+
+/** Gebäude an einer Kachel (Maskenkoordinaten) finden. */
+export function editTargetAt(city: CityPlan, x: number, y: number): EditTarget | null {
+  const t = city.townHalls.findIndex((th) => x >= th.x && y >= th.y && x < th.x + 4 && y < th.y + 4);
+  if (t >= 0) return { kind: 'townHall', index: t };
+  const sv = (city.services ?? []).findIndex((s) => x >= s.x && y >= s.y && x < s.x + s.w && y < s.y + s.h);
+  return sv >= 0 ? { kind: 'service', index: sv } : null;
+}
+
+/**
+ * Sonderbauwerk verschieben (dx, dy), um 90° drehen (`rotate`) oder entfernen.
+ * Häuser unter der neuen Fläche weichen; Straßen darunter nur, wenn das Netz
+ * zusammenhängt und das Gebäude danach noch an einer Straße liegt (Rathaus
+ * braucht keine). Häuser ohne Anschluss werden entfernt, frei gewordene Fläche
+ * wird mit Häusern aufgefüllt. Komplexe (Lufthafen + Module) bewegen sich
+ * gemeinsam und lassen sich nicht drehen.
+ */
+export function editCity(
+  mask: LandMask,
+  city: CityPlan,
+  target: EditTarget,
+  op: { type: 'move'; dx: number; dy: number } | { type: 'rotate' } | { type: 'remove' },
+): EditResult {
+  const fail = (message: string): EditResult => ({ city, ok: false, message, removedHouses: 0, addedHouses: 0 });
+  const s = cityToState(mask, city);
+  const { w, h, cell } = s;
+  const services = [...(city.services ?? [])];
+  const townHalls = city.townHalls.map((t) => ({ x: t.x, y: t.y }));
+  // Betroffene Rechtecke (bei Komplexen alle Teile).
+  type Part = { x: number; y: number; w: number; h: number; si: number };
+  let parts: Part[];
+  let label: string;
+  if (target.kind === 'townHall') {
+    const t = townHalls[target.index];
+    if (!t) return fail('Gebäude nicht gefunden.');
+    parts = [{ x: t.x, y: t.y, w: 4, h: 4, si: -1 }];
+    label = 'Rathaus';
+  } else {
+    const sv = services[target.index];
+    if (!sv) return fail('Gebäude nicht gefunden.');
+    const group = sv.owner !== undefined ? services.map((x, i) => ({ x, i })).filter((p) => p.x.owner === sv.owner) : [{ x: sv, i: target.index }];
+    parts = group.map((p) => ({ x: p.x.x, y: p.x.y, w: p.x.w, h: p.x.h, si: p.i }));
+    label = sv.owner !== undefined ? 'Lufthafen-Komplex' : sv.name;
+    if (op.type === 'rotate' && sv.owner !== undefined) return fail('Komplexe (Lufthafen mit Modulen) lassen sich nicht drehen.');
+  }
+  // Alte Fläche freimachen.
+  for (const p of parts) for (let dy = 0; dy < p.h; dy++) for (let dx = 0; dx < p.w; dx++) cell[(p.y + dy) * w + p.x + dx] = FREE;
+  const housesBefore = s.houses.length;
+  let next: Part[] = [];
+  let turnsDelta = 0;
+  if (op.type === 'move') next = parts.map((p) => ({ ...p, x: p.x + op.dx, y: p.y + op.dy }));
+  else if (op.type === 'rotate') {
+    // Um die Mitte drehen (Breite/Höhe tauschen), auf Kacheln gerundet.
+    const p = parts[0];
+    const cx = p.x + p.w / 2;
+    const cy = p.y + p.h / 2;
+    next = [{ ...p, w: p.h, h: p.w, x: Math.round(cx - p.h / 2), y: Math.round(cy - p.w / 2) }];
+    turnsDelta = 1;
+  }
+  const isTownHall = target.kind === 'townHall';
+  // Kreisradien gleichartiger Gebäude dürfen sich nicht überlappen
+  // (Mittelpunktabstand ≥ 2 × Radius; Rathaus 40, Handelskammer 30, Post 24).
+  if (op.type !== 'remove' && next.length === 1) {
+    const p = next[0];
+    const cx = p.x + p.w / 2;
+    const cy = p.y + p.h / 2;
+    const others: Array<{ cx: number; cy: number }> = [];
+    let radius = 0;
+    if (isTownHall) {
+      radius = 20;
+      townHalls.forEach((t, i) => {
+        if (i !== target.index) others.push({ cx: t.x + 2, cy: t.y + 2 });
+      });
+    } else {
+      const sv = services[target.index];
+      radius = lookup(sv.guid).radius ?? 0;
+      services.forEach((o, i) => {
+        if (i !== target.index && o.kind === sv.kind) others.push({ cx: o.x + o.w / 2, cy: o.y + o.h / 2 });
+      });
+    }
+    if (radius && others.some((o) => Math.hypot(o.cx - cx, o.cy - cy) < 2 * radius - 1e-9)) {
+      return fail(`Der Radius (${radius}) würde sich mit einem gleichartigen Gebäude überlappen.`);
+    }
+  }
+  const roadsBefore = city.plan.networks;
+  const own = new Set<number>();
+  const coveredRoads: number[] = [];
+  for (const p of next) {
+    if (p.x < 0 || p.y < 0 || p.x + p.w > w || p.y + p.h > h) return fail('Außerhalb der Insel.');
+    for (let dy = 0; dy < p.h; dy++) {
+      for (let dx = 0; dx < p.w; dx++) {
+        const i = (p.y + dy) * w + p.x + dx;
+        const v = cell[i];
+        if (v === WATER) return fail('Die Fläche liegt nicht ganz auf Land.');
+        if (v === BLOCKED || v === SERVICE) return fail('Dort steht schon ein anderes Gebäude.');
+        if (v === BRIDGE) return fail('Auf einer Brücke kann nicht gebaut werden.');
+        if (v === ROAD) coveredRoads.push(i);
+      }
+    }
+  }
+  // Häuser unter der neuen Fläche weichen.
+  const inNext = (x: number, y: number): boolean => next.some((p) => x >= p.x && y >= p.y && x < p.x + p.w && y < p.y + p.h);
+  s.houses.forEach((hs, k) => {
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) if (inNext(hs.x + dx, hs.y + dy)) own.add(k);
+  });
+  const freeHouse = (k: number): void => {
+    const hs = s.houses[k];
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) cell[(hs.y + dy) * w + hs.x + dx] = FREE;
+  };
+  for (const k of own) freeHouse(k);
+  const mark = isTownHall ? BLOCKED : SERVICE;
+  for (const p of next) for (let dy = 0; dy < p.h; dy++) for (let dx = 0; dx < p.w; dx++) cell[(p.y + dy) * w + p.x + dx] = mark;
+  // Netz darf nicht zerfallen.
+  if (coveredRoads.length) {
+    const roads = new Uint8Array(w * h);
+    const bridges: number[] = [];
+    for (let i = 0; i < cell.length; i++) {
+      if (cell[i] === ROAD) roads[i] = 1;
+      else if (cell[i] === BRIDGE) bridges.push(i);
+    }
+    if (countNetworks(roads, w, bridges) > roadsBefore) return fail('Das würde das Straßennetz trennen.');
+  }
+  const ring = (p: Part): number[] => {
+    const out: number[] = [];
+    const add = (x: number, y: number): void => {
+      if (x >= 0 && y >= 0 && x < w && y < h) out.push(y * w + x);
+    };
+    for (let d = 0; d < p.w; d++) {
+      add(p.x + d, p.y - 1);
+      add(p.x + d, p.y + p.h);
+    }
+    for (let d = 0; d < p.h; d++) {
+      add(p.x - 1, p.y + d);
+      add(p.x + p.w, p.y + d);
+    }
+    return out;
+  };
+  if (!isTownHall && next.length && !next.some((p) => ring(p).some((i) => cell[i] === ROAD))) {
+    return fail('Das Gebäude hätte dort keinen Straßenanschluss.');
+  }
+  // Häuser ohne Anschluss entfernen, dann Lücken füllen.
+  const orphans: number[] = [];
+  s.houses.forEach((hs, k) => {
+    if (!own.has(k) && !touchesRoad(s, hs.x, hs.y)) orphans.push(k);
+  });
+  for (const k of orphans) freeHouse(k);
+  const gone = new Set([...own, ...orphans]);
+  s.houses = s.houses.filter((_, k) => !gone.has(k));
+  const kept = s.houses.length;
+  greedyFill(s);
+  const added = s.houses.length - kept;
+  // Gebäude übernehmen.
+  if (isTownHall) {
+    if (op.type === 'remove') townHalls.splice(target.index, 1);
+    else townHalls[target.index] = { x: next[0].x, y: next[0].y };
+  } else if (op.type === 'remove') {
+    const drop = new Set(parts.map((p) => p.si));
+    for (let i = services.length - 1; i >= 0; i--) if (drop.has(i)) services.splice(i, 1);
+  } else {
+    next.forEach((p) => {
+      const old = services[p.si];
+      services[p.si] = { ...old, x: p.x, y: p.y, w: p.w, h: p.h, turns: (old.turns + turnsDelta) % 4 };
+    });
+  }
+  const out = { ...stateToCity(s, city, townHalls), services };
+  const removed = gone.size;
+  const verb = op.type === 'move' ? 'verschoben' : op.type === 'rotate' ? 'gedreht' : 'entfernt';
+  return {
+    city: out,
+    ok: true,
+    message: `${label} ${verb}${removed ? ` · ${removed} Häuser weichen` : ''}${added ? ` · ${added} Häuser neu` : ''} (${s.houses.length - housesBefore >= 0 ? '+' : ''}${s.houses.length - housesBefore} Häuser)`,
+    removedHouses: removed,
+    addedHouses: added,
+  };
 }

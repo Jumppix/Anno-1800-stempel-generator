@@ -998,3 +998,34 @@ details.advanced + button.primary {
   font-size: 0.85em;
   margin: 8px 0 4px;
 }
+
+.plan-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: min(560px, calc(100% - 32px));
+  padding: 8px 14px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: rgba(6, 15, 22, 0.95);
+  color: var(--text);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.plan-toast.error {
+  border-color: #e0715a;
+  color: #ffb4a3;
+}
+
+.edit-block {
+  margin: 10px 0;
+}
+
+.edit-buttons {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}

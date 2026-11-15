@@ -232,6 +232,14 @@
               In Stempel bis 13.500 Kacheln aufteilen
             </label>
             <div id="plan-stamps" class="stamp-list"></div>
+            <div class="edit-block">
+              <div class="sub-title">Plan bearbeiten</div>
+              <p class="micro">Gebäude im Plan anklicken, dann mit der linken Maustaste ziehen (verschieben), R drehen, Entf entfernen, Strg+Z rückgängig. Häuser darunter weichen, frei gewordene Fläche wird mit Häusern gefüllt.</p>
+              <div class="edit-buttons">
+                <button id="plan-reopt" class="ghost" type="button">Stufen &amp; Post neu berechnen</button>
+                <button id="plan-undo" class="ghost" type="button">↶ Rückgängig</button>
+              </div>
+            </div>
             <button id="plan-image" class="ghost" type="button">Bauplan als Bild speichern</button>
             <details id="plan-report" class="advanced report">
               <summary>Bauliste &amp; Einwohner-Bericht</summary>
@@ -334,6 +342,7 @@
         <canvas id="canvas"></canvas>
         <div id="city-tip" class="city-tip" hidden></div>
         <div id="city-select" class="city-select" hidden></div>
+        <div id="plan-toast" class="plan-toast" hidden></div>
         <div class="zoom-controls">
           <button id="zoom-in" type="button" title="Hineinzoomen (Mausrad)">+</button>
           <button id="zoom-out" type="button" title="Herauszoomen (Mausrad)">−</button>
