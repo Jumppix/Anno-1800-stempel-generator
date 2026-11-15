@@ -498,7 +498,48 @@ versorgt – dort braucht ein Lagerhaus eine eigene Anlegestelle/Kontor.
 Offen für Phase 4: Regionalministerium (Wohlfahrt +15…+90, Stadtweites Netz
 +22 für Kraftwerke) reduziert die Anzahl; Handwerker-Arbeitskraft (Pendler).
 
-## 19. Noch offene Fragen
+## 19. Lohnen sich Drogerie und Universität? (Recherche Wiki, Nov. 2026)
+
+Wiki-Werte (Seiten „Needs“, „Skyscrapers“, „Drug Store“, „University“,
+Item „Blue Skies Delivery Service“):
+- **Drogerie** ist Grundbedürfnis nur für **Ingenieur-Hochhäuser Stufe 3**
+  (+5 Einwohner) und Investoren-Hochhäuser **erst ab Stufe 5** – unsere
+  Investoren (Stufe 3) brauchen sie nicht. Kosten: 240 Handwerker, drei
+  Waren (1 t/min je Ware), Strom, 400 Unterhalt, Lagerhaus in Reichweite.
+- **Universität**: Ingenieure +6 bei voller Reichweite (64), abgeschwächt bis
+  131 Kacheln; keine Arbeitskraft, keine Waren, 400 Unterhalt; kein Einkommen.
+- **Lieferdienst „Blauer Himmel“** (Rathaus, alle Hochhäuser): versorgte
+  Häuser bekommen über das Kaufhaus Kaugummi (Ing./Inv. +10), über das
+  Einrichtungshaus Billardtische (Investoren erst ab Stufe 4), über die
+  Drogerie **Violinen** (Ingenieure Stufe 3 +5). Zofe: +5 für Violinen.
+- Investoren Stufe 3: Kaufhaus 25, Einrichtungshaus 10 (ab 15 Hochhäusern
+  Stufe 3), Strom 8. Ingenieure: Kaufhaus 20, Einrichtungshaus 10, Strom 2.
+
+Umgesetzt: Analyse rechnet die Universität abgestuft (linear 64 → 131) und
+kennt die Option „Kaugummi & Violinen nur über den Lieferdienst“ (dann zählen
+sie nur im Rathausradius und mit versorgendem Laden). Die Versorgungsplanung
+bewertet entsprechend und rechnet einen Betriebsaufwand je Gebäude ein
+(Laden 450 Einw.-Gegenwert, Kraftwerk 225, Universität 0). Standardziel ist
+jetzt „Max. Einwohner“.
+
+Insel 2 (25 Rathäuser, Max. Einwohner, ohne Ministerium):
+| Kaugummi/Violinen | alle 5 Arten | ohne Drogerie | ohne Universität | ohne beide | Vollversorgung |
+| --- | --- | --- | --- | --- | --- |
+| produziert | 471.600 (2 DR, 2 UNI) | 468.700 | 468.400 | 465.500 | 463.600 |
+| nur Lieferdienst | 465.400 (3 DR, 2 UNI) | 456.900 | 462.200 | 453.600 | 459.900 |
+Fazit: Drogerie lohnt sich nur gezielt (2–3 Stück in dichten Rathaus-
+Bereichen): +0,6 % Einwohner, wenn Violinen produziert werden, +1,8 %, wenn
+Violinen nur über den Lieferdienst kommen. Universität: 2 Stück, +0,7 %, sehr
+günstig. Vollversorgung kostet 1,5–2 % Einwohner gegenüber „Max. Einwohner“.
+
+**Brücken** (Wiki „Roads“): Straßen können Flüsse per Brücke überqueren;
+Start und Ende auf beiden Ufern, kürzeste Strecke, parallele Brücken mit
+mindestens 1 Kachel Abstand; Pflasterbrücke 2.000 Münzen + 20 Ziegel. Eine
+importierte Insel ist immer **eine** Insel mit einem Kontor – getrennte
+Straßennetze werden später per Brücke verbunden (wo der Fluss schmal ist,
+lässt sich dem Feldweg-Stempel nicht entnehmen; Nutzer klärt das später).
+
+## 20. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

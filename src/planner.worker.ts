@@ -9,7 +9,7 @@ import type { LandMask } from './solver';
 export type PlannerJob =
   | { kind: 'fill'; id: number; mask: LandMask; orientation: 'auto' | Orientation; housesPerLine: number }
   | { kind: 'compact'; id: number; mask: LandMask; city: CityPlan; budgetMs: number; seed: number }
-  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number };
+  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean };
 
 export type PlannerMessage =
   | { kind: 'fill'; id: number; result: FillResult }
@@ -30,7 +30,11 @@ scope.onmessage = (event) => {
     return;
   }
   if (job.kind === 'services') {
-    const r = planServices(job.mask, job.city, { kinds: new Set(job.kinds), fullCoverageValue: job.fullCoverageValue });
+    const r = planServices(job.mask, job.city, {
+      kinds: new Set(job.kinds),
+      fullCoverageValue: job.fullCoverageValue,
+      deliveryGoods: job.deliveryGoods,
+    });
     scope.postMessage({ kind: 'services', id: job.id, city: r.city, report: r.report, refilled: r.refilled });
     return;
   }

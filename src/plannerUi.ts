@@ -135,16 +135,18 @@ export class PlannerUi {
 
     const finished = finishPlan(plan, townHalls, Math.max(0, Number(this.minCover.value) || 0));
     const refilled = refillAroundTownHalls(src.mask, finished);
+    // Erst nachverdichten (Häuser/Rathäuser schieben), dann Versorgung setzen:
+    // so verlängert kein späteres Verschieben die Wege zu Lagerhäusern.
+    const compactMs = Number(this.compactBudget.value) || 0;
+    const compacted = compactMs > 0 ? await this.compact(src.mask, refilled, compactMs, started) : null;
+    const dense = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : refilled;
     const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
     let serviced: { city: CityPlan; report: ServiceReport; refilled: number } | null = null;
     if (kinds.length) {
       this.status.textContent = 'Versorgung wird geplant (Kaufhaus, Einrichtungshaus, Drogerie, Universität, Kraftwerk, Lagerhäuser) …';
-      serviced = await this.services(src.mask, refilled, kinds, Number(this.svcGoal.value) || 0);
+      serviced = await this.services(src.mask, dense, kinds, Number(this.svcGoal.value) || 0);
     }
-    const beforeCompact = serviced?.city ?? refilled;
-    const compactMs = Number(this.compactBudget.value) || 0;
-    const compacted = compactMs > 0 ? await this.compact(src.mask, beforeCompact, compactMs, started) : null;
-    const city = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : beforeCompact;
+    const city = serviced ? { ...serviced.city, removedHouses: refilled.removedHouses } : dense;
     this.result = { city, mask: src.mask, streetGuid: src.streetGuid };
     this.buildStamps();
     const secs = ((performance.now() - started) / 1000).toFixed(1);
@@ -183,8 +185,8 @@ export class PlannerUi {
     parts.push(`${num(free)} freie Restkacheln (${((100 * free) / src.mask.landCount).toFixed(1)} %, meist schmale Ränder)`);
     if (city.plan.networks > 1) {
       parts.push(
-        `${city.plan.networks} getrennte Straßennetze (Inselteile)${
-          serviced ? ' – jedes Teil wird eigens versorgt; Lagerhäuser dort brauchen eine eigene Anlegestelle/Kontor' : ''
+        `${city.plan.networks} getrennte Straßennetze (Flussarme)${
+          serviced ? ' – verbinde sie im Spiel per Brücke; bis dahin wird jedes Teil eigens versorgt' : ''
         }`,
       );
     }
@@ -214,7 +216,8 @@ export class PlannerUi {
         const msg = event.data;
         if (msg.id === id && msg.kind === 'services') resolve({ city: msg.city, report: msg.report, refilled: msg.refilled });
       };
-      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue };
+      const deliveryGoods = el<HTMLInputElement>('#rule-delivery').checked;
+      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods };
       worker.postMessage(job);
     });
   }

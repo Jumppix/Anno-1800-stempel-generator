@@ -11,6 +11,9 @@ import {
   SKYSCRAPER_L3_RESIDENTS,
   SKYSCRAPER_SERVICE_NEEDS,
   TOWN_HALL_ITEM_BONUS,
+  DELIVERY_GOODS,
+  UNIVERSITY_MAX_RANGE,
+  universityFactor,
   welfareApplies,
   welfareBonus,
   type RuleConfig,
@@ -37,6 +40,10 @@ export interface ResidenceInfo {
   hasRoad: boolean;
   /** Versorgt je Bedürfnisart (Straßenreichweite). */
   services: Partial<Record<BuildingKind, boolean>>;
+  /** Universität: Anteil der Wirkung 0…1 (voll bis 64, abgeschwächt bis 131). */
+  universityFactor: number;
+  /** Lieferdienst-Waren, die fehlen (nur bei „Kaugummi/Violinen nur über Lieferdienst“). */
+  missingGoods: string[];
   townHall: number | null;
   post: number | null;
   /** Panorama-Wert vor Begrenzung und Stärke 0–5 (nur Hochhäuser). */
@@ -130,6 +137,8 @@ export function analyzeCity(
       tier: tiers.tier.get(b.index) as Tier,
       hasRoad: roadsOf[b.index].length > 0,
       services: {},
+      universityFactor: 0,
+      missingGoods: [],
       townHall: null,
       post: null,
       panoramaValue: 0,
@@ -151,6 +160,8 @@ export function analyzeCity(
     const bonusWelfare = inMinistry[b.index] && welfareApplies(b.entry.kind, b.entry.welfare, rules) ? welfare : 0;
     const bonusWeb = inMinistry[b.index] && b.entry.kind === 'powerPlant' ? wideWeb : 0;
     const range = base + bonusWelfare + bonusWeb;
+    const isUniversity = b.entry.kind === 'university';
+    const searchRange = isUniversity ? UNIVERSITY_MAX_RANGE + bonusWelfare : range;
     const starts = roadsOf[b.index];
     const info: ServiceInfo = {
       building: b,
@@ -162,12 +173,16 @@ export function analyzeCity(
       covers: 0,
     };
     if (starts.length) {
-      search.run(starts, range);
+      search.run(starts, searchRange);
       for (const r of residences) {
-        if (search.reaches(roadsOf[r.building.index])) {
-          r.services[b.entry.kind] = true;
-          info.covers++;
+        const d = search.reaches(roadsOf[r.building.index]);
+        if (!d) continue;
+        if (isUniversity) {
+          r.universityFactor = Math.max(r.universityFactor, universityFactor(d, bonusWelfare));
+          if (d > range) continue;
         }
+        r.services[b.entry.kind] = true;
+        info.covers++;
       }
       if (b.entry.needsWarehouse) {
         info.warehouseInRange = warehouses.some((wh) => search.reaches(roadsOf[wh.index]) > 0);
@@ -251,15 +266,36 @@ export function analyzeCity(
     const tier = r.tier;
     let n = SKYSCRAPER_L3_RESIDENTS[tier][r.panorama];
     for (const need of SKYSCRAPER_SERVICE_NEEDS[tier]) {
-      if (!r.services[need.kind]) {
-        n -= need.residents;
+      // Universität wirkt abgeschwächt bis zur Maximalreichweite.
+      const share = need.kind === 'university' ? r.universityFactor : r.services[need.kind] ? 1 : 0;
+      if (share < 1) {
+        n -= need.residents * (1 - share);
         r.missing.push(need.kind);
+      }
+    }
+    // Kaugummi/Violinen nur über den Lieferdienst: nur im Rathausradius und
+    // wenn der liefernde Laden das Haus versorgt.
+    const delivered = (via: BuildingKind): boolean =>
+      !rules.deliveryGoods || (rules.townHallItems && r.townHall !== null && !!r.services[via]);
+    if (rules.deliveryGoods) {
+      for (const g of DELIVERY_GOODS[tier]) {
+        if (!delivered(g.via)) {
+          n -= g.residents;
+          r.missingGoods.push(g.label);
+        }
       }
     }
     let bonus = 0;
     if (rules.townHallItems && r.townHall !== null) {
-      for (const b of TOWN_HALL_ITEM_BONUS[tier]) if (!b.kind || r.services[b.kind]) bonus += b.residents;
+      for (const b of TOWN_HALL_ITEM_BONUS[tier]) {
+        if (b.kind === 'university') bonus += b.residents * r.universityFactor;
+        else if (b.kind) bonus += r.services[b.kind] ? b.residents : 0;
+        else if (b.label === 'Violinen') bonus += delivered('drugStore') ? b.residents : 0;
+        else bonus += b.residents;
+      }
+      bonus = Math.round(bonus);
     }
+    n = Math.round(n);
     if (!r.hasRoad) {
       n = 0;
       bonus = 0;

@@ -14,6 +14,7 @@
 // Kraftwerk eines in seiner Straßenreichweite hat.
 
 import { footprint, lookup, type BuildingKind } from './catalog';
+import { UNIVERSITY_MAX_RANGE, universityFactor } from './rules';
 import { BLOCKED, FREE, HOUSE, ROAD, SERVICE, WATER, touchesRoad, type FillState } from './fill';
 
 export interface PlacedService {
@@ -30,18 +31,33 @@ export interface PlacedService {
 export interface ServiceSpec {
   kind: BuildingKind;
   guid: number;
-  /** Wert je versorgtem Haus, zusätzlich im Rathausradius (Item-Bonus). */
+  /**
+   * Einwohner je versorgtem Haus (Mittel Ingenieur/Investor, Stufe 3, Wiki
+   * „Needs“), zusätzlich im Rathausradius (Zofe/Saint), zusätzlich im
+   * Rathausradius, wenn Waren nur über den Lieferdienst kommen.
+   */
   value: number;
   itemValue: number;
+  deliveryValue: number;
+  /**
+   * Betriebsaufwand je Gebäude in Einwohner-Gegenwert: Läden brauchen 240
+   * Handwerker, drei Waren und Strom; das Kraftwerk Gas und Arbeitskraft.
+   */
+  fixedCost: number;
 }
 
-/** Reihenfolge = Priorität (höchster Wert je Haus zuerst). */
+/**
+ * Reihenfolge = Priorität. Drogerie wirkt nur bei Ingenieuren (Investoren erst
+ * ab Stufe 5): 5 + Zofe 5; mit Lieferdienst-Violinen zusätzlich 5 + Zofe 5.
+ * Kaufhaus: 20/25 + Zofe 5; mit Lieferdienst-Kaugummi zusätzlich 10.
+ * Universität: Ingenieure 6 (+ Saint 2), abgeschwächt bis 131 Kacheln.
+ */
 export const SERVICE_SPECS: readonly ServiceSpec[] = [
-  { kind: 'departmentStore', guid: 135100, value: 22.5, itemValue: 5 },
-  { kind: 'furnitureStore', guid: 135099, value: 10, itemValue: 5 },
-  { kind: 'powerPlant', guid: 117547, value: 5, itemValue: 0 },
-  { kind: 'university', guid: 1010362, value: 3, itemValue: 1 },
-  { kind: 'drugStore', guid: 134629, value: 2.5, itemValue: 2.5 },
+  { kind: 'departmentStore', guid: 135100, value: 22.5, itemValue: 5, deliveryValue: 10, fixedCost: 450 },
+  { kind: 'furnitureStore', guid: 135099, value: 10, itemValue: 5, deliveryValue: 0, fixedCost: 450 },
+  { kind: 'powerPlant', guid: 117547, value: 5, itemValue: 0, deliveryValue: 0, fixedCost: 225 },
+  { kind: 'university', guid: 1010362, value: 3, itemValue: 1, deliveryValue: 0, fixedCost: 0 },
+  { kind: 'drugStore', guid: 134629, value: 2.5, itemValue: 2.5, deliveryValue: 5, fixedCost: 450 },
 ];
 
 export const WAREHOUSE_GUID = 1010371;
@@ -59,6 +75,8 @@ export interface ServiceOptions {
   fullCoverageValue?: number;
   /** Reichweiten-Zuschlag je Art (z. B. Wohlfahrt), Standard 0. */
   rangeBonus?: Partial<Record<BuildingKind, number>>;
+  /** Kaugummi/Violinen nur über den Lieferdienst (siehe RuleConfig.deliveryGoods). */
+  deliveryGoods?: boolean;
 }
 
 export interface ServiceReport {
@@ -306,81 +324,110 @@ export function placeServices(
   const specs = SERVICE_SPECS.filter((sp) => options.kinds.has(sp.kind));
   for (const spec of specs) {
     const entry = lookup(spec.guid);
-    const range = (entry.roadRange ?? 0) + (options.rangeBonus?.[spec.kind] ?? 0);
+    const bonusRange = options.rangeBonus?.[spec.kind] ?? 0;
+    const isUniversity = spec.kind === 'university';
+    const range = isUniversity ? UNIVERSITY_MAX_RANGE + bonusRange : (entry.roadRange ?? 0) + bonusRange;
     const cands = candidatesFor(spec.guid);
-    // Abdeckung je Kandidat (Hausindizes)
-    const cover: Int32Array[] = cands.map((c) => {
+    // Abdeckung je Kandidat: Hausindizes (aufsteigend) und Wirkungsanteil 0…1.
+    const coverK: Int32Array[] = [];
+    const coverF: Float32Array[] = [];
+    for (const c of cands) {
       bfs(c.starts, range);
-      const list: number[] = [];
+      const ks: number[] = [];
+      const fs: number[] = [];
       s.houses.forEach((_, k) => {
-        if (isAlive(k) && reached(houseRing[k])) list.push(k);
+        if (!isAlive(k)) return;
+        let d = 0;
+        for (const i of houseRing[k]) if (gen[i] === g && (!d || dist[i] < d)) d = dist[i];
+        if (!d) return;
+        const f = isUniversity ? universityFactor(d, bonusRange) : 1;
+        if (f <= 0) return;
+        ks.push(k);
+        fs.push(f);
       });
-      return Int32Array.from(list);
-    });
+      coverK.push(Int32Array.from(ks));
+      coverF.push(Float32Array.from(fs));
+    }
+    const factorIn = (ci: number, k: number): number => {
+      const arr = coverK[ci];
+      let lo = 0;
+      let hi = arr.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid] === k) return coverF[ci][mid];
+        if (arr[mid] < k) lo = mid + 1;
+        else hi = mid - 1;
+      }
+      return 0;
+    };
     const valueOf = (k: number): number =>
-      Math.max(spec.value + (inTownHall[k] ? spec.itemValue : 0), options.fullCoverageValue ?? 0);
-    /** Wie viele gewählte Gebäude dieser Art erreichen ein Haus? */
-    const coverCount = new Int32Array(s.houses.length);
+      Math.max(
+        spec.value + (inTownHall[k] ? spec.itemValue + (options.deliveryGoods ? spec.deliveryValue : 0) : 0),
+        options.fullCoverageValue ?? 0,
+      );
+    /** Bester Wirkungsanteil je Haus über die gewählten Gebäude dieser Art. */
+    const best = new Float32Array(s.houses.length);
     const chosen: number[] = [];
-    const ownHouse = (ci: number, k: number): boolean => cands[ci].houses.includes(k);
+    const bestWithout = (ci: number, k: number): number => {
+      let b = 0;
+      for (const cj of chosen) if (cj !== ci) b = Math.max(b, factorIn(cj, k));
+      return b;
+    };
 
     /** Gewinn, wenn Kandidat ci dazukommt (im aktuellen Zustand). */
     const addGain = (ci: number): number => {
       const c = cands[ci];
-      let gain = 0;
+      let gain = -spec.fixedCost;
       for (const k of c.houses) {
         if (!isAlive(k)) continue;
-        gain -= houseCost(k);
-        if (coverCount[k] > 0) gain -= valueOf(k);
+        gain -= houseCost(k) + valueOf(k) * best[k];
       }
-      for (const k of cover[ci]) {
-        if (isAlive(k) && coverCount[k] === 0 && !ownHouse(ci, k)) gain += valueOf(k);
+      const ks = coverK[ci];
+      const fs = coverF[ci];
+      for (let n = 0; n < ks.length; n++) {
+        const k = ks[n];
+        if (fs[n] > best[k] && isAlive(k) && !c.houses.includes(k)) gain += valueOf(k) * (fs[n] - best[k]);
       }
       return gain;
     };
     /** Gewinn, wenn das gewählte Gebäude ci wegfällt. */
     const removeGain = (ci: number): number => {
       const c = cands[ci];
-      let gain = 0;
-      for (const k of cover[ci]) {
-        if (isAlive(k) && coverCount[k] === 1) gain -= valueOf(k);
+      let gain = spec.fixedCost;
+      const ks = coverK[ci];
+      const fs = coverF[ci];
+      for (let n = 0; n < ks.length; n++) {
+        const k = ks[n];
+        if (!isAlive(k) || fs[n] < best[k] - 1e-6) continue;
+        gain -= valueOf(k) * (best[k] - bestWithout(ci, k));
       }
       for (const k of c.houses) {
         if (removedBy[k] !== 1) continue;
-        gain += houseCost(k);
-        // Das zurückkehrende Haus ist versorgt, wenn ein anderes Gebäude es erreicht.
-        let others = 0;
-        for (const cj of chosen) if (cj !== ci && cover[cj].includes(k)) others++;
-        if (others) gain += valueOf(k);
+        gain += houseCost(k) + valueOf(k) * bestWithout(ci, k);
       }
       return gain;
     };
     const take = (ci: number): void => {
       place(cands[ci], spec.guid);
       chosen.push(ci);
-      for (const k of cover[ci]) coverCount[k]++;
+      const ks = coverK[ci];
+      for (let n = 0; n < ks.length; n++) best[ks[n]] = Math.max(best[ks[n]], coverF[ci][n]);
     };
     const drop = (ci: number): void => {
       unplace(cands[ci]);
       chosen.splice(chosen.indexOf(ci), 1);
-      for (const k of cover[ci]) coverCount[k]--;
+      for (const k of coverK[ci]) best[k] = bestWithout(-1, k);
     };
     const isChosen = new Uint8Array(cands.length);
     const bestAddition = (): { ci: number; gain: number } => {
-      let best = -1;
-      let bestGain = 0;
       const order = cands.map((_, ci) => ci).filter((ci) => !isChosen[ci]);
       const gains = order.map((ci) => addGain(ci));
       const idx = order.map((_, k) => k).sort((p, q) => gains[q] - gains[p]);
       for (const k of idx) {
-        if (gains[k] <= bestGain) break;
-        if (stillValid(cands[order[k]])) {
-          best = order[k];
-          bestGain = gains[k];
-          break;
-        }
+        if (gains[k] <= 0) break;
+        if (stillValid(cands[order[k]])) return { ci: order[k], gain: gains[k] };
       }
-      return { ci: best, gain: bestGain };
+      return { ci: -1, gain: 0 };
     };
 
     // 1. Gierig
@@ -394,7 +441,7 @@ export function placeServices(
     for (let round = 0; round < 6; round++) {
       let improved = false;
       for (const ci of [...chosen]) {
-        if (removeGain(ci) > 1e-9) {
+        if (removeGain(ci) > 1e-6) {
           drop(ci);
           isChosen[ci] = 0;
           improved = true;
@@ -405,7 +452,7 @@ export function placeServices(
         drop(ci);
         isChosen[ci] = 0;
         const { ci: cj, gain } = bestAddition();
-        if (cj >= 0 && cj !== ci && lose + gain > 1e-9) {
+        if (cj >= 0 && cj !== ci && lose + gain > 1e-6) {
           take(cj);
           isChosen[cj] = 1;
           improved = true;

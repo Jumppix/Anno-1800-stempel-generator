@@ -88,6 +88,7 @@ export class CityUi {
   private readonly policy = el<HTMLSelectElement>('#rule-policy');
   private readonly institutions = el<HTMLInputElement>('#rule-institutions');
   private readonly items = el<HTMLInputElement>('#rule-items');
+  private readonly delivery = el<HTMLInputElement>('#rule-delivery');
   private readonly ruleInfo = el<HTMLElement>('#rule-info');
   private readonly layerSelect = el<HTMLSelectElement>('#city-layer');
   private readonly tierMode = el<HTMLSelectElement>('#rule-tiers');
@@ -130,7 +131,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.items]) {
+    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.items, this.delivery]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.ministry.addEventListener('change', () => {
@@ -195,6 +196,7 @@ export class CityUi {
       welfareForInstitutions: this.institutions.checked,
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'groups',
       townHallItems: this.items.checked,
+      deliveryGoods: this.delivery.checked,
     };
     this.updateRuleInfo();
     this.reanalyze();
@@ -823,8 +825,14 @@ export class CityUi {
         }`,
       );
       if (r.missing.length) {
-        lines.push(`Fehlt: ${r.missing.map((k) => KIND_NAMES[k] ?? k).join(', ')}`);
+        const names = r.missing.map((k) =>
+          k === 'university' && r.universityFactor > 0
+            ? `Universität (nur ${Math.round(r.universityFactor * 100)} %)`
+            : (KIND_NAMES[k] ?? k),
+        );
+        lines.push(`Fehlt: ${names.join(', ')}`);
       }
+      if (r.missingGoods.length) lines.push(`Ohne Lieferdienst-Ware: ${r.missingGoods.join(', ')}`);
       lines.push(`Rathaus: ${r.townHall !== null ? 'ja' : 'nein'} · Post: ${r.post !== null ? 'ja' : 'nein'}`);
     }
     if (!r && this.nonSky.has(idx)) lines.push('ohne Schicht im Stempel');

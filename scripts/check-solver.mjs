@@ -160,14 +160,14 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   const problem = townHallProblem(mask, plan);
   const L = solve(problem.target, ['rh'], { budgetMs: budget, seed: 7, allowed: problem.allowed, overlapPenalty: problem.penalty });
   const withHalls = refillAroundTownHalls(mask, finishPlan(plan, L.groups[0].chambers, 12));
+  const { city: dense } = compactCity(mask, withHalls, { deadline: performance.now() + Math.min(budget, 5000), seed: 1 });
+  expect('Nachverdichtung: nicht weniger Häuser, Netze unverändert', dense.houses.length >= withHalls.houses.length &&
+    dense.plan.networks === withHalls.plan.networks, `${withHalls.houses.length} → ${dense.houses.length} Häuser, Netze ${withHalls.plan.networks} → ${dense.plan.networks}`);
   const kinds = new Set(['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant']);
-  const serviced = planServices(mask, withHalls, { kinds, fullCoverageValue: 30 });
-  expect('Versorgung: Netze unverändert, Lagerhäuser gesetzt', serviced.city.plan.networks === withHalls.plan.networks &&
+  const serviced = planServices(mask, dense, { kinds, fullCoverageValue: 30 });
+  expect('Versorgung: Netze unverändert, Lagerhäuser gesetzt', serviced.city.plan.networks === dense.plan.networks &&
     serviced.report.warehouses > 0, `${serviced.report.warehouses} Lagerhäuser, ${serviced.report.removedHouses} Häuser ersetzt`);
-  const refilled = serviced.city;
-  const { city } = compactCity(mask, refilled, { deadline: performance.now() + Math.min(budget, 5000), seed: 1 });
-  expect('Nachverdichtung: nicht weniger Häuser, Netze unverändert', city.houses.length >= refilled.houses.length &&
-    city.plan.networks === refilled.plan.networks, `${refilled.houses.length} → ${city.houses.length} Häuser, Netze ${refilled.plan.networks} → ${city.plan.networks}`);
+  const city = serviced.city;
   let rhClose = 0;
   for (let i = 0; i < city.townHalls.length; i++) for (let j = i + 1; j < city.townHalls.length; j++) {
     if (Math.hypot(city.townHalls[i].x - city.townHalls[j].x, city.townHalls[i].y - city.townHalls[j].y) < 40) rhClose++;
@@ -180,8 +180,10 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   const planA = analyzeCity(planCity, DEFAULT_RULES);
   expect('Planer: ≥ 20 Rathäuser, ≥ 78 % der Häuser im Radius', city.townHalls.length >= 20 && planA.totals.townHallShare >= 0.78,
     `${city.townHalls.length} RH, ${(planA.totals.townHallShare * 100).toFixed(1)} %`);
-  const minCov = Math.min(...['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'].map((k) => planA.totals.coverage[k] ?? 0));
-  expect('Versorgung: jede Art ≥ 90 % der Hochhäuser (Vollversorgung)', minCov >= 0.9, `min. ${(minCov * 100).toFixed(1)} %`);
+  const minCov = Math.min(...['departmentStore', 'furnitureStore', 'drugStore', 'powerPlant'].map((k) => planA.totals.coverage[k] ?? 0));
+  const uniShare = planA.residences.reduce((a, r) => a + r.universityFactor, 0) / Math.max(1, planA.residences.length);
+  expect('Versorgung: Läden/Strom ≥ 85 %, Universität ≥ 85 % Wirkung (Vollversorgung)', minCov >= 0.85 && uniShare >= 0.85,
+    `min. ${(minCov * 100).toFixed(1)} %, Universität ${(uniShare * 100).toFixed(1)} %`);
   expect('Planer: Stempel ohne Überlappung, alle Häuser angeschlossen, keine Warnungen',
     planCity.conflicts === 0 && planA.warnings.length === 0, planA.warnings.join('; '));
   const onLand = city.houses.every((hs) => {

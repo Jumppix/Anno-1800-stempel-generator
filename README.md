@@ -117,8 +117,12 @@ Insel wird bebaut (`src/fill.ts`):
    Drogerie, Universität und Gaskraftwerk (je abwählbar) ersetzen Häuser.
    Je Art gewichtet gierig + lokale Suche (überflüssige entfernen, verlegen):
    Gewinn = Wert der neu versorgten Häuser − Wert der verdrängten Häuser.
-   Ziel „Vollversorgung“ (Standard) wertet jedes versorgte Haus mit ≥ 30,
-   „Max. Einwohner“ nur mit dem Einwohnerverlust laut Wiki. Gebäude dürfen
+   Ziel „Max. Einwohner“ (Standard) wertet nach Einwohnern laut Wiki inkl.
+   Rathaus-Items und Betriebsaufwand je Laden (Handwerker, Waren);
+   „Vollversorgung“ wertet jedes versorgte Haus mit ≥ 30. Universität wirkt
+   abgestuft bis 131 Kacheln; Option „Kaugummi & Violinen nur über den
+   Lieferdienst“ (Karte Palast & Ministerium) macht Kaufhaus/Drogerie im
+   Rathausradius wertvoller (siehe `docs/PLAN_Stadtplaner.md` §19). Gebäude dürfen
    auf Querstraßen stehen, wenn Netz und Anschlüsse erhalten bleiben. Danach
    Lagerhäuser, sodass jedes Gebäude mit Lagerbedarf eines in Reichweite hat;
    dann Lücken füllen und Nachverdichtung. Ministerium/Wohlfahrt folgt in

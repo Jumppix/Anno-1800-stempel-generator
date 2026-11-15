@@ -64,6 +64,13 @@ export interface RuleConfig {
   tierMode: 'groups' | 'stamp';
   /** Rathaus-Items (Zofe, Lieferdienst, Saint D'Artois) in allen Rathäusern. */
   townHallItems: boolean;
+  /**
+   * Kaugummi und Violinen werden nicht produziert, sondern nur über den
+   * Lieferdienst „Blauer Himmel“ verteilt: Häuser im Rathausradius bekommen
+   * Kaugummi, wenn ein Kaufhaus sie versorgt, und Violinen, wenn eine Drogerie
+   * sie versorgt. Ohne das fehlen diese Waren.
+   */
+  deliveryGoods: boolean;
 }
 
 /** Manuelle Festlegung (per Klick in der Analyse). */
@@ -83,6 +90,39 @@ export const DEFAULT_RULES: RuleConfig = {
   welfareForInstitutions: false,
   tierMode: 'groups',
   townHallItems: true,
+  deliveryGoods: false,
+};
+
+/**
+ * Universität: volle Wirkung bis 64 Straßenkacheln (Pflaster), abgeschwächt
+ * bis 131 (Wiki: „weniger Einwohner je nach Straßenentfernung“ – hier linear).
+ */
+export const UNIVERSITY_FULL_RANGE = 64;
+export const UNIVERSITY_MAX_RANGE = 131;
+
+/** Anteil der Universitätswirkung bei Straßenentfernung d (Zuschlag z. B. Wohlfahrt). */
+export function universityFactor(d: number, bonus = 0): number {
+  if (d <= 0) return 0;
+  const full = UNIVERSITY_FULL_RANGE + bonus;
+  const max = UNIVERSITY_MAX_RANGE + bonus;
+  if (d <= full) return 1;
+  if (d >= max) return 0;
+  return (max - d) / (max - full);
+}
+
+/**
+ * Waren, die der Lieferdienst „Blauer Himmel“ über einen Laden liefert, mit
+ * den Einwohnern, die bei Stufe-3-Hochhäusern daran hängen (Wiki „Needs“).
+ * Investoren brauchen Violinen erst ab Stufe 5.
+ */
+export const DELIVERY_GOODS: Readonly<
+  Record<'engineer' | 'investor', ReadonlyArray<{ label: string; residents: number; via: BuildingKind }>>
+> = {
+  engineer: [
+    { label: 'Kaugummi', residents: 10, via: 'departmentStore' },
+    { label: 'Violinen', residents: 5, via: 'drugStore' },
+  ],
+  investor: [{ label: 'Kaugummi', residents: 10, via: 'departmentStore' }],
 };
 
 /** Palast: Pflaster-Basisreichweite 71, je Flügel +3. */
