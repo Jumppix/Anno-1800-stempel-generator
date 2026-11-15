@@ -48,7 +48,8 @@ unnötig verändern.
 - `src/buildings.ts`: Gebäudetypen (Größe, Radius, GUID, Farbe).
 - `src/stampReader.ts`: Binärparser, Koordinatentransformation
   `(x, y) = (−rawY, −rawX)`, Gebäude/Straßen/GUIDs.
-- `src/island.ts`: `combineParts`, `overlapCount`, `autoPlace`, `alignPart`.
+- `src/island.ts`: `combineParts`, `overlapCount`, `alignAllParts` (reihenfolgeunabhängig),
+  `alignPartTo`/`scanOffsets` (FFT-Kreuzkorrelation über alle Versätze, `src/fft.ts`).
 - `src/solver.ts`: `solve` (Gitter-Starts → Iterated Local Search mit
   (1,2)-Tausch → Simulated-Annealing-Politur der Abdeckung), `validateLayout`,
   `splitChunks`.

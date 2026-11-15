@@ -1,3 +1,4 @@
+import { fft2d, nextPow2 } from './fft';
 import type { LandMask } from './solver';
 
 export interface IslandPart {
@@ -93,94 +94,165 @@ export function overlapCount(parts: readonly IslandPart[], part: IslandPart): nu
   return n;
 }
 
-// Aligns one part to the already placed parts by maximising the agreement of
-// the road masks. Coastline/water mismatches are penalised more than matching
-// road tiles are rewarded, so dense road grids do not dominate the score.
-export function alignPartTo(
+// Statistik einer Verschiebung des neuen Teils gegenüber den platzierten:
+// Kacheln mit Straße in beiden (`match`), Kacheln, die in beiden Stempeln
+// erfasst, aber in keinem Straße sind (`water`), und Widersprüche (`mismatch`).
+export interface OffsetStats {
+  x: number;
+  y: number;
+  match: number;
+  water: number;
+  mismatch: number;
+}
+
+export interface AlignOptions {
+  // Nur Verschiebungen höchstens so weit von der aktuellen Lage prüfen.
+  radius?: number;
+  // Mindestanzahl gemeinsamer Straßenkacheln für eine gültige Überlappung.
+  minOverlap?: number;
+}
+
+// Ein Stempel enthält nur Straßen innerhalb seines Auswahlrechtecks. Außerhalb
+// davon weiß er nichts über das Land, also zählen Widersprüche nur dort, wo
+// beide Teile Daten haben: im Rechteck des neuen Teils und in der Vereinigung
+// der Rechtecke der platzierten Teile. Ein Widerspruch wiegt so schwer, dass
+// eine falsche Küstenlinie nicht durch viel gemeinsames Inland aufgewogen wird.
+const MISMATCH_WEIGHT = 32;
+
+function scoreOf(s: OffsetStats): number {
+  return s.match + s.water - MISMATCH_WEIGHT * s.mismatch;
+}
+
+// Prüft per FFT-Kreuzkorrelation alle Verschiebungen, bei denen sich das neue
+// Teil mit den platzierten überlappt, und ruft `visit` für jede auf.
+export function scanOffsets(
   part: IslandPart,
   others: readonly IslandPart[],
-  radius = 40,
-): AlignResult {
+  visit: (stats: OffsetStats) => void,
+): void {
   const union = combineParts(others);
-  if (!union) return { score: 0, overlap: 0 };
+  if (!union) return;
 
-  let best = {
-    score: -Infinity,
-    x: part.offsetX,
-    y: part.offsetY,
-    overlap: 0,
-  };
+  const uw = union.w;
+  const uh = union.h;
+  const pw = part.w;
+  const ph = part.h;
 
-  const evaluate = (ox: number, oy: number): void => {
-    let score = 0;
-    let overlap = 0;
+  // Abdeckung: Kacheln innerhalb des Rechtecks mindestens eines Teils.
+  const cover = new Uint8Array(uw * uh);
+  for (const other of others) {
+    const ox = other.offsetX - union.minX;
+    const oy = other.offsetY - union.minY;
+    for (let y = 0; y < other.h; y++) cover.fill(1, (oy + y) * uw + ox, (oy + y) * uw + ox + other.w);
+  }
 
-    const x0 = Math.max(ox, union.minX);
-    const y0 = Math.max(oy, union.minY);
-    const x1 = Math.min(ox + part.w, union.minX + union.w);
-    const y1 = Math.min(oy + part.h, union.minY + union.h);
-
-    for (let gy = y0; gy < y1; gy++) {
-      const uy = gy - union.minY;
-      const py = gy - oy;
-      for (let gx = x0; gx < x1; gx++) {
-        const p = part.mask[py * part.w + gx - ox];
-        const u = union.data[uy * union.w + gx - union.minX];
-        if (p && u) {
-          score += 2;
-          overlap++;
-        } else if (p !== u) {
-          // A wrong coastline is far more informative than dense interior
-          // road/road matches, so a single mismatch outweighs many matches.
-          score -= 100;
-        }
-      }
+  // Korrelation von (Straße + i·Abdeckung) der Vereinigung mit der Straße des
+  // neuen Teils liefert in einem Durchgang Real- und Imaginärteil.
+  const W = nextPow2(uw + pw - 1);
+  const H = nextPow2(uh + ph - 1);
+  const aRe = new Float64Array(W * H);
+  const aIm = new Float64Array(W * H);
+  const bRe = new Float64Array(W * H);
+  const bIm = new Float64Array(W * H);
+  for (let y = 0; y < uh; y++) {
+    for (let x = 0; x < uw; x++) {
+      aRe[y * W + x] = union.data[y * uw + x];
+      aIm[y * W + x] = cover[y * uw + x];
     }
+  }
+  for (let y = 0; y < ph; y++) {
+    for (let x = 0; x < pw; x++) bRe[y * W + x] = part.mask[y * pw + x];
+  }
+  fft2d(aRe, aIm, W, H, false);
+  fft2d(bRe, bIm, W, H, false);
+  for (let i = 0; i < W * H; i++) {
+    const re = aRe[i] * bRe[i] + aIm[i] * bIm[i];
+    const im = aIm[i] * bRe[i] - aRe[i] * bIm[i];
+    aRe[i] = re;
+    aIm[i] = im;
+  }
+  fft2d(aRe, aIm, W, H, true);
 
-    if (score > best.score) best = { score, x: ox, y: oy, overlap };
-  };
-
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      evaluate(part.offsetX + dx, part.offsetY + dy);
+  // Präfixsummen für Straße und Abdeckung der Vereinigung (Rechteckssummen).
+  const sw = uw + 1;
+  const roadSum = new Int32Array(sw * (uh + 1));
+  const coverSum = new Int32Array(sw * (uh + 1));
+  for (let y = 0; y < uh; y++) {
+    for (let x = 0; x < uw; x++) {
+      const i = (y + 1) * sw + x + 1;
+      roadSum[i] = union.data[y * uw + x] + roadSum[i - 1] + roadSum[i - sw] - roadSum[i - sw - 1];
+      coverSum[i] = cover[y * uw + x] + coverSum[i - 1] + coverSum[i - sw] - coverSum[i - sw - 1];
     }
   }
 
-  part.offsetX = best.x;
-  part.offsetY = best.y;
-  return { score: best.score, overlap: best.overlap };
+  for (let dy = 1 - ph; dy < uh; dy++) {
+    const y0 = Math.max(dy, 0);
+    const y1 = Math.min(dy + ph, uh);
+    const row = ((dy + H) % H) * W;
+    for (let dx = 1 - pw; dx < uw; dx++) {
+      const x0 = Math.max(dx, 0);
+      const x1 = Math.min(dx + pw, uw);
+      const box = (sum: Int32Array): number =>
+        sum[y1 * sw + x1] - sum[y0 * sw + x1] - sum[y1 * sw + x0] + sum[y0 * sw + x0];
+
+      const idx = row + ((dx + W) % W);
+      const match = Math.round(aRe[idx]);
+      // Straßen des neuen Teils in erfassten Kacheln / Straßen der Vereinigung
+      // im Rechteck des neuen Teils / erfasste Kacheln im Rechteck.
+      const partInCover = Math.round(aIm[idx]);
+      const unionInPart = box(roadSum);
+      const covered = box(coverSum);
+
+      visit({
+        x: union.minX + dx,
+        y: union.minY + dy,
+        match,
+        water: covered - unionInPart - partInCover + match,
+        mismatch: unionInPart - match + (partInCover - match),
+      });
+    }
+  }
+}
+
+// Richtet ein Teil an den bereits platzierten Teilen aus, indem alle
+// überlappenden Verschiebungen bewertet werden. Gleich gute Lagen werden
+// zugunsten der aktuellen Position entschieden.
+export function alignPartTo(
+  part: IslandPart,
+  others: readonly IslandPart[],
+  options: AlignOptions = {},
+): AlignResult {
+  const radius = options.radius ?? Infinity;
+  const minOverlap = options.minOverlap ?? Math.min(20, Math.ceil(part.landCount / 4));
+  const startX = part.offsetX;
+  const startY = part.offsetY;
+
+  let best: { score: number; dist: number; x: number; y: number; overlap: number } | null = null;
+  scanOffsets(part, others, (s) => {
+    if (s.match < minOverlap) return;
+    if (Math.abs(s.x - startX) > radius || Math.abs(s.y - startY) > radius) return;
+    const score = scoreOf(s);
+    const dist = Math.abs(s.x - startX) + Math.abs(s.y - startY);
+    if (!best || score > best.score || (score === best.score && dist < best.dist)) {
+      best = { score, dist, x: s.x, y: s.y, overlap: s.match };
+    }
+  });
+
+  if (!best) return { score: 0, overlap: 0 };
+  const found: { score: number; x: number; y: number; overlap: number } = best;
+  part.offsetX = found.x;
+  part.offsetY = found.y;
+  return { score: found.score, overlap: found.overlap };
 }
 
 export function alignPart(parts: readonly IslandPart[], part: IslandPart): AlignResult {
   const others = parts.filter((candidate) => candidate.id !== part.id);
-  const result = alignPartTo(part, others);
-  if (result.score >= 0 || others.length === 0) return result;
-
-  // A very negative score means the current position has no usable overlap.
-  // Try the usual right/below placements before keeping the local result.
-  const localX = part.offsetX;
-  const localY = part.offsetY;
-  const placed = autoPlace(others, part);
-  if (placed.score > result.score) return placed;
-  part.offsetX = localX;
-  part.offsetY = localY;
-  return result;
+  return alignPartTo(part, others);
 }
 
-// Places a freshly imported part near the existing island and aligns it from
-// there. Trying a position to the right and one below covers the usual way a
-// large island is cut into overlapping pieces.
-export function autoPlace(
-  parts: readonly IslandPart[],
-  part: IslandPart,
-  radius = 40,
-): AlignResult {
-  if (parts.length === 0) {
-    part.offsetX = 0;
-    part.offsetY = 0;
-    return { score: 0, overlap: 0 };
-  }
-
+// Setzt ein frisch importiertes Teil an die beste Stelle der bisherigen Insel.
+// Ohne passende Überlappung landet es rechts neben der Insel.
+export function autoPlace(parts: readonly IslandPart[], part: IslandPart): AlignResult {
   const union = combineParts(parts);
   if (!union) {
     part.offsetX = 0;
@@ -188,32 +260,62 @@ export function autoPlace(
     return { score: 0, overlap: 0 };
   }
 
-  const overlapX = Math.min(15, Math.max(1, part.w - 1));
-  const overlapY = Math.min(15, Math.max(1, part.h - 1));
-  const candidates = [
-    { x: union.minX + union.w - overlapX, y: union.minY },
-    { x: union.minX, y: union.minY + union.h - overlapY },
-    { x: union.minX - part.w + overlapX, y: union.minY },
-    { x: union.minX, y: union.minY - part.h + overlapY },
-  ];
+  part.offsetX = union.minX + union.w + 2;
+  part.offsetY = union.minY;
+  return alignPartTo(part, parts);
+}
 
-  let best: { score: number; overlap: number; x: number; y: number } = {
-    score: -Infinity,
-    overlap: 0,
-    x: candidates[0].x,
-    y: candidates[0].y,
-  };
-
-  for (const candidate of candidates) {
-    part.offsetX = candidate.x;
-    part.offsetY = candidate.y;
-    const result = alignPartTo(part, parts, radius);
-    if (result.score > best.score) {
-      best = { ...result, x: part.offsetX, y: part.offsetY };
+/**
+ * Richtet alle Teile unabhängig von der Ladereihenfolge aus: Das größte Teil
+ * bleibt liegen; danach kommt jeweils das Teil, das am besten (höchste
+ * Bewertung) zur bisherigen Insel passt, an seine beste Stelle. So findet auch
+ * ein Teil, das vor seinen echten Nachbarn geladen wurde, seine Lage. Teile
+ * ohne Überlappung landen rechts neben der Insel. Liefert die IDs der Teile
+ * ohne Überlappung.
+ */
+export function alignAllParts(parts: IslandPart[], fixed?: ReadonlySet<string>): Set<string> {
+  const missed = new Set<string>();
+  if (parts.length === 0) return missed;
+  const kept = fixed && fixed.size ? parts.filter((p) => fixed.has(p.id)) : [];
+  const anchor = kept[0] ?? parts.reduce((a, b) => (b.landCount > a.landCount ? b : a));
+  const placed: IslandPart[] = kept.length ? [...kept] : [anchor];
+  const rest = parts.filter((p) => !placed.includes(p));
+  while (rest.length) {
+    let best: { part: IslandPart; x: number; y: number; score: number; overlap: number } | null = null;
+    for (const part of rest) {
+      const keepX = part.offsetX;
+      const keepY = part.offsetY;
+      const result = alignPartTo(part, placed);
+      if (result.overlap > 0 && (!best || result.score > best.score)) {
+        best = { part, x: part.offsetX, y: part.offsetY, score: result.score, overlap: result.overlap };
+      }
+      part.offsetX = keepX;
+      part.offsetY = keepY;
     }
+    if (!best) {
+      // Kein Teil passt mehr: übrige nebeneinander rechts ablegen.
+      let union = combineParts(placed);
+      for (const part of rest) {
+        part.offsetX = union ? union.minX + union.w + 2 : 0;
+        part.offsetY = union ? union.minY : 0;
+        missed.add(part.id);
+        placed.push(part);
+        union = combineParts(placed);
+      }
+      break;
+    }
+    best.part.offsetX = best.x;
+    best.part.offsetY = best.y;
+    placed.push(best.part);
+    rest.splice(rest.indexOf(best.part), 1);
   }
-
-  part.offsetX = best.x;
-  part.offsetY = best.y;
-  return { score: best.score, overlap: best.overlap };
+  if (kept.length) return missed;
+  // Ursprung auf das Ankerteil legen (stabile Anzeige).
+  const dx = anchor.offsetX;
+  const dy = anchor.offsetY;
+  for (const p of parts) {
+    p.offsetX -= dx;
+    p.offsetY -= dy;
+  }
+  return missed;
 }

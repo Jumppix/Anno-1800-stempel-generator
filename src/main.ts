@@ -9,8 +9,8 @@ import { outerBoundary } from './coast';
 import { buildStamp, REGIONS, type RegionKey, type StampStreet } from './stamp';
 import { decodeStamp } from './stampReader';
 import {
+  alignAllParts,
   alignPart,
-  autoPlace,
   combineParts,
   overlapCount,
   PART_COLORS,
@@ -498,6 +498,8 @@ async function loadStamps(files: FileList): Promise<void> {
   const errors: string[] = [];
   let added = 0;
 
+  // Bereits vorhandene (evtl. von Hand ausgerichtete) Teile bleiben liegen.
+  const previousIds = parts.map((p) => p.id);
   for (const file of Array.from(files)) {
     try {
       const parsed = decodeStamp(new Uint8Array(await file.arrayBuffer()));
@@ -514,7 +516,6 @@ async function loadStamps(files: FileList): Promise<void> {
         region: parsed.region,
         streetGuid: parsed.streetGuid,
       };
-      autoPlace(parts, draft);
       parts.push(draft);
       added++;
       if (parsed.region === 5000001) regionEl.value = 'nw';
@@ -526,9 +527,15 @@ async function loadStamps(files: FileList): Promise<void> {
     }
   }
 
+  // Alle Teile gemeinsam ausrichten (unabhängig von der Ladereihenfolge).
+  let missedCount = 0;
+  if (added > 0) missedCount = alignAllParts(parts, new Set(previousIds)).size;
   if (added > 0) selectedId = parts[parts.length - 1].id;
   update();
   if (errors.length) stampInfo.textContent = errors.join(' ');
+  else if (missedCount) {
+    stampInfo.textContent = `${missedCount} Teil(e) ohne passende Überlappung – rechts abgelegt, bitte von Hand ziehen.`;
+  }
   stampFile.value = '';
 }
 
@@ -573,11 +580,7 @@ clearStamp.addEventListener('click', clearAll);
 
 alignAll.addEventListener('click', () => {
   if (parts.length < 2) return;
-  const missed = new Set<string>();
-  for (let i = 1; i < parts.length; i++) {
-    const result = alignPart(parts.slice(0, i + 1), parts[i]);
-    if (result.overlap === 0) missed.add(parts[i].id);
-  }
+  const missed = alignAllParts(parts);
   update();
   if (missed.size) {
     stampInfo.textContent = `${missed.size} Teil(e) ohne Überlappung – bitte näher an die anderen ziehen.`;

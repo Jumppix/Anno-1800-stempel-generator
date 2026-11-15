@@ -233,6 +233,45 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   void replaceRoadStubs;
 }
 
+// 7. Automatisches Ausrichten der Stempelteile (unabhängig von der Ladereihenfolge).
+{
+  const { alignAllParts, combineParts } = await server.ssrLoadModule('/src/island.ts');
+  const load = (path, id) => {
+    const d = decodeStamp(new Uint8Array(readFileSync(path)));
+    return { id, name: id, w: d.width, h: d.height, mask: d.mask, landCount: d.landCount, offsetX: 0, offsetY: 0, color: '', region: d.region, streetGuid: d.streetGuid };
+  };
+  const truth = { Feldweg_01: [48, -22], Feldweg_02: [149, 49], Feldweg_03: [138, -60], Kaistrasse: [48, -172] };
+  const orders = [
+    ['Feldweg_01', 'Feldweg_02', 'Feldweg_03', 'Kaistrasse'],
+    ['Kaistrasse', 'Feldweg_03', 'Feldweg_02', 'Feldweg_01'],
+    ['Feldweg_02', 'Kaistrasse', 'Feldweg_01', 'Feldweg_03'],
+  ];
+  let good = 0;
+  let size = '';
+  for (const order of orders) {
+    const parts = order.map((n) => load(`test-parts/insel2/${n}`, n));
+    alignAllParts(parts);
+    const ref = parts.find((p) => p.id === 'Feldweg_01');
+    if (parts.every((p) => p.offsetX - ref.offsetX === truth[p.id][0] - 48 && p.offsetY - ref.offsetY === truth[p.id][1] + 22)) good++;
+    const c = combineParts(parts);
+    size = `${c.w} × ${c.h}`;
+  }
+  expect('Ausrichten: Insel 2 in jeder Ladereihenfolge wie im Spiel', good === orders.length, `${good}/${orders.length}, ${size}`);
+  // Einzeln nachladen: vorhandene Teile bleiben liegen, neue finden ihren Platz.
+  const one = [];
+  for (const n of ['Kaistrasse', 'Feldweg_03', 'Feldweg_01', 'Feldweg_02']) {
+    const prev = new Set(one.map((p) => p.id));
+    one.push(load(`test-parts/insel2/${n}`, n));
+    alignAllParts(one, prev);
+  }
+  const r1 = one.find((p) => p.id === 'Feldweg_01');
+  expect('Ausrichten: Insel 2 einzeln nachgeladen', one.every((p) => p.offsetX - r1.offsetX === truth[p.id][0] - 48 && p.offsetY - r1.offsetY === truth[p.id][1] + 22));
+  const a = load('test-parts/Insel_Teil_A', 'A');
+  const b = load('test-parts/Insel_Teil_B', 'B');
+  alignAllParts([a, b]);
+  expect('Ausrichten: Insel_Teil_A + B', b.offsetX - a.offsetX === 0 && b.offsetY - a.offsetY === -16, `${b.offsetX - a.offsetX}, ${b.offsetY - a.offsetY}`);
+}
+
 for (const c of cityChecks) {
   console.log(`${c.ok ? 'ok    ' : 'FEHLER'} ${c.name}${c.detail ? `  (${c.detail})` : ''}`);
   if (!c.ok) failed++;
