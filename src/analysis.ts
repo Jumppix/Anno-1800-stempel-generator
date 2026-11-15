@@ -9,10 +9,11 @@ import {
   localDepartmentRange,
   PANORAMA_RADIUS,
   SKYSCRAPER_L3_RESIDENTS,
-  SKYSCRAPER_SERVICE_NEEDS,
-  TOWN_HALL_ITEM_BONUS,
-  DELIVERY_GOODS,
   UNIVERSITY_MAX_RANGE,
+  panoramaDelta,
+  skyscraperResidents,
+  type SkyLevel,
+  type SkyTier,
   universityFactor,
   welfareApplies,
   welfareBonus,
@@ -37,6 +38,8 @@ export const SERVICE_KINDS: readonly BuildingKind[] = [
 export interface ResidenceInfo {
   building: CityBuilding;
   tier: Tier;
+  /** Hochhaus-Stufe (3–5; Ingenieure höchstens 3). */
+  level: SkyLevel;
   hasRoad: boolean;
   /** Versorgt je Bedürfnisart (Straßenreichweite). */
   services: Partial<Record<BuildingKind, boolean>>;
@@ -132,9 +135,16 @@ export function analyzeCity(
   const nonSkyscrapers = houses.filter((h) => !tiers.tier.has(h.index)).map((h) => h.index);
   const residences: ResidenceInfo[] = houses
     .filter((b) => tiers.tier.has(b.index))
-    .map((b) => ({
+    .map((b) => {
+      const plan = edits.houses.has(b.index) ? undefined : edits.planned?.get(b.index);
+      const tier = plan ? plan.tier : (tiers.tier.get(b.index) as Tier);
+      const level: SkyLevel = plan && tier === 'investor' ? plan.level : 3;
+      return { b, tier, level };
+    })
+    .map(({ b, tier, level }) => ({
       building: b,
-      tier: tiers.tier.get(b.index) as Tier,
+      tier,
+      level,
       hasRoad: roadsOf[b.index].length > 0,
       services: {},
       universityFactor: 0,
@@ -237,71 +247,43 @@ export function analyzeCity(
   checkOverlap(city.buildings.filter((b) => b.entry.kind === 'tradeUnion'), 'Handelskammern');
   checkOverlap(posts, 'Postämter/Briefkästen');
 
-  // --- Panorama (alle Ingenieur-/Investorenhäuser als Hochhaus der gewählten Stufe)
-  const level = rules.skyscraperLevel;
-  const radius = PANORAMA_RADIUS[level];
+  // --- Panorama: Ausgangswert = Stufe; Nachbarn im Radius der eigenen Stufe
+  //     niedriger +1, höher −1, gleiche Stufe andere Schicht +1, gleiche −1.
   const sky = residences.filter((r) => r.tier === 'engineer' || r.tier === 'investor');
   for (const r of sky) {
-    let v = level;
+    const radius = PANORAMA_RADIUS[r.level];
     const parts = { lower: 0, sameOrHigher: 0, variety: 0 };
     for (const o of sky) {
       if (o === r) continue;
       if (dist(r.building, o.building) > radius + 1e-9) continue;
-      // Alle gleiche Stufe: andere Schicht = Variety Bonus, gleiche Schicht = −1.
-      if (o.tier === r.tier) parts.sameOrHigher--;
-      else parts.variety++;
+      const d = panoramaDelta(r.tier as SkyTier, r.level, o.tier as SkyTier, o.level);
+      if (o.level < r.level) parts.lower += d;
+      else if (o.level > r.level || o.tier === r.tier) parts.sameOrHigher += d;
+      else parts.variety += d;
     }
-    v += parts.lower + parts.sameOrHigher + parts.variety;
+    const v = r.level + parts.lower + parts.sameOrHigher + parts.variety;
     r.panoramaParts = parts;
     r.panoramaValue = v;
     r.panorama = Math.max(0, Math.min(5, v));
   }
 
-  // --- Einwohner-Schätzung
+  // --- Einwohner-Schätzung (gemeinsames Modell in rules.ts)
   for (const r of residences) {
     if (r.tier === 'artisan') {
       r.residents = 30;
       continue;
     }
-    const tier = r.tier;
-    let n = SKYSCRAPER_L3_RESIDENTS[tier][r.panorama];
-    for (const need of SKYSCRAPER_SERVICE_NEEDS[tier]) {
-      // Universität wirkt abgeschwächt bis zur Maximalreichweite.
-      const share = need.kind === 'university' ? r.universityFactor : r.services[need.kind] ? 1 : 0;
-      if (share < 1) {
-        n -= need.residents * (1 - share);
-        r.missing.push(need.kind);
-      }
-    }
-    // Kaugummi/Violinen nur über den Lieferdienst: nur im Rathausradius und
-    // wenn der liefernde Laden das Haus versorgt.
-    const delivered = (via: BuildingKind): boolean =>
-      !rules.deliveryGoods || (rules.townHallItems && r.townHall !== null && !!r.services[via]);
-    if (rules.deliveryGoods) {
-      for (const g of DELIVERY_GOODS[tier]) {
-        if (!delivered(g.via)) {
-          n -= g.residents;
-          r.missingGoods.push(g.label);
-        }
-      }
-    }
-    let bonus = 0;
-    if (rules.townHallItems && r.townHall !== null) {
-      for (const b of TOWN_HALL_ITEM_BONUS[tier]) {
-        if (b.kind === 'university') bonus += b.residents * r.universityFactor;
-        else if (b.kind) bonus += r.services[b.kind] ? b.residents : 0;
-        else if (b.label === 'Violinen') bonus += delivered('drugStore') ? b.residents : 0;
-        else bonus += b.residents;
-      }
-      bonus = Math.round(bonus);
-    }
-    n = Math.round(n);
-    if (!r.hasRoad) {
-      n = 0;
-      bonus = 0;
-    }
-    r.itemBonus = bonus;
-    r.residents = Math.max(0, n) + bonus;
+    const res = skyscraperResidents(
+      r.tier,
+      r.level,
+      r.panorama,
+      { services: r.services, universityFactor: r.universityFactor, townHall: r.townHall !== null, hasRoad: r.hasRoad },
+      rules,
+    );
+    r.residents = res.residents;
+    r.itemBonus = res.itemBonus;
+    r.missing = res.missing;
+    r.missingGoods = res.missingGoods;
   }
 
   // --- Weitere Prüfungen

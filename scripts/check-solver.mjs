@@ -191,6 +191,16 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
     return true;
   });
   expect('Planer: alle Häuser und Straßen auf Land', onLand && city.plan.roads.every((r, i) => !r || mask.data[i]));
+
+  // 6. Hochhaus-Stufen (3-3-5 / 4-5): Optimierer und Analyse rechnen gleich, mehr Einwohner als nur Stufe 3.
+  const { optimizeLevels } = await server.ssrLoadModule('/src/levels.ts');
+  const lv = optimizeLevels(planA.residences, DEFAULT_RULES, 'auto', Math.min(budget * 3, 9000), 3);
+  const planB = analyzeCity(planCity, DEFAULT_RULES, { houses: new Map(), groups: new Map(), planned: lv.planned });
+  const skyB = planB.residences.reduce((a, r) => a + (r.tier === 'artisan' ? 0 : r.residents), 0);
+  expect('Stufen: Optimierer = Analyse', skyB === lv.residents, `${lv.residents} / ${skyB}`);
+  expect('Stufen: ≥ 8 % mehr Einwohner als nur Stufe 3', planB.totals.residents >= planA.totals.residents * 1.08,
+    `${planA.totals.residents} → ${planB.totals.residents} (${lv.mode}, ${JSON.stringify(lv.counts)})`);
+  expect('Stufen: Ingenieure höchstens Stufe 3', [...lv.planned.values()].every((st) => st.tier === 'investor' || st.level === 3));
 }
 
 for (const c of cityChecks) {

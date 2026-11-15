@@ -79,6 +79,11 @@ export interface TierEdits {
   houses: Map<number, 'engineer' | 'investor'>;
   /** Gruppen: kleinster Gebäudeindex der Gruppe → Ausrichtung 0/1. */
   groups: Map<number, 0 | 1>;
+  /**
+   * Geplante Schicht und Hochhaus-Stufe je Haus (Stufen-Optimierung des
+   * Planers). Hat Vorrang vor Gruppen; manuelle Einzelhaus-Edits gehen vor.
+   */
+  planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
 }
 
 export const DEFAULT_RULES: RuleConfig = {
@@ -240,3 +245,170 @@ export const LUXURY_SERVICES: Readonly<Record<Tier, readonly BuildingKind[]>> = 
   engineer: ['bank', 'varietyTheatre'],
   investor: ['bank', 'membersClub'],
 };
+
+// ---------------------------------------------------------------------------
+// Hochhaus-Stufen 3–5 (Bauweisen 3-3-5 und 4-5)
+// ---------------------------------------------------------------------------
+
+export type SkyTier = 'engineer' | 'investor';
+export type SkyLevel = 3 | 4 | 5;
+
+/** Max. Einwohner je Panorama-Stärke 0–5 (Wiki „Skyscrapers“), alle Bedürfnisse erfüllt. */
+export const SKYSCRAPER_RESIDENTS: Readonly<Record<SkyTier, Partial<Record<SkyLevel, readonly number[]>>>> = {
+  engineer: { 3: [100, 120, 140, 160, 180, 200] },
+  investor: {
+    3: [125, 150, 175, 200, 225, 250],
+    4: [150, 175, 200, 225, 250, 275],
+    5: [175, 200, 225, 250, 275, 300],
+  },
+};
+
+/** Ingenieure höchstens Stufe 3, Investoren bis Stufe 5. */
+export const MAX_LEVEL: Readonly<Record<SkyTier, SkyLevel>> = { engineer: 3, investor: 5 };
+
+/**
+ * Panorama: Ausgangswert = eigene Stufe; jedes Hochhaus im Radius der eigenen
+ * Stufe: niedriger +1, höher −1, gleiche Stufe: andere Schicht +1 (Variety),
+ * gleiche Schicht −1.
+ */
+export function panoramaDelta(tier: SkyTier, level: SkyLevel, otherTier: SkyTier, otherLevel: SkyLevel): number {
+  if (otherLevel < level) return 1;
+  if (otherLevel > level) return -1;
+  return otherTier === tier ? -1 : 1;
+}
+
+/** Versorgung eines Hauses (Straßenreichweite, Rathausradius). */
+export interface HouseSupply {
+  services: Partial<Record<BuildingKind, boolean>>;
+  universityFactor: number;
+  townHall: boolean;
+  hasRoad: boolean;
+}
+
+interface NeedEntry {
+  kind: BuildingKind;
+  residents: number;
+}
+
+/** Bedürfnisse mit Gebäude (Straßenreichweite) und ihre Einwohner (Wiki „Needs“). */
+export function serviceNeeds(tier: SkyTier, level: SkyLevel): NeedEntry[] {
+  if (tier === 'engineer') {
+    return [
+      { kind: 'departmentStore', residents: 20 },
+      { kind: 'furnitureStore', residents: 10 },
+      { kind: 'drugStore', residents: 5 },
+      { kind: 'university', residents: 6 },
+      { kind: 'powerPlant', residents: 2 },
+    ];
+  }
+  const list: NeedEntry[] = [
+    { kind: 'departmentStore', residents: 25 },
+    { kind: 'furnitureStore', residents: 10 },
+    { kind: 'powerPlant', residents: 8 },
+  ];
+  if (level >= 5) list.push({ kind: 'drugStore', residents: 5 });
+  return list;
+}
+
+/** Waren, die der Lieferdienst über einen Laden bringt (nur bei `deliveryGoods`). */
+export function deliveryGoods(tier: SkyTier, level: SkyLevel): Array<{ label: string; residents: number; via: BuildingKind }> {
+  const list = [{ label: 'Kaugummi', residents: 10, via: 'departmentStore' as BuildingKind }];
+  if (tier === 'engineer') list.push({ label: 'Violinen', residents: 5, via: 'drugStore' });
+  else {
+    if (level >= 4) list.push({ label: 'Billardtische', residents: 15, via: 'furnitureStore' });
+    if (level >= 5) list.push({ label: 'Violinen', residents: 5, via: 'drugStore' });
+  }
+  return list;
+}
+
+/**
+ * Rathaus-Items je Haus im Radius: Zofe „Blauer Himmel“ +5 je erfülltem
+ * Bedürfnis (Kekse, Schreibmaschinen, Cognac, Violinen, Billardtische,
+ * Spielzeug, Kaufhaus, Einrichtungshaus, Drogerie), Saint D'Artois +2
+ * (Fleischkonserven, Universität, Kaffee, Glühbirnen, Sekt, Dampfwagen,
+ * Schokolade). `kind` = über Gebäude, `via` = Lieferdienst-Ware.
+ */
+export function itemBonuses(
+  tier: SkyTier,
+  level: SkyLevel,
+): Array<{ label: string; residents: number; kind?: BuildingKind; via?: BuildingKind }> {
+  if (tier === 'engineer') {
+    return [
+      { label: 'Kaufhaus', residents: 5, kind: 'departmentStore' },
+      { label: 'Einrichtungshaus', residents: 5, kind: 'furnitureStore' },
+      { label: 'Drogerie', residents: 5, kind: 'drugStore' },
+      { label: 'Schreibmaschinen', residents: 5 },
+      { label: 'Violinen', residents: 5, via: 'drugStore' },
+      { label: 'Universität', residents: 2, kind: 'university' },
+      { label: 'Fleischkonserven', residents: 2 },
+      { label: 'Kaffee', residents: 2 },
+      { label: 'Glühbirnen', residents: 2 },
+    ];
+  }
+  const list: Array<{ label: string; residents: number; kind?: BuildingKind; via?: BuildingKind }> = [
+    { label: 'Kaufhaus', residents: 5, kind: 'departmentStore' },
+    { label: 'Einrichtungshaus', residents: 5, kind: 'furnitureStore' },
+    { label: 'Kekse', residents: 5 },
+    { label: 'Cognac', residents: 5 },
+    { label: 'Kaffee', residents: 2 },
+    { label: 'Glühbirnen', residents: 2 },
+    { label: 'Sekt', residents: 2 },
+    { label: 'Schokolade', residents: 2 },
+    { label: 'Dampfwagen', residents: 2 },
+  ];
+  if (level >= 4) {
+    list.push({ label: 'Schreibmaschinen', residents: 5 }, { label: 'Billardtische', residents: 5, via: 'furnitureStore' });
+  }
+  if (level >= 5) {
+    list.push(
+      { label: 'Violinen', residents: 5, via: 'drugStore' },
+      { label: 'Drogerie', residents: 5, kind: 'drugStore' },
+      { label: 'Spielzeug', residents: 5 },
+    );
+  }
+  return list;
+}
+
+/** Einwohner eines Hochhauses aus Schicht, Stufe, Panorama-Stärke und Versorgung. */
+export function skyscraperResidents(
+  tier: SkyTier,
+  level: SkyLevel,
+  panorama: number,
+  supply: HouseSupply,
+  rules: Pick<RuleConfig, 'townHallItems' | 'deliveryGoods'>,
+): { residents: number; itemBonus: number; missing: BuildingKind[]; missingGoods: string[] } {
+  const table = SKYSCRAPER_RESIDENTS[tier][level] ?? SKYSCRAPER_RESIDENTS[tier][3] ?? [0, 0, 0, 0, 0, 0];
+  let n = table[Math.max(0, Math.min(5, panorama))];
+  const missing: BuildingKind[] = [];
+  const missingGoods: string[] = [];
+  for (const need of serviceNeeds(tier, level)) {
+    const share = need.kind === 'university' ? supply.universityFactor : supply.services[need.kind] ? 1 : 0;
+    if (share < 1) {
+      n -= need.residents * (1 - share);
+      missing.push(need.kind);
+    }
+  }
+  const items = rules.townHallItems && supply.townHall;
+  const delivered = (via: BuildingKind): boolean => !rules.deliveryGoods || (items && !!supply.services[via]);
+  if (rules.deliveryGoods) {
+    for (const g of deliveryGoods(tier, level)) {
+      if (!delivered(g.via)) {
+        n -= g.residents;
+        missingGoods.push(g.label);
+      }
+    }
+  }
+  let bonus = 0;
+  if (items) {
+    for (const b of itemBonuses(tier, level)) {
+      if (b.kind === 'university') bonus += b.residents * supply.universityFactor;
+      else if (b.kind) bonus += supply.services[b.kind] ? b.residents : 0;
+      else if (b.via) bonus += delivered(b.via) ? b.residents : 0;
+      else bonus += b.residents;
+    }
+  }
+  n = Math.round(n);
+  bonus = Math.round(bonus);
+  if (!supply.hasRoad) return { residents: 0, itemBonus: 0, missing, missingGoods };
+  return { residents: Math.max(0, n) + bonus, itemBonus: bonus, missing, missingGoods };
+}

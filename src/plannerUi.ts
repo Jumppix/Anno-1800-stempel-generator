@@ -21,6 +21,7 @@ import { SolveRunner } from './solveRunner';
 import { buildGenericStamp } from './stamp';
 import type { PlannerJob, PlannerMessage } from './planner.worker';
 import type { BuildingKind } from './catalog';
+import type { LevelMode } from './levels';
 import type { ServiceReport } from './services';
 
 const SERVICE_KINDS_UI: BuildingKind[] = ['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'];
@@ -66,7 +67,13 @@ export class PlannerUi {
   private readonly stampList = el<HTMLElement>('#plan-stamps');
 
   private runner: SolveRunner;
-  private result: { city: CityPlan; mask: LandMask; streetGuid: number } | null = null;
+  private result: {
+    city: CityPlan;
+    mask: LandMask;
+    streetGuid: number;
+    planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
+  } | null = null;
+  private readonly levelMode = el<HTMLSelectElement>('#plan-levels');
   private stamps: Uint8Array[] = [];
   private running = false;
   private workers: Worker[] = [];
@@ -141,13 +148,39 @@ export class PlannerUi {
     const compacted = compactMs > 0 ? await this.compact(src.mask, refilled, compactMs, started) : null;
     const dense = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : refilled;
     const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
+    const goal = Number(this.svcGoal.value) || 0;
+    const levelMode = this.levelMode.value as LevelMode;
+    const levelMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
     let serviced: { city: CityPlan; report: ServiceReport; refilled: number } | null = null;
     if (kinds.length) {
       this.status.textContent = 'Versorgung wird geplant (Kaufhaus, Einrichtungshaus, Drogerie, Universität, Kraftwerk, Lagerhäuser) …';
-      serviced = await this.services(src.mask, dense, kinds, Number(this.svcGoal.value) || 0);
+      serviced = await this.services(src.mask, dense, kinds, goal);
     }
-    const city = serviced ? { ...serviced.city, removedHouses: refilled.removedHouses } : dense;
-    this.result = { city, mask: src.mask, streetGuid: src.streetGuid };
+    let city = serviced ? { ...serviced.city, removedHouses: refilled.removedHouses } : dense;
+    // Hochhaus-Stufen (3-3-5 / 4-5) auf dem fertigen Plan optimieren.
+    this.status.textContent = 'Hochhaus-Stufen werden optimiert (3-3-5 / 4-5) …';
+    let levels = await this.levels(src.mask, city, levelMode, levelMs);
+    // Zweiter Durchgang: Versorgung passend zu den Stufen neu setzen (z. B. keine
+    // Universität ohne Ingenieure, Drogerie für Investoren 5), dann Stufen erneut.
+    if (kinds.length && levelMode !== 'l3') {
+      const states = new Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
+      city.houses.forEach((hs, k) => {
+        const st = levels.planned.get(k);
+        if (st) states.set(`${hs.x},${hs.y}`, st);
+      });
+      this.status.textContent = 'Versorgung wird an die Hochhaus-Stufen angepasst …';
+      const second = await this.services(src.mask, dense, kinds, goal, states);
+      const city2 = { ...second.city, removedHouses: refilled.removedHouses };
+      this.status.textContent = 'Hochhaus-Stufen werden erneut optimiert …';
+      const levels2 = await this.levels(src.mask, city2, levelMode, levelMs);
+      const total = (l: typeof levels): number => l.residents;
+      if (total(levels2) > total(levels)) {
+        serviced = second;
+        city = city2;
+        levels = levels2;
+      }
+    }
+    this.result = { city, mask: src.mask, streetGuid: src.streetGuid, planned: levels.planned };
     this.buildStamps();
     const secs = ((performance.now() - started) / 1000).toFixed(1);
     const free = freeTiles(src.mask, city);
@@ -173,6 +206,21 @@ export class PlannerUi {
         .map((k) => `${r.placed[k] ?? 0}× ${names[k]} (${Math.round((r.coverage[k] ?? 0) * 100)} %)`)
         .join(', ');
       parts.push(`Versorgung: ${list}, ${r.warehouses}× Lagerhaus – ${r.removedHouses} Häuser ersetzt, ${serviced.refilled} neu gesetzt`);
+    }
+    {
+      const names: Record<string, string> = { l3: 'nur Stufe 3', '335': '3-3-5', '45': '4-5', free: 'frei gemischt' };
+      const c = levels.counts;
+      const mix = [c.I3 ? `${c.I3}× I3` : '', c.V3 ? `${c.V3}× V3` : '', c.V4 ? `${c.V4}× V4` : '', c.V5 ? `${c.V5}× V5` : '']
+        .filter(Boolean)
+        .join(', ');
+      const gain = levels.residents - levels.startResidents;
+      parts.push(
+        `Stufen: ${names[levels.mode] ?? levels.mode} (${mix}) – ${gain >= 0 ? '+' : ''}${num(gain)} Einwohner gegenüber nur Stufe 3${
+          levels.tried.length > 1
+            ? ` · geprüft: ${levels.tried.map((t) => `${names[t.mode] ?? t.mode} ${num(t.residents)}`).join(', ')}`
+            : ''
+        }`,
+      );
     }
     if (compacted) {
       parts.push(
@@ -202,12 +250,44 @@ export class PlannerUi {
     return this.workers[i];
   }
 
+  /** Hochhaus-Stufen im Hintergrund optimieren (levels.ts). */
+  private levels(
+    mask: LandMask,
+    city: CityPlan,
+    mode: LevelMode,
+    budgetMs: number,
+  ): Promise<{
+    planned: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
+    residents: number;
+    startResidents: number;
+    mode: string;
+    counts: Record<string, number>;
+    tried: Array<{ mode: string; residents: number }>;
+  }> {
+    const id = ++this.jobId;
+    const worker = this.worker(0);
+    return new Promise((resolve) => {
+      worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
+        const msg = event.data;
+        if (msg.id !== id || msg.kind !== 'levels') return;
+        const planned = new Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
+        for (const [idx, t, l] of msg.planned) {
+          planned.set(idx, { tier: t === 0 ? 'engineer' : 'investor', level: l as 3 | 4 | 5 });
+        }
+        resolve({ ...msg, planned });
+      };
+      const job: PlannerJob = { kind: 'levels', id, mask, city, rules: this.cityUi.currentRules(), mode, budgetMs, seed: 11 };
+      worker.postMessage(job);
+    });
+  }
+
   /** Versorgungsgebäude + Lagerhäuser im Hintergrund (services.ts). */
   private services(
     mask: LandMask,
     city: CityPlan,
     kinds: BuildingKind[],
     fullCoverageValue: number,
+    houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>,
   ): Promise<{ city: CityPlan; report: ServiceReport; refilled: number }> {
     const id = ++this.jobId;
     const worker = this.worker(0);
@@ -217,7 +297,8 @@ export class PlannerUi {
         if (msg.id === id && msg.kind === 'services') resolve({ city: msg.city, report: msg.report, refilled: msg.refilled });
       };
       const deliveryGoods = el<HTMLInputElement>('#rule-delivery').checked;
-      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods };
+      const townHallItems = this.cityUi.currentRules().townHallItems;
+      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems };
       worker.postMessage(job);
     });
   }
@@ -293,13 +374,18 @@ export class PlannerUi {
     const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y)];
     const minX = xs.reduce((m, v) => Math.min(m, v), Infinity);
     const minY = ys.reduce((m, v) => Math.min(m, v), Infinity);
-    this.cityUi.show(full, 'Wohnraster-Plan', {
-      w: mask.w,
-      h: mask.h,
-      data: mask.data,
-      dx: CITY_PAD - minX,
-      dy: CITY_PAD - minY,
-    });
+    this.cityUi.show(
+      full,
+      'Wohnraster-Plan',
+      {
+        w: mask.w,
+        h: mask.h,
+        data: mask.data,
+        dx: CITY_PAD - minX,
+        dy: CITY_PAD - minY,
+      },
+      this.result.planned ? new Map(this.result.planned) : undefined,
+    );
     this.stampList.innerHTML = this.stamps
       .map((_, i) => {
         const b = bands[i];

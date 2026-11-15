@@ -539,7 +539,50 @@ importierte Insel ist immer **eine** Insel mit einem Kontor – getrennte
 Straßennetze werden später per Brücke verbunden (wo der Fluss schmal ist,
 lässt sich dem Feldweg-Stempel nicht entnehmen; Nutzer klärt das später).
 
-## 20. Noch offene Fragen
+## 20. Hochhaus-Stufen 3-3-5 / 4-5 (Anregung aus dem Rekord-Spielstand)
+
+Mechanik (Wiki „Skyscrapers“, „Needs“, Item „Blue Skies Maid“):
+- Panorama: Ausgangswert = eigene Stufe; jedes Hochhaus im Radius der
+  **eigenen** Stufe (3: 5, 4: 6, 5: 6,75): niedriger +1, höher −1, gleiche
+  Stufe andere Schicht +1, gleiche Schicht −1.
+- Max. Einwohner (Stärke 0…5): Ing. 3 100…200; Inv. 3 125…250, Inv. 4
+  150…275, Inv. 5 175…300. Ingenieure höchstens Stufe 3.
+- Zusatzbedürfnisse Investoren: Stufe 4 Schreibmaschinen (10), Billardtische
+  (15, Lieferdienst über Einrichtungshaus); Stufe 5 Violinen (5, Lieferdienst
+  über Drogerie), **Drogerie (5)**, Spielzeug (15).
+- Zofe „Blauer Himmel“: +5 je erfülltem Bedürfnis aus Kekse,
+  Schreibmaschinen, Cognac, Violinen, Billardtische, Spielzeug, Kaufhaus,
+  Einrichtungshaus, Drogerie → Investor 3: +20, 4: +30, 5: +45 (+ Saint 10).
+
+Umsetzung: `rules.ts` (gemeinsames Einwohnermodell `skyscraperResidents`,
+`panoramaDelta`), Analyse mit Stufe je Haus (`TierEdits.planned`),
+`src/levels.ts` (Simulated Annealing über alle Häuser; Einwohner je Haus ×
+Zustand × Panorama vorab tabelliert; Bauweisen nur Stufe 3, 3-3-5, 4-5, frei;
+„automatisch“ prüft 3-3-5, 4-5 und frei). Läuft nach Versorgung im Worker.
+Insel 2 (8er-Gruppen, mit Versorgung, Max. Einwohner): nur Stufe 3 ≈ 475.700,
+3-3-5 ≈ 530.600 (+11,5 %), 4-5 ≈ 538.800 (+13,3 %).
+Werkzeug-Referenz: NiHoel/Anno1800OptimizationTools „Skyscraper Levels“
+(MILP mit SCIP).
+
+Zweiter Durchgang: Nach der Stufenwahl wird die Versorgung mit dem genauen
+Wert je Haus neu gesetzt (Einwohner mit minus ohne Gebäude für die geplante
+Schicht/Stufe) und die Stufen werden erneut optimiert – z. B. keine
+Universität bei 4-5 (keine Ingenieure), mehr Kraftwerke (Investoren +8).
+Insel 2, 6er-Linien: 546.900 → 549.700 (+0,5 %).
+
+**Lange Reihen** (Häuser je Linie = Länge der Gruppe zwischen Querstraßen;
+Insel 2, 4-5, mit Versorgung, je 6 s Stufen-Optimierung):
+| je Linie | 4 | 6 | 8 | 10 | 12 | 16 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Einwohner | 538.800 | **548.300** | 546.800 | 543.600 | 544.800 | 528.200 |
+| ohne Bandverschiebung | 537.500 | 545.800 | 547.100 | 540.200 | 529.700 | 523.300 |
+Ab 10 sinkt es: weniger Querstraßen = weniger Plätze für Rathäuser/Läden auf
+Querstraßen und längere Straßenwege der Versorgung. Standard jetzt 6.
+Bandverschiebung hilft fast überall (die im Beitrag genannte „Symmetrie“
+ist für unsere Stufen-Optimierung kein Nachteil, da sie jedes Haus einzeln
+bewertet).
+
+## 21. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

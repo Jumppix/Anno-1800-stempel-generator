@@ -1,7 +1,13 @@
 // Rechnet die Bebauung (Gittersuche mit Bandverschiebung) und die
 // Nachverdichtung im Hintergrund, damit die Oberfläche bedienbar bleibt.
 import { searchFill, type FillResult, type Orientation } from './fill';
-import { compactCity, planServices, type CityPlan } from './planner';
+import { compactCity, planServices, planToStampItems, type CityPlan } from './planner';
+import { analyzeCity } from './analysis';
+import { cityFromStamp } from './city';
+import { optimizeLevels, type LevelMode } from './levels';
+import type { RuleConfig } from './rules';
+import { buildGenericStamp } from './stamp';
+import { decodeStampFull } from './stampReader';
 import type { BuildingKind } from './catalog';
 import type { ServiceReport } from './services';
 import type { LandMask } from './solver';
@@ -9,13 +15,25 @@ import type { LandMask } from './solver';
 export type PlannerJob =
   | { kind: 'fill'; id: number; mask: LandMask; orientation: 'auto' | Orientation; housesPerLine: number }
   | { kind: 'compact'; id: number; mask: LandMask; city: CityPlan; budgetMs: number; seed: number }
-  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean };
+  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean; houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>; townHallItems?: boolean }
+  | { kind: 'levels'; id: number; mask: LandMask; city: CityPlan; rules: RuleConfig; mode: LevelMode; budgetMs: number; seed: number };
 
 export type PlannerMessage =
   | { kind: 'fill'; id: number; result: FillResult }
   | { kind: 'progress'; id: number; gained: number }
   | { kind: 'compact'; id: number; city: CityPlan; gained: number; moved: number }
-  | { kind: 'services'; id: number; city: CityPlan; report: ServiceReport; refilled: number };
+  | { kind: 'services'; id: number; city: CityPlan; report: ServiceReport; refilled: number }
+  | {
+      kind: 'levels';
+      id: number;
+      /** [Gebäudeindex, 0 = Ingenieur/1 = Investor, Stufe] */
+      planned: Array<[number, number, number]>;
+      residents: number;
+      startResidents: number;
+      mode: string;
+      counts: Record<string, number>;
+      tried: Array<{ mode: string; residents: number }>;
+    };
 
 const scope = self as unknown as {
   postMessage(message: PlannerMessage): void;
@@ -29,11 +47,31 @@ scope.onmessage = (event) => {
     scope.postMessage({ kind: 'fill', id: job.id, result });
     return;
   }
+  if (job.kind === 'levels') {
+    // Gleicher Stempel wie in der Ansicht → gleiche Gebäudeindizes.
+    const items = planToStampItems(job.mask, job.city, { coast: false, coastGuid: 1000178 });
+    const city = cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets)));
+    const analysis = analyzeCity(city, job.rules);
+    const r = optimizeLevels(analysis.residences, job.rules, job.mode, job.budgetMs, job.seed);
+    scope.postMessage({
+      kind: 'levels',
+      id: job.id,
+      planned: [...r.planned].map(([idx, st]) => [idx, st.tier === 'engineer' ? 0 : 1, st.level]),
+      residents: r.residents,
+      startResidents: r.startResidents,
+      mode: r.mode,
+      counts: r.counts,
+      tried: r.tried,
+    });
+    return;
+  }
   if (job.kind === 'services') {
     const r = planServices(job.mask, job.city, {
       kinds: new Set(job.kinds),
       fullCoverageValue: job.fullCoverageValue,
       deliveryGoods: job.deliveryGoods,
+      houseStates: job.houseStates,
+      townHallItems: job.townHallItems,
     });
     scope.postMessage({ kind: 'services', id: job.id, city: r.city, report: r.report, refilled: r.refilled });
     return;

@@ -54,6 +54,13 @@ const KIND_COLORS: Partial<Record<BuildingKind, string>> = {
 
 const TIER_COLORS = { engineer: '#4fa3a5', investor: '#d9a441', artisan: '#8a8f96' };
 
+/** Investoren Stufe 4/5 dunkler/kräftiger, damit die Bauweise 3-3-5/4-5 lesbar ist. */
+function tierColor(r: ResidenceInfo): string {
+  if (r.tier === 'investor' && r.level === 5) return '#c2602d';
+  if (r.tier === 'investor' && r.level === 4) return '#c98a2e';
+  return TIER_COLORS[r.tier];
+}
+
 const num = (v: number): string => v.toLocaleString('de-DE');
 const pct = (v: number): string => `${(v * 100).toFixed(0)} %`;
 
@@ -77,6 +84,8 @@ export class CityUi {
   private view: View | null = null;
   private resByIndex = new Map<number, ResidenceInfo>();
   private sourceName = '';
+  /** Geplante Stufen für den nächsten `load` (nur über `show`). */
+  private pendingPlanned: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }> | null = null;
   /** Landfläche der geplanten Insel (Kachelachsen der Stadt), nur beim Plan. */
   private land: { w: number; h: number; data: Uint8Array; dx: number; dy: number } | null = null;
 
@@ -223,10 +232,18 @@ export class CityUi {
     bytes: Uint8Array,
     name: string,
     land?: { w: number; h: number; data: Uint8Array; dx: number; dy: number },
+    planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>,
   ): void {
+    this.pendingPlanned = planned ?? null;
     this.load(bytes, name);
+    this.pendingPlanned = null;
     this.land = land ?? null;
     this.draw();
+  }
+
+  /** Aktuelle Regeln (Palast, Items, Lieferdienst …) für den Planer. */
+  currentRules(): RuleConfig {
+    return { ...this.rules };
   }
 
   setLayer(layer: Layer): void {
@@ -251,7 +268,7 @@ export class CityUi {
     try {
       this.city = cityFromStamp(decodeStampFull(bytes));
       this.sourceName = name;
-      this.edits = { houses: new Map(), groups: new Map() };
+      this.edits = { houses: new Map(), groups: new Map(), planned: this.pendingPlanned ?? undefined };
       this.reanalyze();
       this.onShow();
     } catch (error) {
@@ -318,6 +335,10 @@ export class CityUi {
     if (group === undefined) return;
     const state = this.analysis.groupState.get(group) ?? 0;
     this.edits.groups.set(group, state === 1 ? 0 : 1);
+    // Geplante Stufen der Gruppe aufheben, damit der Tausch sichtbar wird.
+    if (this.edits.planned) {
+      for (const [house, g] of this.analysis.groupOf) if (g === group) this.edits.planned.delete(house);
+    }
     this.reanalyze();
   }
 
@@ -554,7 +575,8 @@ export class CityUi {
   private detailFor(b: CityBuilding): { title: string; lines: string[] } | null {
     const r = this.resByIndex.get(b.index);
     if (r) {
-      const tier = r.tier === 'engineer' ? 'Ingenieur' : r.tier === 'investor' ? 'Investor' : 'Handwerker';
+      const tier =
+        r.tier === 'engineer' ? 'Ingenieur' : r.tier === 'investor' ? `Investor ${r.level}` : 'Handwerker';
       const lines = [`≈ ${r.residents} EW`];
       if (r.tier !== 'artisan') lines.push(`Panorama ${r.panorama}`);
       lines.push(r.townHall !== null ? 'im RH-Radius' : 'ohne Rathaus');
@@ -699,7 +721,7 @@ export class CityUi {
     const bad = 'rgba(210, 80, 70, 0.95)';
     switch (this.layer) {
       case 'overview':
-        return TIER_COLORS[r.tier];
+        return tierColor(r);
       case 'panorama': {
         if (r.tier === 'artisan') return TIER_COLORS.artisan;
         const t = r.panorama / 5;
@@ -715,7 +737,7 @@ export class CityUi {
       case 'post':
         return r.post !== null ? good : bad;
       case 'ministry':
-        return TIER_COLORS[r.tier];
+        return tierColor(r);
       default:
         return r.services[this.layer as BuildingKind] ? good : bad;
     }
@@ -734,7 +756,7 @@ export class CityUi {
     if (r) {
       if (this.layer === 'panorama' && r.tier !== 'artisan') return String(r.panorama);
       if (this.layer === 'residents') return String(r.residents);
-      return r.tier === 'engineer' ? 'I' : r.tier === 'investor' ? 'V' : 'H';
+      return r.tier === 'engineer' ? 'I' : r.tier === 'investor' ? (r.level > 3 ? `V${r.level}` : 'V') : 'H';
     }
     const short: Partial<Record<BuildingKind, string>> = {
       townHall: 'RH',
@@ -805,13 +827,15 @@ export class CityUi {
     if (r) {
       if (r.building.entry.tier !== r.tier) {
         const label = r.tier === 'engineer' ? 'Ingenieur' : r.tier === 'investor' ? 'Investor' : 'Handwerker';
-        lines.push(`gerechnet als ${label}-Hochhaus Stufe 3`);
+        lines.push(`gerechnet als ${label}-Hochhaus Stufe ${r.level}`);
+      } else if (r.tier !== 'artisan') {
+        lines.push(`Hochhaus Stufe ${r.level}`);
       }
       if (r.tier !== 'artisan') {
         const p = r.panoramaParts;
         lines.push(`Panorama: ${PANORAMA_NAMES[r.panorama]} (Wert ${r.panoramaValue})`);
         lines.push(
-          `<span class="muted">Stufe ${this.rules.skyscraperLevel} · kleinere +${p.lower} · gleich hohe ${p.sameOrHigher} · Variety +${p.variety}</span>`,
+          `<span class="muted">Stufe ${r.level} · niedrigere +${p.lower} · gleich hohe/höhere ${p.sameOrHigher} · Variety +${p.variety}</span>`,
         );
       }
       const group = a.groupOf.get(idx);

@@ -14,7 +14,7 @@
 // Kraftwerk eines in seiner Straßenreichweite hat.
 
 import { footprint, lookup, type BuildingKind } from './catalog';
-import { UNIVERSITY_MAX_RANGE, universityFactor } from './rules';
+import { skyscraperResidents, UNIVERSITY_MAX_RANGE, universityFactor, type SkyLevel, type SkyTier } from './rules';
 import { BLOCKED, FREE, HOUSE, ROAD, SERVICE, WATER, touchesRoad, type FillState } from './fill';
 
 export interface PlacedService {
@@ -77,6 +77,14 @@ export interface ServiceOptions {
   rangeBonus?: Partial<Record<BuildingKind, number>>;
   /** Kaugummi/Violinen nur über den Lieferdienst (siehe RuleConfig.deliveryGoods). */
   deliveryGoods?: boolean;
+  /**
+   * Geplante Schicht/Stufe je Haus (Schlüssel „x,y“ der linken oberen Kachel),
+   * z. B. aus der Stufen-Optimierung. Dann wird je Haus genau gerechnet, was
+   * ein Gebäude bringt (z. B. Universität nur für Ingenieure, Drogerie für
+   * Ingenieure und Investoren 5); sonst Mittelwerte.
+   */
+  houseStates?: Map<string, { tier: SkyTier; level: SkyLevel }>;
+  townHallItems?: boolean;
 }
 
 export interface ServiceReport {
@@ -360,9 +368,37 @@ export function placeServices(
       }
       return 0;
     };
+    // Genauer Wert je Haus, wenn Schicht/Stufe bekannt: Einwohner mit minus ohne dieses Gebäude.
+    const exact = new Float32Array(s.houses.length).fill(-1);
+    if (options.houseStates) {
+      const all: Partial<Record<BuildingKind, boolean>> = {
+        departmentStore: true,
+        furnitureStore: true,
+        drugStore: true,
+        university: true,
+        powerPlant: true,
+      };
+      const rules = { townHallItems: options.townHallItems ?? true, deliveryGoods: !!options.deliveryGoods };
+      s.houses.forEach((hs, k) => {
+        const st = options.houseStates?.get(`${hs.x},${hs.y}`);
+        if (!st) return;
+        const supply = { services: all, universityFactor: 1, townHall: inTownHall[k], hasRoad: true };
+        const withIt = skyscraperResidents(st.tier, st.level, 5, supply, rules).residents;
+        const without = skyscraperResidents(
+          st.tier,
+          st.level,
+          5,
+          { ...supply, services: { ...all, [spec.kind]: false }, universityFactor: isUniversity ? 0 : 1 },
+          rules,
+        ).residents;
+        exact[k] = withIt - without;
+      });
+    }
     const valueOf = (k: number): number =>
       Math.max(
-        spec.value + (inTownHall[k] ? spec.itemValue + (options.deliveryGoods ? spec.deliveryValue : 0) : 0),
+        exact[k] >= 0
+          ? exact[k]
+          : spec.value + (inTownHall[k] ? spec.itemValue + (options.deliveryGoods ? spec.deliveryValue : 0) : 0),
         options.fullCoverageValue ?? 0,
       );
     /** Bester Wirkungsanteil je Haus über die gewählten Gebäude dieser Art. */

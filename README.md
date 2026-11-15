@@ -128,6 +128,17 @@ Insel wird bebaut (`src/fill.ts`):
    dann Lücken füllen und Nachverdichtung. Ministerium/Wohlfahrt folgt in
    Phase 4 (bis dahin Grundreichweiten).
 
+8. Hochhaus-Stufen (`src/levels.ts`): Bauweise automatisch (3-3-5, 4-5 oder
+   frei gemischt, die mit den meisten Einwohnern), nur 3-3-5, nur 4-5 oder nur
+   Stufe 3. Simulated Annealing über alle Häuser mit dem gemeinsamen
+   Einwohnermodell (`rules.ts`: Panorama je Stufe, Bedürfnisse Stufe 4/5,
+   Zofe/Saint). Danach Versorgung mit genauen Werten je Haus neu setzen und
+   Stufen erneut optimieren. Export bleibt Bauernhäuser; die Ansicht zeigt
+   die Zielstufe (V4/V5).
+
+Insel 2 mit Stufen (6er-Linien, 4-5): ≈ 549.700 Einwohner (nur Stufe 3 ≈
+484.000).
+
 Insel 2 (189 × 290): ≈ 2.110 Häuser ohne bzw. ≈ 2.055 mit 25 Rathäusern
 (vorher 2.010), geschätzte Einwohner 390.400 → 398.300 (+2 %); mit
 Vollversorgung (≈ 8 je Art, 7 Lagerhäuser, ≈ 1.880 Häuser) ≈ 459.000; Rest ≈ 6 %,
