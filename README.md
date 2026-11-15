@@ -160,6 +160,14 @@ Optionale Gebäude (Feuerwache, Polizei, Hospital, Bank, Varieté, Clubhaus)
 lassen sich zuschalten; nach dem Planen zeigt „Bauliste & Einwohner-Bericht“
 die Anzahl je Gebäude und die Einwohner-Aufschlüsselung (als Text speicherbar).
 
+Leiste im Stadtplaner: Reiter „Planen“ (Insel, alle Einstellungen in
+aufklappbaren Gruppen mit Kurzinfo – Versorgung, Produktion, Palast/
+Ministerium/Items, Erweitert – direkt über „Wohnraster planen“, darunter
+Ladeanzeige, Ergebnis & Export) und „Weitere Funktionen“ (Stadt-Stempel
+analysieren, Beispielstadt, Katalog-Teststempel, Bedienung). Die Ebene der
+Plan-Ansicht wählt man oben rechts im Bild. Die Ladeanzeige (Schritt x/y,
+Balken, Zeit, Details) erscheint unter dem Button und groß über dem Bild.
+
 Beim Planen zuschauen (Standard an): Nach jedem Schritt (Bebauung,
 Rathäuser – während der Suche etwa alle 2 s –, Nachverdichtung, Versorgung,
 Stufen) zeigt die Plan-Ansicht den Zwischenstand.

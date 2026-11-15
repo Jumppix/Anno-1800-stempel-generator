@@ -21,7 +21,12 @@
           <button id="mode-city" type="button">Stadtplaner</button>
         </nav>
 
-        <section class="card" data-mode="admin city">
+        <nav class="side-tabs" data-mode="city" hidden aria-label="Bereich">
+          <button id="ctab-plan" class="active" type="button">Planen</button>
+          <button id="ctab-more" type="button">Weitere Funktionen</button>
+        </nav>
+
+        <section class="card" data-mode="admin city" data-ctab="plan">
           <h2>Inselform aus Stempeln</h2>
           <p class="hint">Insel mit Feldwegen füllen, Auswahl als Stempel speichern und hier laden. Mehrere Teile werden zu einer Gesamtinsel zusammengesetzt – per Drag oder X/Y ausrichten.</p>
           <label class="file-button">
@@ -30,7 +35,7 @@
           </label>
           <p id="stamp-info" class="hint">Keine Inselform geladen.</p>
           <button id="clear-stamp" class="ghost" type="button" hidden>Alle Teile entfernen</button>
-          <label class="select-row">Region
+          <label class="select-row" data-mode="admin">Region
             <select id="region">
               <option value="ow">Alte Welt</option>
               <option value="nw">Neue Welt</option>
@@ -38,10 +43,12 @@
           </label>
         </section>
 
-        <section class="card" data-mode="admin city">
-          <h2>Teile</h2>
-          <div id="part-list" class="part-list"></div>
-          <button id="align-all" class="ghost" type="button" disabled>Alle automatisch ausrichten</button>
+        <section class="card" data-mode="admin city" data-ctab="plan">
+          <details id="parts-details" class="card-details" open>
+            <summary><h2>Teile <span id="parts-count" class="sum"></span></h2></summary>
+            <div id="part-list" class="part-list"></div>
+            <button id="align-all" class="ghost" type="button" disabled>Alle automatisch ausrichten</button>
+          </details>
         </section>
 
         <section class="card" data-mode="admin">
@@ -88,7 +95,7 @@
           <button id="zip" class="primary" type="button">Alle als ZIP</button>
           <p class="hint">Nach <code>Documents\Anno 1800\stamps\&lt;Region&gt;\&lt;Ordner&gt;</code> kopieren und Anno neu starten.</p>
         </section>
-        <section class="card" data-mode="city" hidden>
+        <section class="card" data-mode="city" data-ctab="plan" hidden>
           <h2>Wohnraster planen</h2>
           <p id="plan-island" class="hint">–</p>
           <label class="select-row">Bauweise
@@ -114,28 +121,28 @@
               <option value="35">35 (lange Reihen)</option>
             </select>
           </label>
-          <label class="select-row">Brücken
-            <select id="plan-bridges">
-              <option value="0">keine</option>
-              <option value="8">über Wasser bis 8 Kacheln</option>
-              <option value="12" selected>über Wasser bis 12 Kacheln</option>
-              <option value="20">über Wasser bis 20 Kacheln</option>
-            </select>
-          </label>
-          <label class="check-row">
-            <input id="plan-engineers" type="checkbox" checked />
-            Genug Ingenieure für die eigene Arbeitskraft (Kraftwerke)
-          </label>
-          <div class="sub-title">Versorgung</div>
-          <div class="check-grid">
-            <label class="check-row"><input id="svc-departmentStore" type="checkbox" checked />Kaufhaus</label>
-            <label class="check-row"><input id="svc-furnitureStore" type="checkbox" checked />Einrichtungshaus</label>
-            <label class="check-row"><input id="svc-drugStore" type="checkbox" checked />Drogerie</label>
-            <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
-            <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
-          </div>
-          <details class="advanced">
-            <summary>Optionale Gebäude (ohne Einwohner-Bonus)</summary>
+
+          <details class="group">
+            <summary>Versorgung &amp; Pflichtgebäude <span id="sum-svc" class="sum"></span></summary>
+            <div class="check-grid">
+              <label class="check-row"><input id="svc-departmentStore" type="checkbox" checked />Kaufhaus</label>
+              <label class="check-row"><input id="svc-furnitureStore" type="checkbox" checked />Einrichtungshaus</label>
+              <label class="check-row"><input id="svc-drugStore" type="checkbox" checked />Drogerie</label>
+              <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
+              <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
+              <label class="check-row"><input id="plan-post" type="checkbox" checked />Briefkästen</label>
+              <label class="check-row"><input id="plan-airport" type="checkbox" checked />Lufthafen</label>
+              <label class="check-row"><input id="plan-ministry" type="checkbox" checked />Ministerium</label>
+            </div>
+            <div class="harbor-row">
+              <button id="plan-harbor" class="ghost" type="button">⚓ Hauptanlegestelle wählen</button>
+              <span id="plan-harbor-info" class="micro">nicht gesetzt</span>
+            </div>
+            <label class="check-row">
+              <input id="plan-engineers" type="checkbox" checked />
+              Genug Ingenieure für die Kraftwerke
+            </label>
+            <div class="sub-title">Optional (ohne Einwohner-Bonus)</div>
             <div class="check-grid">
               <label class="check-row"><input id="svc-fireStation" type="checkbox" />Feuerwache</label>
               <label class="check-row"><input id="svc-policeStation" type="checkbox" />Polizeiwache</label>
@@ -144,38 +151,78 @@
               <label class="check-row"><input id="svc-varietyTheatre" type="checkbox" />Varieté</label>
               <label class="check-row"><input id="svc-membersClub" type="checkbox" />Clubhaus</label>
             </div>
-            <p class="micro">Bringen keine zusätzlichen Einwohner (Schutz vor Bränden/Unruhen/Krankheit bzw. Luxusbedürfnisse); gesetzt wird so, dass fast alle Häuser erreicht werden und möglichst wenige Häuser weichen.</p>
+            <p class="micro">Lufthafen mit Item-Terminal und Luftpostlager möglichst weit weg von der Anlegestelle. Briefkästen nur in Restkacheln. Optionale Gebäude so, dass fast alle Häuser erreicht werden.</p>
           </details>
-          <label class="check-row">
-            <input id="plan-post" type="checkbox" checked />
-            Briefkästen in Restkacheln (Post, Empire of the Skies)
-          </label>
-          <label class="check-row">
-            <input id="plan-airport" type="checkbox" checked />
-            Lufthafen mit Item-Terminal und Luftpostlager (weit weg von der Anlegestelle)
-          </label>
-          <div class="harbor-row">
-            <button id="plan-harbor" class="ghost" type="button">⚓ Hauptanlegestelle wählen</button>
-            <span id="plan-harbor-info" class="micro">nicht gesetzt</span>
-          </div>
-          <label class="check-row">
-            <input id="plan-ministry" type="checkbox" checked />
-            Regionalministerium einplanen (Wohlfahrt/Richtlinie aus „Palast &amp; Ministerium“)
-          </label>
-          <div class="sub-title">Produktion (Clipping)</div>
-          <div class="prod-add">
-            <select id="prod-type" aria-label="Produktionsgebäude"></select>
-            <input id="prod-count" type="number" min="1" max="60" step="1" value="4" aria-label="Anzahl" />
-            <button id="prod-add" class="ghost" type="button">+ Hinzufügen</button>
-          </div>
-          <div id="prod-list" class="prod-list"></div>
-          <label class="check-row">
-            <input id="prod-power" type="checkbox" checked />
-            Strom für die Produktion (Kraftwerk in Reichweite)
-          </label>
-          <p class="micro">Jedes Gebäude steht genau zwischen zwei Handelskammern (Mitten 30 auseinander, Gebäudemitte 15 von beiden) – quadratisch, als Raute oder versetzte Raute. Nur Gebäude mit gerader Breite und Länge; schräge Formationen nur für quadratische. Handelskammern und Lagerhaus werden ergänzt.</p>
-          <details class="advanced">
+
+          <details class="group">
+            <summary>Produktion (Clipping) <span id="sum-prod" class="sum"></span></summary>
+            <div class="prod-add">
+              <select id="prod-type" aria-label="Produktionsgebäude"></select>
+              <input id="prod-count" type="number" min="1" max="60" step="1" value="4" aria-label="Anzahl" />
+              <button id="prod-add" class="ghost" type="button">+ Hinzufügen</button>
+            </div>
+            <div id="prod-list" class="prod-list"></div>
+            <label class="check-row">
+              <input id="prod-power" type="checkbox" checked />
+              Strom für die Produktion
+            </label>
+            <p class="micro">Jedes Gebäude genau zwischen zwei Handelskammern (Mitten 30 auseinander) – quadratisch, Raute oder versetzte Raute; nur gerade Breite und Länge, schräge Formen nur für quadratische. Handelskammern und Lagerhaus werden ergänzt.</p>
+          </details>
+
+          <details class="group">
+            <summary>Palast, Ministerium &amp; Items <span id="sum-rules" class="sum"></span></summary>
+            <label class="select-row">Palastflügel
+              <input id="rule-wings" type="number" min="0" max="200" step="1" />
+            </label>
+            <label class="select-row">Prestige (0–25)
+              <input id="rule-prestige" type="number" min="0" max="25" step="1" />
+            </label>
+            <label class="select-row">Ministerium
+              <select id="rule-ministry">
+                <option value="welfare">Wohlfahrt</option>
+                <option value="labour">Arbeit</option>
+                <option value="none">keins</option>
+              </select>
+            </label>
+            <label class="select-row">Richtlinie
+              <select id="rule-policy"></select>
+            </label>
+            <label class="check-row">
+              <input id="rule-items" type="checkbox" checked />
+              Rathaus-Items: Zofe + Lieferdienst, Saint D'Artois
+            </label>
+            <label class="select-row">Post für die Häuser
+              <select id="rule-mail">
+                <option value="all" selected>Lokal + Regional + Übersee</option>
+                <option value="regional">Lokal + Regional</option>
+                <option value="local">Nur Lokal</option>
+                <option value="none">Keine Post</option>
+              </select>
+            </label>
+            <label class="select-row">Zeitung: Verbrauch −%
+              <input id="rule-reduction" type="number" min="0" max="90" step="1" value="68" />
+            </label>
+            <label class="check-row">
+              <input id="rule-delivery" type="checkbox" />
+              Kaugummi &amp; Violinen nur über den Lieferdienst
+            </label>
+            <label class="check-row">
+              <input id="rule-institutions" type="checkbox" />
+              Wohlfahrt auch für Feuerwehr/Polizei/Hospital
+            </label>
+            <p id="rule-info" class="micro"></p>
+          </details>
+
+          <details class="group">
             <summary>Erweitert</summary>
+            <label class="select-row">Brücken
+              <select id="plan-bridges">
+                <option value="0">keine</option>
+                <option value="8">über Wasser bis 8 Kacheln</option>
+                <option value="12" selected>über Wasser bis 12 Kacheln</option>
+                <option value="20">über Wasser bis 20 Kacheln</option>
+              </select>
+            </label>
             <label class="select-row">Versorgungsziel
               <select id="svc-goal">
                 <option value="0" selected>Max. Einwohner</option>
@@ -218,104 +265,47 @@
                 <option value="45000">45 s</option>
               </select>
             </label>
-            <p class="micro">Stufe 4/5 brauchen Schreibmaschinen, Billardtische, Spielzeug, Violinen, Aufzüge und für Investoren 5 eine Drogerie. Lagerhäuser werden automatisch ergänzt. Brücken: Wasserstreifen zwischen getrennten Inselteilen werden überbrückt (die genaue Lage baust du im Spiel).</p>
-          </details>
-          <label class="check-row">
-            <input id="plan-watch" type="checkbox" checked />
-            Beim Planen zuschauen (Zwischenstände anzeigen)
-          </label>
-          <button id="plan-run" class="primary" type="button">Wohnraster planen</button>
-          <div id="plan-status" class="plan-status"></div>
-          <div id="plan-export" hidden>
             <label class="check-row">
-              <input id="plan-split" type="checkbox" />
-              In Stempel bis 13.500 Kacheln aufteilen
+              <input id="plan-watch" type="checkbox" checked />
+              Beim Planen zuschauen (Zwischenstände)
             </label>
-            <div id="plan-stamps" class="stamp-list"></div>
-            <div class="edit-block">
-              <div class="sub-title">Plan bearbeiten</div>
-              <p class="micro">Gebäude im Plan anklicken, dann mit der linken Maustaste ziehen (verschieben), R drehen, Entf entfernen, Strg+Z rückgängig. Häuser darunter weichen, frei gewordene Fläche wird mit Häusern gefüllt.</p>
-              <div class="edit-buttons">
-                <button id="plan-reopt" class="ghost" type="button">Stufen &amp; Post neu berechnen</button>
-                <button id="plan-undo" class="ghost" type="button">↶ Rückgängig</button>
-              </div>
-            </div>
-            <button id="plan-image" class="ghost" type="button">Bauplan als Bild speichern</button>
-            <details id="plan-report" class="advanced report">
-              <summary>Bauliste &amp; Einwohner-Bericht</summary>
-              <div id="plan-report-body"></div>
-              <button id="plan-report-save" class="ghost" type="button">Bauliste als Text speichern</button>
-            </details>
+            <p class="micro">Stufe 4/5 brauchen Schreibmaschinen, Billardtische, Spielzeug, Violinen, Aufzüge und für Investoren 5 eine Drogerie. Brücken: Wasserstreifen zwischen Inselteilen werden überbrückt (genaue Lage baust du im Spiel).</p>
+          </details>
+
+          <button id="plan-run" class="primary" type="button">Wohnraster planen</button>
+          <div id="plan-progress" class="progress" hidden>
+            <div class="progress-label"><span class="progress-step"></span><span class="progress-time"></span></div>
+            <div class="progress-bar"><i></i></div>
+            <div class="progress-detail"></div>
           </div>
+          <div id="plan-status" class="plan-status"></div>
         </section>
 
-        <section class="card" data-mode="city" hidden>
-          <h2>Ansicht</h2>
-          <label class="select-row">Ebene
-            <select id="city-layer"></select>
+        <section id="plan-export" class="card city-only" data-ctab="plan" hidden>
+          <h2>Ergebnis &amp; Export</h2>
+          <label class="check-row">
+            <input id="plan-split" type="checkbox" />
+            In Stempel bis 13.500 Kacheln aufteilen
           </label>
-          <label class="select-row">Schichten
-            <select id="rule-tiers">
-              <option value="groups">nach Gruppen / Plan</option>
-              <option value="stamp">wie im Stempel</option>
-            </select>
-          </label>
-          <details class="advanced">
-            <summary>Bedienung</summary>
-            <p class="micro"><strong>Klick</strong>: Gebäude anwählen (Infofeld, Radius/Reichweite). <strong>Strg+Klick</strong>: Gruppe Ingenieure ↔ Investoren · <strong>Umschalt+Klick</strong>: einzelnes Haus. <strong>Mausrad</strong>: Zoom (ab ca. 4× Werte auf den Häusern) · <strong>rechte Maustaste halten</strong>: verschieben. Grün = versorgt, Rot = fehlt, Panorama 0–5.</p>
+          <div id="plan-stamps" class="stamp-list"></div>
+          <button id="plan-image" class="ghost" type="button">Bauplan als Bild speichern</button>
+          <details class="group">
+            <summary>Plan bearbeiten</summary>
+            <p class="micro">Gebäude im Plan anklicken, dann mit der linken Maustaste ziehen (verschieben), R drehen, Entf entfernen, Strg+Z rückgängig. Häuser darunter weichen, frei gewordene Fläche wird mit Häusern gefüllt.</p>
+            <div class="edit-buttons">
+              <button id="plan-reopt" class="ghost" type="button">Stufen &amp; Post neu berechnen</button>
+              <button id="plan-undo" class="ghost" type="button">↶ Rückgängig</button>
+            </div>
+          </details>
+          <details id="plan-report" class="group report">
+            <summary>Bauliste &amp; Einwohner-Bericht</summary>
+            <div id="plan-report-body"></div>
+            <button id="plan-report-save" class="ghost" type="button">Bauliste als Text speichern</button>
           </details>
         </section>
 
-        <section class="card" data-mode="city" hidden>
-          <details class="card-details">
-          <summary><h2>Palast, Ministerium &amp; Items</h2></summary>
-          <label class="select-row">Palastflügel
-            <input id="rule-wings" type="number" min="0" max="200" step="1" />
-          </label>
-          <label class="select-row">Prestige (0–25)
-            <input id="rule-prestige" type="number" min="0" max="25" step="1" />
-          </label>
-          <label class="select-row">Ministerium
-            <select id="rule-ministry">
-              <option value="welfare">Wohlfahrt</option>
-              <option value="labour">Arbeit</option>
-              <option value="none">keins</option>
-            </select>
-          </label>
-          <label class="select-row">Richtlinie
-            <select id="rule-policy"></select>
-          </label>
-          <label class="check-row">
-            <input id="rule-items" type="checkbox" checked />
-            Rathaus-Items: Zofe + Lieferdienst „Blauer Himmel“, Saint D'Artois
-          </label>
-          <label class="select-row">Post für die Häuser
-            <select id="rule-mail">
-              <option value="all" selected>Lokal + Regional + Übersee</option>
-              <option value="regional">Lokal + Regional</option>
-              <option value="local">Nur Lokal</option>
-              <option value="none">Keine Post</option>
-            </select>
-          </label>
-          <label class="select-row">Zeitung: Verbrauch −%
-            <input id="rule-reduction" type="number" min="0" max="90" step="1" value="68" />
-          </label>
-          <label class="check-row">
-            <input id="rule-delivery" type="checkbox" />
-            Kaugummi &amp; Violinen nur über den Lieferdienst (keine eigene Produktion)
-          </label>
-          <label class="check-row">
-            <input id="rule-institutions" type="checkbox" />
-            Wohlfahrt auch für Feuerwehr/Polizei/Hospital
-          </label>
-          <p id="rule-info" class="micro"></p>
-          <p class="micro">Reichweiten mit Pflasterstraße laut Anno-Wiki; das Regionalministerium reicht halb so weit wie der Palast.</p>
-          </details>
-        </section>
-
-        <section class="card" data-mode="city" hidden>
-          <details class="card-details">
-          <summary><h2>Stadt-Stempel analysieren</h2></summary>
+        <section class="card" data-mode="city" data-ctab="more" hidden>
+          <h2>Stadt-Stempel analysieren</h2>
           <p class="hint">Einen Ausschnitt deiner fertigen Stadt im Spiel als Stempel speichern und hier laden – mit Häusern, Straßen und Versorgungsgebäuden.</p>
           <label class="file-button">
             <input id="city-file" type="file" />
@@ -325,16 +315,26 @@
           <button id="city-demo" class="ghost" type="button">Beispielstadt öffnen</button>
           <button id="catalog-stamp" class="ghost" type="button">Katalog-Teststempel herunterladen</button>
           <p class="micro">Der Teststempel enthält jedes bekannte Gebäude (auch gedreht) und den Lufthafen mit Modulen.</p>
-          </details>
         </section>
 
-
+        <section class="card" data-mode="city" data-ctab="more" hidden>
+          <h2>Ansicht &amp; Bedienung</h2>
+          <label class="select-row">Schichten
+            <select id="rule-tiers">
+              <option value="groups">nach Gruppen / Plan</option>
+              <option value="stamp">wie im Stempel</option>
+            </select>
+          </label>
+          <p class="micro"><strong>Klick</strong>: Gebäude anwählen (Infofeld, Radius/Reichweite). <strong>Ziehen</strong> (angewähltes Gebäude): verschieben · <strong>R</strong> drehen · <strong>Entf</strong> entfernen · <strong>Strg+Z</strong> rückgängig. <strong>Strg+Klick</strong>: Gruppe Ingenieure ↔ Investoren · <strong>Umschalt+Klick</strong>: einzelnes Haus. <strong>Mausrad</strong>: Zoom (ab ca. 4× Werte auf den Häusern) · <strong>rechte Maustaste halten</strong>: verschieben. Grün = versorgt, Rot = fehlt, Panorama 0–5.</p>
+          <p class="micro">Reichweiten mit Pflasterstraße laut Anno-Wiki; das Regionalministerium reicht halb so weit wie der Palast.</p>
+        </section>
 
         <section class="card stats" data-mode="city" hidden>
-          <h2>Auswertung</h2>
-          <div id="city-stats" class="stat-grid"></div>
-          <ul id="city-warnings" class="warning-list"></ul>
-          <p class="micro">Schätzung: Ingenieure/Investoren als Hochhaus Stufe 3, Panorama nach Wiki-Regel, ohne Rathaus-Items.</p>
+          <details class="card-details" open>
+            <summary><h2>Auswertung</h2></summary>
+            <div id="city-stats" class="stat-grid"></div>
+            <ul id="city-warnings" class="warning-list"></ul>
+          </details>
         </section>
       </aside>
 
@@ -343,6 +343,14 @@
         <div id="city-tip" class="city-tip" hidden></div>
         <div id="city-select" class="city-select" hidden></div>
         <div id="plan-toast" class="plan-toast" hidden></div>
+        <label class="stage-layer city-only">Ebene
+          <select id="city-layer"></select>
+        </label>
+        <div id="stage-progress" class="stage-progress" hidden>
+          <div class="progress-label"><span class="progress-step"></span><span class="progress-time"></span></div>
+          <div class="progress-bar"><i></i></div>
+          <div class="progress-detail"></div>
+        </div>
         <div class="zoom-controls">
           <button id="zoom-in" type="button" title="Hineinzoomen (Mausrad)">+</button>
           <button id="zoom-out" type="button" title="Herauszoomen (Mausrad)">−</button>

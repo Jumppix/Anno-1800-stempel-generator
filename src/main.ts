@@ -272,6 +272,8 @@ function updateImportInfo(): void {
 }
 
 function renderParts(): void {
+  const partsCount = document.querySelector('#parts-count');
+  if (partsCount) partsCount.textContent = parts.length ? `(${parts.length})` : '';
   if (parts.length === 0) {
     partList.innerHTML = '<p class="empty">Noch keine Teile. Lade einen oder mehrere Stempel.</p>';
     return;
@@ -304,6 +306,7 @@ function renderParts(): void {
 
 function setView(next: 'arrange' | 'result'): void {
   view = next;
+  document.body.dataset.view = next;
   tabArrange.classList.toggle('active', next === 'arrange');
   tabResult.classList.toggle('active', next === 'result');
   drawStage();
@@ -848,6 +851,10 @@ const modeCity = el<HTMLButtonElement>('#mode-city');
 
 function setMode(next: 'admin' | 'city'): void {
   mode = next;
+  document.body.dataset.mode = next;
+  // Im Stadtplaner die Teile-Liste einklappen (Anzahl steht in der Überschrift).
+  const partsDetails = document.querySelector<HTMLDetailsElement>('#parts-details');
+  if (partsDetails) partsDetails.open = next === 'admin';
   modeAdmin.classList.toggle('active', next === 'admin');
   modeCity.classList.toggle('active', next === 'city');
   for (const node of document.querySelectorAll<HTMLElement>('[data-mode]')) {
@@ -864,6 +871,16 @@ function setMode(next: 'admin' | 'city'): void {
   }
 }
 
+// Stadtplaner: Reiter „Planen“ / „Weitere Funktionen“ in der Leiste.
+const sidePanel = document.querySelector<HTMLElement>('.panel');
+const setSideTab = (tab: 'plan' | 'more'): void => {
+  if (sidePanel) sidePanel.dataset.ctabActive = tab;
+  el<HTMLButtonElement>('#ctab-plan').classList.toggle('active', tab === 'plan');
+  el<HTMLButtonElement>('#ctab-more').classList.toggle('active', tab === 'more');
+};
+el<HTMLButtonElement>('#ctab-plan').addEventListener('click', () => setSideTab('plan'));
+el<HTMLButtonElement>('#ctab-more').addEventListener('click', () => setSideTab('more'));
+setSideTab('plan');
 modeAdmin.addEventListener('click', () => setMode('admin'));
 modeCity.addEventListener('click', () => setMode('city'));
 

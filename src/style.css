@@ -1029,3 +1029,196 @@ details.advanced + button.primary {
   grid-template-columns: 1fr auto;
   gap: 6px;
 }
+
+/* --- Stadtplaner: Reiter in der Leiste, Gruppen, Ladeanzeige ------------- */
+body:not([data-mode='city']) .city-only {
+  display: none !important;
+}
+
+body[data-mode='city'] .panel[data-ctab-active='more'] [data-ctab='plan'],
+body[data-mode='city'] .panel[data-ctab-active='plan'] [data-ctab='more'] {
+  display: none !important;
+}
+
+.side-tabs {
+  display: flex;
+  gap: 4px;
+  margin: -4px 0 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.side-tabs[hidden] {
+  display: none;
+}
+
+.side-tabs button {
+  flex: 1;
+  padding: 7px 6px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.side-tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--gold);
+  font-weight: 600;
+}
+
+details.group {
+  margin: 6px 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(6, 15, 22, 0.35);
+}
+
+details.group > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  user-select: none;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+details.group > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.group > summary::before {
+  content: '▸';
+  color: var(--gold);
+}
+
+details.group[open] > summary::before {
+  content: '▾';
+}
+
+details.group > :not(summary) {
+  margin-left: 9px;
+  margin-right: 9px;
+}
+
+details.group[open] {
+  padding-bottom: 8px;
+}
+
+details.group .sum {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.progress {
+  margin-top: 10px;
+}
+
+.progress[hidden],
+.stage-progress[hidden] {
+  display: none;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.progress-step {
+  font-weight: 600;
+}
+
+.progress-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progress-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--gold), #f1c97a);
+  border-radius: 4px;
+  transition: width 0.25s linear;
+}
+
+.progress-detail {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 1.3em;
+}
+
+.stage-progress {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: min(460px, calc(100% - 32px));
+  padding: 10px 14px 8px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: rgba(6, 15, 22, 0.94);
+  color: var(--text);
+  pointer-events: none;
+}
+
+.stage-progress .progress-label {
+  font-size: 13px;
+}
+
+.stage-layer {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(6, 15, 22, 0.88);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stage-layer[hidden] {
+  display: none;
+}
+
+.stage-layer select {
+  max-width: 200px;
+}
+
+body:not([data-view='result']) .stage-layer {
+  display: none !important;
+}
+
+#parts-count {
+  margin-left: 6px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+  color: var(--muted);
+}
