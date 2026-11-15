@@ -22,6 +22,8 @@ import { buildGenericStamp } from './stamp';
 import type { PlannerJob, PlannerMessage } from './planner.worker';
 import type { BuildingKind } from './catalog';
 import type { LevelMode } from './levels';
+import { cityWideWebBonus, localDepartmentRange, welfareBonus, type RuleConfig } from './rules';
+import type { PostReport } from './post';
 import type { ServiceReport } from './services';
 
 const SERVICE_KINDS_UI: BuildingKind[] = ['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'];
@@ -201,6 +203,30 @@ export class PlannerUi {
         levels = levels2;
       }
     }
+    // Post: Briefkästen in Restkacheln, bis die Produktion den Bedarf deckt.
+    let post: (PostReport & { removedHouses: number }) | null = null;
+    const rulesNow = this.cityUi.currentRules();
+    if (el<HTMLInputElement>('#plan-post').checked && rulesNow.mail !== 'none') {
+      this.status.textContent = 'Briefkästen werden geplant …';
+      const before = city;
+      const r = await this.post(src.mask, city, rulesNow, levels.planned);
+      city = { ...r.city, removedHouses: city.removedHouses };
+      post = r.report;
+      if (r.report.removedHouses) {
+        // Häuser sind weggefallen → geplante Stufen über die Lage neu zuordnen.
+        const byPos = new Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
+        before.houses.forEach((hs, k) => {
+          const st = levels.planned.get(k);
+          if (st) byPos.set(`${hs.x},${hs.y}`, st);
+        });
+        const planned = new Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
+        city.houses.forEach((hs, k) => {
+          const st = byPos.get(`${hs.x},${hs.y}`);
+          if (st) planned.set(k, st);
+        });
+        levels = { ...levels, planned };
+      }
+    }
     this.result = { city, mask: src.mask, streetGuid: src.streetGuid, planned: levels.planned };
     this.buildStamps();
     const secs = ((performance.now() - started) / 1000).toFixed(1);
@@ -245,7 +271,16 @@ export class PlannerUi {
         `Versorgung: ${kinds
           .filter((k) => r.placed[k])
           .map((k) => `${r.placed[k]}× ${short[k]}`)
-          .join(', ')}, ${r.warehouses}× Lagerhaus`,
+          .join(', ')}, ${r.warehouses}× Lagerhaus${
+          r.ministry.placed ? ` · Regionalministerium (${num(r.ministry.houses)} Häuser in Reichweite)` : ''
+        }`,
+      );
+    }
+    if (post) {
+      items.push(
+        `Post: ${post.boxes} Briefkästen${post.removedHouses ? ` (${post.removedHouses} davon statt eines Hauses)` : ' in Restkacheln'} · ${post.production.toFixed(0)} von ${post.need.toFixed(0)} t/min Bedarf${
+          post.production < post.need ? ' (zu wenig Platz – Rest per Postamt/Luftschiff)' : ''
+        }`,
       );
     }
     const bridges = countBridges(city.plan.bridges ?? [], src.mask.w);
@@ -267,6 +302,25 @@ export class PlannerUi {
       this.workers.push(new Worker(new URL('./planner.worker.ts', import.meta.url), { type: 'module' }));
     }
     return this.workers[i];
+  }
+
+  /** Briefkästen im Hintergrund planen (post.ts). */
+  private post(
+    mask: LandMask,
+    city: CityPlan,
+    rules: RuleConfig,
+    planned: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>,
+  ): Promise<{ city: CityPlan; report: PostReport & { removedHouses: number } }> {
+    const id = ++this.jobId;
+    const worker = this.worker(0);
+    return new Promise((resolve) => {
+      worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
+        const msg = event.data;
+        if (msg.id === id && msg.kind === 'post') resolve({ city: msg.city, report: msg.report });
+      };
+      const job: PlannerJob = { kind: 'post', id, mask, city, rules, planned };
+      worker.postMessage(job);
+    });
   }
 
   /** Hochhaus-Stufen im Hintergrund optimieren (levels.ts). */
@@ -319,8 +373,13 @@ export class PlannerUi {
         if (msg.id === id && msg.kind === 'services') resolve({ city: msg.city, report: msg.report, refilled: msg.refilled });
       };
       const deliveryGoods = el<HTMLInputElement>('#rule-delivery').checked;
-      const townHallItems = this.cityUi.currentRules().townHallItems;
-      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems };
+      const rules = this.cityUi.currentRules();
+      const townHallItems = rules.townHallItems;
+      const ministry =
+        el<HTMLInputElement>('#plan-ministry').checked && rules.ministry !== 'none'
+          ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules) }
+          : undefined;
+      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems, ministry };
       worker.postMessage(job);
     });
   }

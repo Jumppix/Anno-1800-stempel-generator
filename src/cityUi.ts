@@ -98,6 +98,8 @@ export class CityUi {
   private readonly institutions = el<HTMLInputElement>('#rule-institutions');
   private readonly items = el<HTMLInputElement>('#rule-items');
   private readonly delivery = el<HTMLInputElement>('#rule-delivery');
+  private readonly mail = el<HTMLSelectElement>('#rule-mail');
+  private readonly reduction = el<HTMLInputElement>('#rule-reduction');
   private readonly ruleInfo = el<HTMLElement>('#rule-info');
   private readonly layerSelect = el<HTMLSelectElement>('#city-layer');
   private readonly tierMode = el<HTMLSelectElement>('#rule-tiers');
@@ -140,7 +142,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.items, this.delivery]) {
+    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.items, this.delivery, this.mail, this.reduction]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.ministry.addEventListener('change', () => {
@@ -206,6 +208,8 @@ export class CityUi {
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'groups',
       townHallItems: this.items.checked,
       deliveryGoods: this.delivery.checked,
+      mail: (this.mail.value || 'all') as RuleConfig['mail'],
+      consumptionReduction: Math.min(90, Math.max(0, Number(this.reduction.value) || 0)),
     };
     this.updateRuleInfo();
     this.reanalyze();
@@ -375,7 +379,10 @@ export class CityUi {
       `<div><span>Ingenieure</span><strong>${num(t.byTier.engineer)}</strong></div>`,
       `<div><span>Investoren</span><strong>${num(t.byTier.investor)}</strong></div>`,
       `<div><span>Im Rathaus-Radius</span><strong>${pct(t.townHallShare)}</strong></div>`,
-      `<div><span>Im Post-Radius</span><strong>${pct(t.postShare)}</strong></div>`,
+      `<div><span>Post (Produktion/Bedarf)</span><strong>${
+        t.mail.need ? `${t.mail.production.toFixed(0)}/${t.mail.need.toFixed(0)} t/min` : '–'
+      }</strong></div>`,
+      `<div><span>davon durch Post</span><strong>${num(t.mail.residents)}</strong></div>`,
     ];
     if (t.skyscrapers) {
       rows.push(
@@ -862,6 +869,7 @@ export class CityUi {
         lines.push(`Fehlt: ${names.join(', ')}`);
       }
       if (r.missingGoods.length) lines.push(`Ohne Lieferdienst-Ware: ${r.missingGoods.join(', ')}`);
+      if (r.mailBonus) lines.push(`Post: +${r.mailBonus} Einwohner (inselweit)`);
       lines.push(`Rathaus: ${r.townHall !== null ? 'ja' : 'nein'} · Post: ${r.post !== null ? 'ja' : 'nein'}`);
     }
     if (!r && this.nonSky.has(idx)) lines.push('ohne Schicht im Stempel');

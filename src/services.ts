@@ -47,7 +47,9 @@ export interface ServiceSpec {
 }
 
 /**
- * Reihenfolge = Priorität. Drogerie wirkt nur bei Ingenieuren (Investoren erst
+ * Reihenfolge = Priorität. Strom: Ingenieure 2 / Investoren 8 plus +5 je
+ * Panorama-Stufe (Strom ist eines der Panorama-Bedürfnisse) ≈ 30 bei intensiv.
+ * Drogerie wirkt nur bei Ingenieuren (Investoren erst
  * ab Stufe 5): 5 + Zofe 5; mit Lieferdienst-Violinen zusätzlich 5 + Zofe 5.
  * Kaufhaus: 20/25 + Zofe 5; mit Lieferdienst-Kaugummi zusätzlich 10.
  * Universität: Ingenieure 6 (+ Saint 2), abgeschwächt bis 131 Kacheln.
@@ -55,12 +57,13 @@ export interface ServiceSpec {
 export const SERVICE_SPECS: readonly ServiceSpec[] = [
   { kind: 'departmentStore', guid: 135100, value: 22.5, itemValue: 5, deliveryValue: 10, fixedCost: 450 },
   { kind: 'furnitureStore', guid: 135099, value: 10, itemValue: 5, deliveryValue: 0, fixedCost: 450 },
-  { kind: 'powerPlant', guid: 117547, value: 5, itemValue: 0, deliveryValue: 0, fixedCost: 225 },
+  { kind: 'powerPlant', guid: 117547, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 225 },
   { kind: 'university', guid: 1010362, value: 3, itemValue: 1, deliveryValue: 0, fixedCost: 0 },
   { kind: 'drugStore', guid: 134629, value: 2.5, itemValue: 2.5, deliveryValue: 5, fixedCost: 450 },
 ];
 
 export const WAREHOUSE_GUID = 1010371;
+export const MINISTRY_GUID = 269602;
 
 export interface ServiceOptions {
   kinds: ReadonlySet<BuildingKind>;
@@ -85,10 +88,21 @@ export interface ServiceOptions {
    */
   houseStates?: Map<string, { tier: SkyTier; level: SkyLevel }>;
   townHallItems?: boolean;
+  /**
+   * Regionalministerium vor der Versorgung setzen: Gebäude in seiner
+   * Straßenreichweite bekommen Wohlfahrt (öffentliche Gebäude: Universität,
+   * Kraftwerk …) und ggf. Stadtweites Netz (Kraftwerke). Läden sind nicht
+   * betroffen.
+   */
+  ministry?: { range: number; welfare: number; web: number };
+  /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
+  keepRoads?: boolean;
 }
 
 export interface ServiceReport {
   placed: Partial<Record<BuildingKind, number>>;
+  /** Regionalministerium gesetzt (und wie viele Häuser in seiner Reichweite liegen). */
+  ministry: { placed: boolean; houses: number };
   warehouses: number;
   removedHouses: number;
   /** Anteil der verbleibenden Häuser, die je Art versorgt sind. */
@@ -122,7 +136,7 @@ export function placeServices(
   const { w, h, cell } = s;
   const HV = options.houseValue ?? 225;
   const RV = options.townHallValue ?? 31;
-  const report: ServiceReport = { placed: {}, warehouses: 0, removedHouses: 0, coverage: {} };
+  const report: ServiceReport = { placed: {}, ministry: { placed: false, houses: 0 }, warehouses: 0, removedHouses: 0, coverage: {} };
   const services: PlacedService[] = [];
 
   // Hauszuordnung je Kachel, Rathausradius je Haus, Anschluss-Straßen je Haus.
@@ -246,7 +260,7 @@ export function placeServices(
           if (!ok) continue;
           // Straßen unter der Fläche nur als Querstraßen-Stück (höchstens eine Zeile/Spalte),
           // nie ein Brückenkopf.
-          if (roads.length > Math.max(bw, bh) || roads.some((i) => touchesBridge(cell, w, i))) continue;
+          if (roads.length > (options.keepRoads ? 0 : Math.max(bw, bh)) || roads.some((i) => touchesBridge(cell, w, i))) continue;
           const starts = ring(x, y, bw, bh).filter((i) => cell[i] === ROAD);
           if (!starts.length) continue;
           let cost = 0;
@@ -330,18 +344,79 @@ export function placeServices(
 
   const houseCost = (k: number): number => HV + (inTownHall[k] ? RV : 0);
 
+  // --- Regionalministerium: zentral, möglichst viele Häuser in Straßenreichweite.
+  const inMinistry = new Uint8Array(w * h);
+  let ministryStarts: number[] = [];
+  /** Ministeriumsbereich mit den aktuellen Straßen neu bestimmen. */
+  const refreshMinistry = (): void => {
+    if (!options.ministry || !ministryStarts.length) return;
+    bfs(ministryStarts.filter((i) => cell[i] === ROAD), options.ministry.range);
+    for (let i = 0; i < inMinistry.length; i++) inMinistry[i] = gen[i] === g ? 1 : 0;
+  };
+  if (options.ministry && options.ministry.range > 0) {
+    const mr = options.ministry.range;
+    let best: { c: Candidate; value: number } | null = null;
+    for (const c of candidatesFor(MINISTRY_GUID)) {
+      bfs(c.starts, mr);
+      let n = 0;
+      s.houses.forEach((_, k) => {
+        if (isAlive(k) && !c.houses.includes(k) && reached(houseRing[k])) n++;
+      });
+      const value = n * 3 - c.cost;
+      if ((!best || value > best.value) && stillValid(c)) best = { c, value };
+    }
+    if (best) {
+      place(best.c, MINISTRY_GUID);
+      ministryStarts = best.c.starts;
+      bfs(best.c.starts, mr);
+      for (let i = 0; i < inMinistry.length; i++) if (gen[i] === g) inMinistry[i] = 1;
+      report.ministry.placed = true;
+      report.ministry.houses = s.houses.filter((_, k) => isAlive(k) && reached(houseRing[k])).length;
+    }
+  }
+  /** Reichweiten-Zuschlag eines Gebäudes, dessen Anschluss im Ministeriumsbereich liegt. */
+  const bonusFor = (kind: BuildingKind, starts: readonly number[]): number => {
+    let b = options.rangeBonus?.[kind] ?? 0;
+    if (options.ministry && starts.some((i) => inMinistry[i])) {
+      if (lookup(SERVICE_SPECS.find((sp) => sp.kind === kind)?.guid ?? 0).welfare) b += options.ministry.welfare;
+      if (kind === 'powerPlant') b += options.ministry.web;
+    }
+    return b;
+  };
+
   // --- Versorgungsgebäude je Art: gierig, dann lokale Suche (entfernen, verlegen)
   const specs = SERVICE_SPECS.filter((sp) => options.kinds.has(sp.kind));
-  for (const spec of specs) {
+  /** Wirkungsanteil je Haus über die schon stehenden Gebäude einer Art (mit den aktuellen Straßen). */
+  const baselineOf = (spec: ServiceSpec): Float32Array => {
+    const base = new Float32Array(s.houses.length);
+    const isUni = spec.kind === 'university';
+    for (const sv of services) {
+      if (sv.kind !== spec.kind) continue;
+      const starts = ring(sv.x, sv.y, sv.w, sv.h).filter((i) => cell[i] === ROAD);
+      const bonus = bonusFor(spec.kind, starts);
+      bfs(starts, isUni ? UNIVERSITY_MAX_RANGE + bonus : (lookup(spec.guid).roadRange ?? 0) + bonus);
+      s.houses.forEach((_, k) => {
+        let d = 0;
+        for (const i of houseRing[k]) if (gen[i] === g && (!d || dist[i] < d)) d = dist[i];
+        if (!d) return;
+        const f = isUni ? universityFactor(d, bonus) : 1;
+        if (f > base[k]) base[k] = f;
+      });
+    }
+    return base;
+  };
+  const runSpec = (spec: ServiceSpec): void => {
+    refreshMinistry();
     const entry = lookup(spec.guid);
-    const bonusRange = options.rangeBonus?.[spec.kind] ?? 0;
     const isUniversity = spec.kind === 'university';
-    const range = isUniversity ? UNIVERSITY_MAX_RANGE + bonusRange : (entry.roadRange ?? 0) + bonusRange;
+    const baseline = baselineOf(spec);
     const cands = candidatesFor(spec.guid);
     // Abdeckung je Kandidat: Hausindizes (aufsteigend) und Wirkungsanteil 0…1.
     const coverK: Int32Array[] = [];
     const coverF: Float32Array[] = [];
     for (const c of cands) {
+      const bonusRange = bonusFor(spec.kind, c.starts);
+      const range = isUniversity ? UNIVERSITY_MAX_RANGE + bonusRange : (entry.roadRange ?? 0) + bonusRange;
       bfs(c.starts, range);
       const ks: number[] = [];
       const fs: number[] = [];
@@ -404,10 +479,10 @@ export function placeServices(
         options.fullCoverageValue ?? 0,
       );
     /** Bester Wirkungsanteil je Haus über die gewählten Gebäude dieser Art. */
-    const best = new Float32Array(s.houses.length);
+    const best = Float32Array.from(baseline);
     const chosen: number[] = [];
     const bestWithout = (ci: number, k: number): number => {
-      let b = 0;
+      let b = baseline[k];
       for (const cj of chosen) if (cj !== ci) b = Math.max(b, factorIn(cj, k));
       return b;
     };
@@ -508,8 +583,13 @@ export function placeServices(
       }
       if (!improved) break;
     }
-    report.placed[spec.kind] = chosen.length;
-  }
+  };
+  for (const spec of specs) runSpec(spec);
+  // Reparatur: Spätere Gebäude auf Querstraßen können Wege früherer verlängern.
+  // Mit den endgültigen Straßen neu rechnen und Lücken gezielt schließen.
+  for (const spec of specs) runSpec(spec);
+  for (const spec of specs) report.placed[spec.kind] = services.filter((sv) => sv.kind === spec.kind).length;
+  refreshMinistry();
 
   // --- Lagerhäuser: jedes Gebäude mit Lagerbedarf braucht eines in Reichweite.
   const needy = services.filter((sv) => lookup(sv.guid).needsWarehouse);
@@ -566,11 +646,11 @@ export function placeServices(
 
   // Abdeckung je Art auf den verbleibenden Häusern (Endzustand der Straßen).
   for (const spec of specs) {
-    const range = (lookup(spec.guid).roadRange ?? 0) + (options.rangeBonus?.[spec.kind] ?? 0);
     const reachedHouse = new Uint8Array(s.houses.length);
     for (const sv of services) {
       if (sv.kind !== spec.kind) continue;
-      bfs(ring(sv.x, sv.y, sv.w, sv.h), range);
+      const starts = ring(sv.x, sv.y, sv.w, sv.h);
+      bfs(starts, (lookup(spec.guid).roadRange ?? 0) + bonusFor(spec.kind, starts));
       s.houses.forEach((hs, k) => {
         if (!reachedHouse[k] && reached(ring(hs.x, hs.y, 3, 3))) reachedHouse[k] = 1;
       });

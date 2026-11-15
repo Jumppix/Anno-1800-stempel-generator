@@ -131,6 +131,14 @@
             <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
             <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
           </div>
+          <label class="check-row">
+            <input id="plan-post" type="checkbox" checked />
+            Briefkästen in Restkacheln (Post, Empire of the Skies)
+          </label>
+          <label class="check-row">
+            <input id="plan-ministry" type="checkbox" checked />
+            Regionalministerium einplanen (Wohlfahrt/Richtlinie aus „Palast &amp; Ministerium“)
+          </label>
           <details class="advanced">
             <summary>Erweitert</summary>
             <label class="select-row">Versorgungsziel
@@ -228,6 +236,17 @@
           <label class="check-row">
             <input id="rule-items" type="checkbox" checked />
             Rathaus-Items: Zofe + Lieferdienst „Blauer Himmel“, Saint D'Artois
+          </label>
+          <label class="select-row">Post für die Häuser
+            <select id="rule-mail">
+              <option value="all" selected>Lokal + Regional + Übersee</option>
+              <option value="regional">Lokal + Regional</option>
+              <option value="local">Nur Lokal</option>
+              <option value="none">Keine Post</option>
+            </select>
+          </label>
+          <label class="select-row">Zeitung: Verbrauch −%
+            <input id="rule-reduction" type="number" min="0" max="90" step="1" value="68" />
           </label>
           <label class="check-row">
             <input id="rule-delivery" type="checkbox" />

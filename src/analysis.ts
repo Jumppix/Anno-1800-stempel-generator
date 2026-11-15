@@ -14,6 +14,9 @@ import {
   skyscraperResidents,
   type SkyLevel,
   type SkyTier,
+  MAIL_NEEDS,
+  mailProduction,
+  mailTypes,
   universityFactor,
   welfareApplies,
   welfareBonus,
@@ -57,6 +60,8 @@ export interface ResidenceInfo {
   residents: number;
   /** Davon durch Rathaus-Items. */
   itemBonus: number;
+  /** Davon durch Post (Lebensstil-Bedürfnis, inselweit). */
+  mailBonus: number;
   /** Fehlende Einwohner-Bedürfnisse (Namen der Gebäudearten). */
   missing: BuildingKind[];
 }
@@ -94,6 +99,8 @@ export interface Analysis {
     coverage: Partial<Record<BuildingKind, number>>;
     townHallShare: number;
     postShare: number;
+    /** Post: Produktion und Bedarf in t/min, versorgter Anteil, Einwohner durch Post. */
+    mail: { production: number; need: number; share: number; residents: number };
     panorama: number[];
     unknown: number;
   };
@@ -156,6 +163,7 @@ export function analyzeCity(
       panorama: 0,
       residents: 0,
       itemBonus: 0,
+      mailBonus: 0,
       missing: [],
     }));
 
@@ -286,6 +294,37 @@ export function analyzeCity(
     r.missingGoods = res.missingGoods;
   }
 
+  // --- Post: inselweit verfügbar, Produktion nach Einwohnern im Radius der
+  //     Postämter/Briefkästen. Fehlt Produktion, bekommt jedes Haus anteilig.
+  const types = mailTypes(rules.mail);
+  let mailProd = 0;
+  let mailNeed = 0;
+  if (types.length) {
+    for (const p of posts) {
+      let inRadius = 0;
+      for (const r of residences) if (dist(r.building, p) <= (p.entry.radius ?? 0) + 1e-9) inRadius += r.residents;
+      mailProd += mailProduction(inRadius);
+    }
+    for (const r of residences) {
+      if (r.tier === 'artisan' || !r.hasRoad) continue;
+      for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) mailNeed += m.rate * r.residents;
+    }
+    // Zeitungs-Propaganda senkt den Verbrauch (auch der Post).
+    mailNeed *= Math.max(0, 1 - Math.min(90, Math.max(0, rules.consumptionReduction ?? 0)) / 100);
+  }
+  const mailShare = mailNeed > 0 ? Math.min(1, mailProd / mailNeed) : 0;
+  let mailResidents = 0;
+  if (mailShare > 0) {
+    for (const r of residences) {
+      if (r.tier === 'artisan' || !r.hasRoad) continue;
+      let bonus = 0;
+      for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) bonus += m.residents;
+      r.mailBonus = Math.round(bonus * mailShare);
+      r.residents += r.mailBonus;
+      mailResidents += r.mailBonus;
+    }
+  }
+
   // --- Weitere Prüfungen
   const noRoad = residences.filter((r) => !r.hasRoad).length;
   if (noRoad) warnings.push(`${noRoad} Wohnhäuser ohne Straßenanschluss.`);
@@ -343,6 +382,7 @@ export function analyzeCity(
       coverage,
       townHallShare: residences.length ? residences.filter((r) => r.townHall !== null).length / residences.length : 0,
       postShare: residences.length ? residences.filter((r) => r.post !== null).length / residences.length : 0,
+      mail: { production: mailProd, need: mailNeed, share: mailShare, residents: mailResidents },
       panorama,
       unknown,
     },

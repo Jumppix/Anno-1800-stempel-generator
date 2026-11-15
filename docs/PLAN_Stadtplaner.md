@@ -617,6 +617,40 @@ bewertet).
 Insel 2 (6er-Linien, Brücken 12, eigene Ingenieure, automatisch): ≈ 551.000
 Einwohner, 2.009 Häuser, 25 Rathäuser, keine Warnungen.
 
+## 22. Phase 4 (Teil 1): Regionalministerium, Strom, Post
+
+Recherche (Wiki „Needs“, „Mail“, „Post Office“, „Post Box“, „Newspapers“):
+- **Strom** gehört zu den Panorama-Bedürfnissen: Der Panorama-Bonus verteilt
+  sich mit +5 Einwohnern je Stärke auf Sekt, Zigarren, Schokolade, Dampfwagen
+  und Strom (Ingenieure: Brillen, Kaffee, Strom, Glühbirnen). Fehlt Strom,
+  fehlen bei intensivem Panorama 8 + 25 = 33 (Investor) bzw. 2 + 25 Einwohner
+  – Modell korrigiert, Kraftwerke werden entsprechend höher bewertet.
+- **Regionalministerium** (`services.ts`): wird vor der Versorgung zentral
+  gesetzt (möglichst viele Häuser in Straßenreichweite = halbe
+  Palastreichweite); Gebäude mit Anschluss in diesem Bereich bekommen
+  Wohlfahrt (+15 … +90 je Prestige) bzw. Stadtweites Netz (+22 Kraftwerke).
+  Weil spätere Gebäude auf Querstraßen Wege verlängern können, werden
+  Ministeriumsbereich und Abdeckung vor jedem Durchgang neu gerechnet, und ein
+  Reparaturdurchgang schließt Lücken. Insel 2: ohne Ministerium 548.000,
+  Prestige 0 553.300, Prestige 25 555.500 Einwohner (6 → 4 Kraftwerke).
+- **Post** ist ein Lebensstil-Bedürfnis: Investoren +8 (lokal) +12 (regional)
+  +25 (Übersee), Ingenieure +3/+7/+15. Post im Lager ist **inselweit**
+  verfügbar; der Radius bestimmt nur die Produktion (1,33 t/min je 500
+  Einwohner im Radius, höchstens 3100 %). Verbrauch je Einwohner und Minute
+  (Investoren) 0,00129 / 0,00032 / 0,00025 t; Zeitungs-Propaganda
+  („Sparmaßnahmen“, Nutzer: −68 %) senkt ihn.
+- `post.ts`: Briefkästen (1×1, Radius 12, Abstand ≥ 24) gierig nach
+  Produktion auf freie Restkacheln mit Straßenanschluss; fehlt danach noch
+  Post, ersetzt ein Briefkasten ein Haus, wenn die zusätzliche Post mehr
+  Einwohner bringt als das Haus hat. Analyse: Produktion/Bedarf, Post-
+  Einwohner anteilig. Einstellung „Post für die Häuser“ und „Zeitung:
+  Verbrauch −%“ in Palast & Ministerium.
+- Insel 2 (4-5, Ministerium, Post, −68 %): ≈ 638.000 Einwohner, davon
+  ≈ 90.000 durch Post.
+- Anregungen aus dem Rekord-Beitrag umgesetzt: wenige Läden (Max.
+  Einwohner), Post „trivial“ über Briefkästen, Prestige 25 → Wohlfahrt +90,
+  Kraftwerks-Reichweite wichtig. Offen: Lufthafen (Anlegestelle per Klick).
+
 ## 22. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4

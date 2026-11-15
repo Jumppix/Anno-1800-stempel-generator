@@ -71,6 +71,19 @@ export interface RuleConfig {
    * sie versorgt. Ohne das fehlen diese Waren.
    */
   deliveryGoods: boolean;
+  /**
+   * Post (Empire of the Skies): welche Post-Arten die Häuser bekommen. Lokale
+   * Post kommt von Postämtern/Briefkästen der Insel; Regional-/Überseepost
+   * kommt per Luftschiff von anderen Inseln (die dafür ebenso viel Lokalpost
+   * liefern, wie diese Insel exportiert).
+   */
+  mail: 'none' | 'local' | 'regional' | 'all';
+  /**
+   * Verbrauchssenkung durch Zeitungs-Propaganda („Sparmaßnahmen“) in Prozent,
+   * z. B. 68. Senkt den Verbrauch aller Bedürfnisse, auch der Post
+   * (Wiki „Needs“: Verbrauch = Basis · (1 + Zeitung) · (1 + Items)).
+   */
+  consumptionReduction: number;
 }
 
 /** Manuelle Festlegung (per Klick in der Analyse). */
@@ -96,7 +109,42 @@ export const DEFAULT_RULES: RuleConfig = {
   tierMode: 'groups',
   townHallItems: true,
   deliveryGoods: false,
+  mail: 'all',
+  consumptionReduction: 68,
 };
+
+/**
+ * Post als Lebensstil-Bedürfnis (Wiki „Needs“): zusätzliche Einwohner je Haus
+ * und Verbrauch in t/min je Einwohner. Post im Lager ist inselweit verfügbar;
+ * der Radius der Briefkästen bestimmt nur die Produktion.
+ */
+export const MAIL_NEEDS: Readonly<
+  Record<'engineer' | 'investor', ReadonlyArray<{ type: 'local' | 'regional' | 'overseas'; residents: number; rate: number }>>
+> = {
+  engineer: [
+    { type: 'local', residents: 3, rate: 0.001041667 },
+    { type: 'regional', residents: 7, rate: 0.00025 },
+    { type: 'overseas', residents: 15, rate: 0.0002 },
+  ],
+  investor: [
+    { type: 'local', residents: 8, rate: 0.001291667 },
+    { type: 'regional', residents: 12, rate: 0.000316667 },
+    { type: 'overseas', residents: 25, rate: 0.00025 },
+  ],
+};
+
+/** Post-Arten, die bei einer Einstellung zählen. */
+export function mailTypes(mode: RuleConfig['mail']): Array<'local' | 'regional' | 'overseas'> {
+  if (mode === 'local') return ['local'];
+  if (mode === 'regional') return ['local', 'regional'];
+  if (mode === 'all') return ['local', 'regional', 'overseas'];
+  return [];
+}
+
+/** Produktion eines Postamts/Briefkastens: 1,33 t/min je 500 Einwohner im Radius, höchstens 3100 %. */
+export function mailProduction(residentsInRadius: number): number {
+  return (Math.min(residentsInRadius, 15500) / 500) * 1.33;
+}
 
 /**
  * Universität: volle Wirkung bis 64 Straßenkacheln (Pflaster), abgeschwächt
@@ -381,10 +429,15 @@ export function skyscraperResidents(
   let n = table[Math.max(0, Math.min(5, panorama))];
   const missing: BuildingKind[] = [];
   const missingGoods: string[] = [];
+  const p = Math.max(0, Math.min(5, panorama));
   for (const need of serviceNeeds(tier, level)) {
     const share = need.kind === 'university' ? supply.universityFactor : supply.services[need.kind] ? 1 : 0;
     if (share < 1) {
-      n -= need.residents * (1 - share);
+      // Strom zählt zu den Panorama-Bedürfnissen (Wiki „Skyscrapers“: der
+      // Panorama-Bonus verteilt sich mit +5 je Stärke auf Sekt, Zigarren,
+      // Schokolade, Dampfwagen, Strom bzw. Brillen, Kaffee, Strom, Glühbirnen).
+      const extra = need.kind === 'powerPlant' ? 5 * p : 0;
+      n -= (need.residents + extra) * (1 - share);
       missing.push(need.kind);
     }
   }

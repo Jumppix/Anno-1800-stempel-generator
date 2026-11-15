@@ -81,6 +81,8 @@ unnötig verändern.
 - `src/render.ts`: Ergebnisansicht.
 - `src/persist.ts`: letzte Insel (Teile/Anordnung) und Einstellungen im
   Browser speichern.
+- `src/post.ts`: Briefkästen planen (Produktion nach Einwohnern im Radius, Post inselweit);
+  Ministerium in `services.ts` (`options.ministry`).
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;
   Option Mindest-Ingenieure (250 je Gaskraftwerk).
 - Brücken (`addBridges`, Zelltyp `BRIDGE`, `GridPlan.bridges`) und

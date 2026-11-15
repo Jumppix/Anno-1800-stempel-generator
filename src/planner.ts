@@ -12,6 +12,7 @@
 import { outerBoundary } from './coast';
 import { FARMER_HOUSE, STREET_GUIDS } from './catalog';
 import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, pruneBridges, replaceRoadStubs, ROAD, SERVICE, WATER, type FillResult, type FillState } from './fill';
+import { placePostBoxes, type PostReport } from './post';
 import { compact, type CompactOptions, type CompactResult } from './compact';
 import { placeServices, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
 import type { LandMask, OverlapPenalty } from './solver';
@@ -619,4 +620,21 @@ export function fillRoadStubs(mask: LandMask, city: CityPlan): { city: CityPlan;
   const s = cityToState(mask, city);
   const added = replaceRoadStubs(s);
   return { city: { ...stateToCity(s, city, [...city.townHalls]), services: city.services }, added };
+}
+
+/**
+ * Post: Briefkästen in freie Restkacheln setzen, bis die Produktion den
+ * Bedarf deckt (post.ts). `residentsAt`: Einwohner je Haus („x,y“).
+ */
+export function planPost(
+  mask: LandMask,
+  city: CityPlan,
+  residentsAt: Map<string, number>,
+  need: number,
+  valuePerTon: number,
+): { city: CityPlan; report: PostReport & { removedHouses: number } } {
+  const s = cityToState(mask, city);
+  const { boxes, report, removedHouses } = placePostBoxes(s, residentsAt, need, valuePerTon);
+  const next = removedHouses ? stateToCity(s, city, [...city.townHalls]) : city;
+  return { city: { ...next, services: [...(city.services ?? []), ...boxes] }, report: { ...report, removedHouses } };
 }

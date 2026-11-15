@@ -1,11 +1,12 @@
 // Rechnet die Bebauung (Gittersuche mit Bandverschiebung) und die
 // Nachverdichtung im Hintergrund, damit die Oberfläche bedienbar bleibt.
 import { addBridges, searchFill, type FillResult, type Orientation } from './fill';
-import { compactCity, planServices, planToStampItems, type CityPlan } from './planner';
+import { compactCity, planPost, planServices, planToStampItems, type CityPlan } from './planner';
+import type { PostReport } from './post';
 import { analyzeCity } from './analysis';
 import { cityFromStamp } from './city';
 import { optimizeLevels, type LevelMode } from './levels';
-import type { RuleConfig } from './rules';
+import { MAIL_NEEDS, mailTypes, type RuleConfig } from './rules';
 import { buildGenericStamp } from './stamp';
 import { decodeStampFull } from './stampReader';
 import type { BuildingKind } from './catalog';
@@ -15,7 +16,7 @@ import type { LandMask } from './solver';
 export type PlannerJob =
   | { kind: 'fill'; id: number; mask: LandMask; orientation: 'auto' | Orientation; housesPerLine: number; bridgeLen: number }
   | { kind: 'compact'; id: number; mask: LandMask; city: CityPlan; budgetMs: number; seed: number }
-  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean; houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>; townHallItems?: boolean }
+  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean; houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>; townHallItems?: boolean; ministry?: { range: number; welfare: number; web: number } }
   | {
       kind: 'levels';
       id: number;
@@ -27,6 +28,14 @@ export type PlannerJob =
       seed: number;
       /** Ingenieure für die eigene Arbeitskraft einplanen (Kraftwerke). */
       selfWorkforce: boolean;
+    }
+  | {
+      kind: 'post';
+      id: number;
+      mask: LandMask;
+      city: CityPlan;
+      rules: RuleConfig;
+      planned: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
     };
 
 export type PlannerMessage =
@@ -34,6 +43,7 @@ export type PlannerMessage =
   | { kind: 'progress'; id: number; gained: number }
   | { kind: 'compact'; id: number; city: CityPlan; gained: number; moved: number }
   | { kind: 'services'; id: number; city: CityPlan; report: ServiceReport; refilled: number }
+  | { kind: 'post'; id: number; city: CityPlan; report: PostReport & { removedHouses: number } }
   | {
       kind: 'levels';
       id: number;
@@ -59,6 +69,28 @@ scope.onmessage = (event) => {
     const result = searchFill(job.mask, { orientation: job.orientation, housesPerLine: job.housesPerLine });
     addBridges(result, job.bridgeLen);
     scope.postMessage({ kind: 'fill', id: job.id, result });
+    return;
+  }
+  if (job.kind === 'post') {
+    // Einwohner je Haus mit den geplanten Stufen (ohne Post), daraus Bedarf und Briefkästen.
+    const items = planToStampItems(job.mask, job.city, { coast: false, coastGuid: 1000178 });
+    const city = cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets)));
+    const analysis = analyzeCity(city, job.rules, { houses: new Map(), groups: new Map(), planned: job.planned });
+    const residentsAt = new Map<string, number>();
+    for (const r of analysis.residences) {
+      const hs = job.city.houses[r.building.index];
+      if (hs) residentsAt.set(`${hs.x},${hs.y}`, r.residents - r.mailBonus);
+    }
+    // Wert einer t/min Post: Post-Einwohner bei Vollversorgung je t/min Bedarf.
+    const types = mailTypes(job.rules.mail);
+    let full = 0;
+    for (const r of analysis.residences) {
+      if (r.tier === 'artisan' || !r.hasRoad) continue;
+      for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) full += m.residents;
+    }
+    const need = analysis.totals.mail.need;
+    const r = planPost(job.mask, job.city, residentsAt, need, need > 0 ? full / need : 0);
+    scope.postMessage({ kind: 'post', id: job.id, city: r.city, report: r.report });
     return;
   }
   if (job.kind === 'levels') {
@@ -91,6 +123,7 @@ scope.onmessage = (event) => {
       deliveryGoods: job.deliveryGoods,
       houseStates: job.houseStates,
       townHallItems: job.townHallItems,
+      ministry: job.ministry,
     });
     scope.postMessage({ kind: 'services', id: job.id, city: r.city, report: r.report, refilled: r.refilled });
     return;

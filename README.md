@@ -136,6 +136,11 @@ Insel wird bebaut (`src/fill.ts`):
    Stufen erneut optimieren. Export bleibt Bauernhäuser; die Ansicht zeigt
    die Zielstufe (V4/V5).
 
+9. Regionalministerium (Wohlfahrt/Stadtweites Netz) vor der Versorgung, und
+   Briefkästen in Restkacheln (`src/post.ts`) bis die Post-Produktion den
+   Bedarf deckt (Post ist inselweit verfügbar; Zeitungs-Verbrauchssenkung
+   einstellbar). Strom zählt zu den Panorama-Bedürfnissen.
+
 Insel 2 mit Stufen (6er-Linien, 4-5): ≈ 549.700 Einwohner (nur Stufe 3 ≈
 484.000). Brücken verbinden getrennte Inselteile (Ansicht/Berechnung, nicht
 im Export), überflüssige Straßenstummel werden bebaut, optional genug

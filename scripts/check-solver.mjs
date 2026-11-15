@@ -201,6 +201,28 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   expect('Stufen: ≥ 8 % mehr Einwohner als nur Stufe 3', planB.totals.residents >= planA.totals.residents * 1.08,
     `${planA.totals.residents} → ${planB.totals.residents} (${lv.mode}, ${JSON.stringify(lv.counts)})`);
   expect('Stufen: Ingenieure höchstens Stufe 3', [...lv.planned.values()].every((st) => st.tier === 'investor' || st.level === 3));
+
+  // 7. Post: Briefkästen decken den Bedarf weitgehend, Radien überlappen nicht.
+  {
+    const { planPost } = await server.ssrLoadModule('/src/planner.ts');
+    const { MAIL_NEEDS, mailTypes } = await server.ssrLoadModule('/src/rules.ts');
+    const residentsAt = new Map();
+    for (const r of planB.residences) {
+      const hs = city.houses[r.building.index];
+      if (hs) residentsAt.set(`${hs.x},${hs.y}`, r.residents - r.mailBonus);
+    }
+    const types = mailTypes(DEFAULT_RULES.mail);
+    let full = 0;
+    for (const r of planB.residences) if (r.tier !== 'artisan') for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) full += m.residents;
+    const need = planB.totals.mail.need;
+    const posted = planPost(mask, city, residentsAt, need, full / need);
+    const items2 = planToStampItems(mask, posted.city, { coast: false, coastGuid: 1000178 });
+    const postCity = cityFromStamp(decodeStampFull(buildGenericStamp(items2.buildings, 'ow', items2.streets)));
+    const postA = analyzeCity(postCity, DEFAULT_RULES);
+    expect('Post: Briefkästen decken ≥ 80 % des Bedarfs, keine Überlappung/Warnung',
+      postA.totals.mail.share >= 0.8 && postA.warnings.length === 0 && postCity.conflicts === 0,
+      `${posted.report.boxes} Briefkästen (${posted.report.removedHouses} statt Haus), ${postA.totals.mail.production.toFixed(0)}/${postA.totals.mail.need.toFixed(0)} t/min, +${postA.totals.mail.residents} EW ${postA.warnings.join('; ')}`);
+  }
   const lvEng = optimizeLevels(planA.residences, DEFAULT_RULES, '45', Math.min(budget * 2, 6000), 5, { minEngineers: 1500 });
   expect('Stufen: Mindestzahl Ingenieure (eigene Arbeitskraft) erfüllt', lvEng.engineers >= 1500, `${lvEng.engineers} / 1500`);
 
