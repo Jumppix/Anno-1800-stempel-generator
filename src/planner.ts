@@ -406,7 +406,7 @@ export function planToStampItems(
     mark(t.x, t.y, 4, 4);
   }
   for (const sv of city.services ?? []) {
-    buildings.push({ guid: sv.guid, x: sv.x, y: sv.y, w: sv.w, h: sv.h, turns: sv.turns });
+    buildings.push({ guid: sv.guid, x: sv.x, y: sv.y, w: sv.w, h: sv.h, turns: sv.turns, owner: sv.owner });
     mark(sv.x, sv.y, sv.w, sv.h);
   }
   const streets: StampStreet[] = [];
@@ -450,7 +450,10 @@ export function splitBands(
     }
     return b;
   };
-  for (const b of items.buildings) get(b.y).buildings.push(b);
+  // Komplexe (Lufthafen + Module) bleiben in einem Teilstempel.
+  const ownerY = new Map<number, number>();
+  for (const b of items.buildings) if (b.owner !== undefined) ownerY.set(b.owner, Math.min(ownerY.get(b.owner) ?? Infinity, b.y));
+  for (const b of items.buildings) get(b.owner !== undefined ? (ownerY.get(b.owner) as number) : b.y).buildings.push(b);
   for (const s of items.streets) get(s.y).streets.push(s);
   return [...bands.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
 }

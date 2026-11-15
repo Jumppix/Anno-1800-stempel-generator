@@ -910,3 +910,24 @@ details.advanced + button.primary {
 .plan-status strong {
   color: var(--text);
 }
+
+/* Hauptanlegestelle wählen */
+.harbor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 8px;
+}
+
+.harbor-row button {
+  flex: none;
+  width: auto;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+.harbor-row span {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}

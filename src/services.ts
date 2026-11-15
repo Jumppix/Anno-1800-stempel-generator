@@ -26,6 +26,8 @@ export interface PlacedService {
   w: number;
   h: number;
   turns: number;
+  /** Gemeinsame Komplex-ID (Lufthafen + Module). */
+  owner?: number;
 }
 
 export interface ServiceSpec {
@@ -64,6 +66,9 @@ export const SERVICE_SPECS: readonly ServiceSpec[] = [
 
 export const WAREHOUSE_GUID = 1010371;
 export const MINISTRY_GUID = 269602;
+export const AIRPORT_GUID = 962;
+export const AIRPORT_MODULES = [966, 964];
+const AIRPORT_OWNER = 9001;
 
 export interface ServiceOptions {
   kinds: ReadonlySet<BuildingKind>;
@@ -97,10 +102,19 @@ export interface ServiceOptions {
   ministry?: { range: number; welfare: number; web: number };
   /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
   keepRoads?: boolean;
+  /**
+   * Lufthafen (15×10) mit Item-Terminal und Luftpostlager (je 3×5) an einer
+   * langen Seite – wie im im Spiel geprüften Katalog-Teststempel. Möglichst
+   * weit weg von der Hauptanlegestelle (`harbor`, Maskenkoordinaten), möglichst
+   * wenige Häuser verdrängt. Zählt als Lagerhaus.
+   */
+  airport?: { harbor: { x: number; y: number } | null };
 }
 
 export interface ServiceReport {
   placed: Partial<Record<BuildingKind, number>>;
+  /** Lufthafen gesetzt (Abstand zur Anlegestelle in Kacheln, verdrängte Häuser). */
+  airport: { placed: boolean; distance: number; houses: number };
   /** Regionalministerium gesetzt (und wie viele Häuser in seiner Reichweite liegen). */
   ministry: { placed: boolean; houses: number };
   warehouses: number;
@@ -136,7 +150,7 @@ export function placeServices(
   const { w, h, cell } = s;
   const HV = options.houseValue ?? 225;
   const RV = options.townHallValue ?? 31;
-  const report: ServiceReport = { placed: {}, ministry: { placed: false, houses: 0 }, warehouses: 0, removedHouses: 0, coverage: {} };
+  const report: ServiceReport = { placed: {}, airport: { placed: false, distance: 0, houses: 0 }, ministry: { placed: false, houses: 0 }, warehouses: 0, removedHouses: 0, coverage: {} };
   const services: PlacedService[] = [];
 
   // Hauszuordnung je Kachel, Rathausradius je Haus, Anschluss-Straßen je Haus.
@@ -343,6 +357,102 @@ export function placeServices(
   };
 
   const houseCost = (k: number): number => HV + (inTownHall[k] ? RV : 0);
+
+  // --- Lufthafen mit zwei Modulen: weit weg von der Anlegestelle, wenig Verlust.
+  //     Lufthafen 15×10 (Drehung 0), Module je 3×5 nebeneinander an der langen
+  //     Seite (unten oder oben, links- oder rechtsbündig).
+  const airportStarts: number[] = [];
+  if (options.airport) {
+    const AW = 15;
+    const AH = 10;
+    const MW = 3;
+    const MH = 5;
+    const variants: Array<Array<[number, number, number, number]>> = [];
+    for (const below of [true, false]) {
+      for (const left of [true, false]) {
+        const mx = left ? 0 : AW - 2 * MW;
+        const my = below ? AH : -MH;
+        variants.push([
+          [0, 0, AW, AH],
+          [mx, my, MW, MH],
+          [mx + MW, my, MW, MH],
+        ]);
+      }
+    }
+    const harbor = options.airport.harbor;
+    type AirCand = { rects: Array<[number, number, number, number]>; value: number; houses: number[]; dist: number; roads: number[] };
+    const found: AirCand[] = [];
+    for (const rel of variants) {
+      const minY = Math.min(...rel.map((r) => r[1]));
+      const maxY = Math.max(...rel.map((r) => r[1] + r[3]));
+      for (let y = -minY; y + maxY <= h; y++) {
+        for (let x = 0; x + AW <= w; x++) {
+          let ok = true;
+          const hs = new Set<number>();
+          const roads: number[] = [];
+          for (const [rx, ry, rw, rh] of rel) {
+            for (let dy = 0; dy < rh && ok; dy++) {
+              for (let dx = 0; dx < rw; dx++) {
+                const i = (y + ry + dy) * w + x + rx + dx;
+                const c = cell[i];
+                if (c === HOUSE) hs.add(houseAt[i]);
+                else if (c === ROAD && !touchesBridge(cell, w, i)) roads.push(i);
+                else if (c !== FREE) {
+                  ok = false;
+                  break;
+                }
+              }
+            }
+            if (!ok) break;
+          }
+          if (!ok) continue;
+          let cost = 0;
+          for (const k of hs) cost += houseCost(k);
+          const dist = harbor ? Math.hypot(x + AW / 2 - harbor.x, y + AH / 2 - harbor.y) : 0;
+          // 1 Kachel Abstand ≈ 20 Einwohner: ein Haus (≈ 250) wiegt ≈ 12 Kacheln.
+          found.push({ rects: rel.map(([rx, ry, rw, rh]) => [x + rx, y + ry, rw, rh]), value: dist * 20 - cost, houses: [...hs], dist, roads });
+        }
+      }
+    }
+    found.sort((p, q) => q.value - p.value);
+    // Gültig: Straßen darunter dürfen weg, wenn das Netz zusammenhängt, alle
+    // übrigen Häuser/Gebäude angeschlossen bleiben und der Lufthafen selbst
+    // eine Straße berührt.
+    let best: (AirCand & { starts: number[] }) | null = null;
+    for (const c of found.slice(0, 400)) {
+      for (const i of c.roads) cell[i] = SERVICE;
+      let ok = !separates(c.roads);
+      if (ok) {
+        const own = new Set(c.houses);
+        for (const i of c.roads) {
+          for (const n of [i - 1, i + 1, i - w, i + w]) {
+            if (n < 0 || n >= cell.length || cell[n] !== HOUSE || own.has(houseAt[n])) continue;
+            const hs = s.houses[houseAt[n]];
+            if (!touchesRoad(s, hs.x, hs.y)) ok = false;
+          }
+        }
+        for (const sv of services) if (ring(sv.x, sv.y, sv.w, sv.h).every((i) => cell[i] !== ROAD)) ok = false;
+      }
+      const [ax, ay] = c.rects[0];
+      const starts = ring(ax, ay, AW, AH).filter((i) => cell[i] === ROAD);
+      for (const i of c.roads) cell[i] = ROAD;
+      if (ok && starts.length) {
+        best = { ...c, starts };
+        break;
+      }
+    }
+    if (best) {
+      const guids = [AIRPORT_GUID, ...AIRPORT_MODULES];
+      best.rects.forEach(([rx, ry, rw, rh], k) => {
+        for (let dy = 0; dy < rh; dy++) for (let dx = 0; dx < rw; dx++) cell[(ry + dy) * w + rx + dx] = SERVICE;
+        const entry = lookup(guids[k]);
+        services.push({ guid: guids[k], kind: entry.kind, name: entry.name, x: rx, y: ry, w: rw, h: rh, turns: 0, owner: AIRPORT_OWNER });
+      });
+      for (const k of best.houses) removedBy[k]++;
+      airportStarts.push(...best.starts);
+      report.airport = { placed: true, distance: Math.round(best.dist), houses: best.houses.length };
+    }
+  }
 
   // --- Regionalministerium: zentral, möglichst viele Häuser in Straßenreichweite.
   const inMinistry = new Uint8Array(w * h);
@@ -601,6 +711,10 @@ export function placeServices(
       return m;
     });
     const served = new Uint8Array(needy.length);
+    // Der Lufthafen wirkt wie ein Lagerhaus.
+    if (airportStarts.length) needy.forEach((_, k) => {
+      if (airportStarts.some((i) => reachMaps[k][i])) served[k] = 1;
+    });
     const whCands = candidatesFor(WAREHOUSE_GUID);
     for (;;) {
       if (served.every(Boolean)) break;

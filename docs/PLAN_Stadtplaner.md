@@ -651,7 +651,27 @@ Recherche (Wiki „Needs“, „Mail“, „Post Office“, „Post Box“, „N
   Einwohner), Post „trivial“ über Briefkästen, Prestige 25 → Wohlfahrt +90,
   Kraftwerks-Reichweite wichtig. Offen: Lufthafen (Anlegestelle per Klick).
 
-## 22. Noch offene Fragen
+## 22. Phase 4 (Teil 2): Lufthafen
+
+- Lufthafen 962 (15×10, Drehung 0) mit Luftpostlager 966 und Item-Terminal
+  964 (je 3×5) nebeneinander an einer langen Seite – genau wie im im Spiel
+  geprüften Katalog-Teststempel; vier Varianten (Module oben/unten,
+  links-/rechtsbündig), gemeinsame Komplex-ID 9001 (Teilstempel trennen den
+  Komplex nicht).
+- **Hauptanlegestelle per Klick** in „Anordnen“ (Knopf „⚓ Hauptanlegestelle
+  wählen“), je Insel im Browser gespeichert, Anker in beiden Ansichten.
+- Platzierung: Wert = Abstand zur Anlegestelle × 20 − verdrängte Häuser
+  (≈ 250 Einwohner je Haus ≈ 12 Kacheln Abstand). Straßen unter dem Komplex
+  dürfen weg, wenn das Netz zusammenhängt und alle übrigen Häuser/Gebäude
+  angeschlossen bleiben; der Lufthafen braucht selbst eine Straße.
+- Der Lufthafen zählt als Lagerhaus (Läden/Kraftwerke in seiner Reichweite
+  brauchen kein eigenes).
+- Insel 2 (Anlegestelle im Süden): Lufthafen ganz im Norden, ≈ 260 Kacheln
+  entfernt, 17 Häuser verdrängt; ≈ 629.000 Einwohner.
+- Zeitung: Nutzer nutzt dauerhaft die volle Zeitung (3 × Sparmaßnahmen,
+  −68 % Verbrauch) – Standard in den Regeln.
+
+## 23. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

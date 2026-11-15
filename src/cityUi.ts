@@ -84,6 +84,7 @@ export class CityUi {
   private view: View | null = null;
   private resByIndex = new Map<number, ResidenceInfo>();
   private sourceName = '';
+  private harbor: { x: number; y: number } | null = null;
   /** Geplante Stufen für den nächsten `load` (nur über `show`). */
   private pendingPlanned: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }> | null = null;
   /** Landfläche der geplanten Insel (Kachelachsen der Stadt), nur beim Plan. */
@@ -248,6 +249,12 @@ export class CityUi {
   /** Summen der aktuellen Analyse (für die Statuszeile des Planers). */
   totals(): Analysis['totals'] | null {
     return this.analysis?.totals ?? null;
+  }
+
+  /** Hauptanlegestelle (Maskenkoordinaten) für die Anzeige im Plan. */
+  setHarbor(point: { x: number; y: number } | null): void {
+    this.harbor = point;
+    this.draw();
   }
 
   /** Aktuelle Regeln (Palast, Items, Lieferdienst …) für den Planer. */
@@ -566,6 +573,9 @@ export class CityUi {
       ctx.fillText(label, cx, ly);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
+    }
+    if (this.harbor && this.land) {
+      drawAnchor(ctx, ox + (this.harbor.x + this.land.dx + 0.5) * scale, oy + (this.harbor.y + this.land.dy + 0.5) * scale);
     }
     if (sel) {
       ctx.strokeStyle = '#f0d79a';
@@ -914,6 +924,24 @@ export class CityUi {
     this.tip.style.left = `${Math.max(8, left)}px`;
     this.tip.style.top = `${Math.max(8, py + 12)}px`;
   }
+}
+
+/** Markierung der Hauptanlegestelle (Kreis mit Anker). */
+export function drawAnchor(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, 11, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(6, 15, 22, 0.9)';
+  ctx.fill();
+  ctx.strokeStyle = '#7fd0ff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#7fd0ff';
+  ctx.font = '700 13px ui-sans-serif, system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⚓', x, y + 0.5);
+  ctx.restore();
 }
 
 function escapeHtml(value: string): string {

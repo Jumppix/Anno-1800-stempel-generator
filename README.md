@@ -141,6 +141,10 @@ Insel wird bebaut (`src/fill.ts`):
    Bedarf deckt (Post ist inselweit verfügbar; Zeitungs-Verbrauchssenkung
    einstellbar). Strom zählt zu den Panorama-Bedürfnissen.
 
+10. Lufthafen (15×10) mit Item-Terminal und Luftpostlager, möglichst weit weg
+   von der Hauptanlegestelle (per Klick in „Anordnen“ gesetzt); zählt als
+   Lagerhaus.
+
 Insel 2 mit Stufen (6er-Linien, 4-5): ≈ 549.700 Einwohner (nur Stufe 3 ≈
 484.000). Brücken verbinden getrennte Inselteile (Ansicht/Berechnung, nicht
 im Export), überflüssige Straßenstummel werden bebaut, optional genug

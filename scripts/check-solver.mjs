@@ -168,6 +168,23 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   expect('Versorgung: Netze unverändert, Lagerhäuser gesetzt', serviced.city.plan.networks === dense.plan.networks &&
     serviced.report.warehouses > 0, `${serviced.report.warehouses} Lagerhäuser, ${serviced.report.removedHouses} Häuser ersetzt`);
   const city = serviced.city;
+  {
+    // Lufthafen mit Modulen weit weg von einer Anlegestelle im Süden; Ministerium gesetzt.
+    const air = planServices(mask, dense, {
+      kinds,
+      fullCoverageValue: 0,
+      airport: { harbor: { x: 144, y: 279 } },
+      ministry: { range: 95, welfare: 15, web: 22 },
+    });
+    const items3 = planToStampItems(mask, air.city, { coast: false, coastGuid: 1000178 });
+    const airCity = cityFromStamp(decodeStampFull(buildGenericStamp(items3.buildings, 'ow', items3.streets)));
+    const airA = analyzeCity(airCity, DEFAULT_RULES);
+    const parts = air.city.services.filter((sv) => sv.owner === 9001);
+    expect('Lufthafen: mit 2 Modulen, ≥ 150 Kacheln von der Anlegestelle, Ministerium, keine Warnungen',
+      air.report.airport.placed && parts.length === 3 && air.report.airport.distance >= 150 && air.report.ministry.placed &&
+        airA.warnings.length === 0 && airCity.conflicts === 0 && air.city.plan.networks === dense.plan.networks,
+      `${air.report.airport.distance} Kacheln, ${air.report.airport.houses} Häuser verdrängt; ${airA.warnings.join('; ')}`);
+  }
   let rhClose = 0;
   for (let i = 0; i < city.townHalls.length; i++) for (let j = i + 1; j < city.townHalls.length; j++) {
     if (Math.hypot(city.townHalls[i].x - city.townHalls[j].x, city.townHalls[i].y - city.townHalls[j].y) < 40) rhClose++;

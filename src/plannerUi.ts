@@ -103,11 +103,19 @@ export class PlannerUi {
   private workers: Worker[] = [];
   private jobId = 0;
 
+  private readonly harborInfo = el<HTMLElement>('#plan-harbor-info');
+
   constructor(
     private readonly cityUi: CityUi,
     private readonly island: () => IslandSource | null,
+    /** Startet das Wählen der Anlegestelle in der Ansicht „Anordnen“. */
+    private readonly onPickHarbor: () => void = () => undefined,
   ) {
     this.runner = new SolveRunner(() => undefined);
+    el<HTMLButtonElement>('#plan-harbor').addEventListener('click', () => {
+      this.harborInfo.textContent = 'Klicke in „Anordnen“ auf die Stelle der Hauptanlegestelle …';
+      this.onPickHarbor();
+    });
     this.runButton.addEventListener('click', () => void this.run());
     this.split.addEventListener('change', () => this.buildStamps());
     el<HTMLButtonElement>('#plan-image').addEventListener('click', () => this.saveImage());
@@ -120,8 +128,49 @@ export class PlannerUi {
     this.refreshIsland();
   }
 
+  private harborKey(): string | null {
+    const src = this.island();
+    return src ? `anno-planner-harbor:${src.mask.w}x${src.mask.h}:${src.mask.landCount}` : null;
+  }
+
+  /** Hauptanlegestelle in Maskenkoordinaten (oder null). */
+  harborPoint(): { x: number; y: number } | null {
+    const key = this.harborKey();
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const p = JSON.parse(raw) as { x: number; y: number };
+      return Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null;
+    } catch {
+      return null;
+    }
+  }
+
+  setHarbor(x: number, y: number): void {
+    const key = this.harborKey();
+    if (key) {
+      try {
+        localStorage.setItem(key, JSON.stringify({ x, y }));
+      } catch {
+        /* ohne Speicher nur für diese Sitzung */
+      }
+    }
+    this.sessionHarbor = { x, y };
+    this.cityUi.setHarbor(this.currentHarbor());
+    this.refreshIsland();
+  }
+
+  private sessionHarbor: { x: number; y: number } | null = null;
+
+  currentHarbor(): { x: number; y: number } | null {
+    return this.harborPoint() ?? this.sessionHarbor;
+  }
+
   /** Inselinfo aktualisieren (beim Wechsel in den Modus aufrufen). */
   refreshIsland(): void {
+    const h = this.currentHarbor();
+    this.harborInfo.textContent = h ? `bei ${h.x}, ${h.y}` : 'nicht gesetzt';
     const src = this.island();
     this.runButton.disabled = !src || this.running;
     this.islandInfo.textContent = src
@@ -273,6 +322,12 @@ export class PlannerUi {
           .map((k) => `${r.placed[k]}× ${short[k]}`)
           .join(', ')}, ${r.warehouses}× Lagerhaus${
           r.ministry.placed ? ` · Regionalministerium (${num(r.ministry.houses)} Häuser in Reichweite)` : ''
+        }${
+          r.airport.placed
+            ? ` · Lufthafen${this.currentHarbor() ? ` ${r.airport.distance} Kacheln von der Anlegestelle` : ' (Anlegestelle nicht gesetzt)'}, ${r.airport.houses} Häuser verdrängt`
+            : el<HTMLInputElement>('#plan-airport').checked
+              ? ' · Lufthafen: kein Platz gefunden'
+              : ''
         }`,
       );
     }
@@ -379,7 +434,8 @@ export class PlannerUi {
         el<HTMLInputElement>('#plan-ministry').checked && rules.ministry !== 'none'
           ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules) }
           : undefined;
-      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems, ministry };
+      const airport = el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined;
+      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems, ministry, airport };
       worker.postMessage(job);
     });
   }

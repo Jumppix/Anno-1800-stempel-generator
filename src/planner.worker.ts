@@ -16,7 +16,7 @@ import type { LandMask } from './solver';
 export type PlannerJob =
   | { kind: 'fill'; id: number; mask: LandMask; orientation: 'auto' | Orientation; housesPerLine: number; bridgeLen: number }
   | { kind: 'compact'; id: number; mask: LandMask; city: CityPlan; budgetMs: number; seed: number }
-  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean; houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>; townHallItems?: boolean; ministry?: { range: number; welfare: number; web: number } }
+  | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean; houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>; townHallItems?: boolean; ministry?: { range: number; welfare: number; web: number }; airport?: { harbor: { x: number; y: number } | null } }
   | {
       kind: 'levels';
       id: number;
@@ -124,6 +124,7 @@ scope.onmessage = (event) => {
       houseStates: job.houseStates,
       townHallItems: job.townHallItems,
       ministry: job.ministry,
+      airport: job.airport,
     });
     scope.postMessage({ kind: 'services', id: job.id, city: r.city, report: r.report, refilled: r.refilled });
     return;

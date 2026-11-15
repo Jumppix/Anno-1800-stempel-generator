@@ -82,7 +82,8 @@ unnötig verändern.
 - `src/persist.ts`: letzte Insel (Teile/Anordnung) und Einstellungen im
   Browser speichern.
 - `src/post.ts`: Briefkästen planen (Produktion nach Einwohnern im Radius, Post inselweit);
-  Ministerium in `services.ts` (`options.ministry`).
+  Ministerium und Lufthafen (`options.ministry`, `options.airport`, Komplex-ID 9001) in `services.ts`;
+  Hauptanlegestelle per Klick (`PlannerUi.setHarbor`, `harborPick` in `main.ts`).
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;
   Option Mindest-Ingenieure (250 je Gaskraftwerk).
 - Brücken (`addBridges`, Zelltyp `BRIDGE`, `GridPlan.bridges`) und
@@ -133,9 +134,8 @@ unnötig verändern.
 - Spielbarkeit des großen Ein-Stempel-Exports ist noch ein Praxistest.
 - Kein automatisierter End-to-End-/Browser-Test (nur `npm run check` für den
   Solver).
-- Stadtplaner: Post, Lufthafen, Ministerium und Produktion folgen in
-  Phase 4–5 (`docs/PLAN_Stadtplaner.md`); Versorgung (Phase 3) rechnet bis
-  dahin ohne Wohlfahrt/Stadtweites Netz.
+- Stadtplaner: Produktion (Clipping-Formation) folgt in Phase 5
+  (`docs/PLAN_Stadtplaner.md`).
 - Optimalität ist für große Inseln nicht bewiesen; Benchmark-Insel
   189 × 290: 41 HK / 25–26 Rathäuser (alter Solver: 33 HK).
 - Der Feldweg-GUID wird aus dem ersten importierten Stempel übernommen

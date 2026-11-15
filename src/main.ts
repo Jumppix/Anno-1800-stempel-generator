@@ -3,7 +3,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { emptyLayout, splitChunks, type Chunk, type LandMask, type Layout } from './solver';
 import { BUILDINGS, modeTypes, type BuildingMode } from './buildings';
 import { SolveRunner } from './solveRunner';
-import { CityUi } from './cityUi';
+import { CityUi, drawAnchor } from './cityUi';
 import { PlannerUi } from './plannerUi';
 import { outerBoundary } from './coast';
 import { buildStamp, REGIONS, type RegionKey, type StampStreet } from './stamp';
@@ -88,6 +88,8 @@ let plannerUi: PlannerUi | null = null;
 let placementView: PlacementView | null = null;
 // Zoom/Verschiebung je Ansicht (Plan/Analyse hat eine eigene in CityUi).
 const arrangeCamera = new Camera();
+// Nächster Klick in „Anordnen“ setzt die Hauptanlegestelle (Stadtplaner).
+let harborPick = false;
 // CityUi wird weiter unten erzeugt; drawStage() kann vorher schon laufen.
 let cityUiReady = false;
 const resultCamera = new Camera();
@@ -328,6 +330,13 @@ function drawStage(): void {
   stageHint.hidden = true;
   if (view === 'arrange') {
     placementView = renderPlacement(canvas, parts, combined, selectedId, arrangeCamera);
+    const harbor = mode === 'city' ? plannerUi?.currentHarbor() : null;
+    const ctx = canvas.getContext('2d');
+    if (harbor && ctx) {
+      const v = placementView;
+      drawAnchor(ctx, v.originX + (harbor.x + 0.5) * v.scale, v.originY + (harbor.y + 0.5) * v.scale);
+    }
+    if (harborPick) canvas.style.cursor = 'crosshair';
     canvas.style.cursor = 'grab';
   } else {
     placementView = null;
@@ -681,6 +690,15 @@ canvas.addEventListener('pointerdown', (event) => {
   const rect = canvas.getBoundingClientRect();
   const px = event.clientX - rect.left;
   const py = event.clientY - rect.top;
+  if (harborPick) {
+    // Hauptanlegestelle: Kachel in Maskenkoordinaten der Gesamtinsel.
+    const v = placementView;
+    harborPick = false;
+    plannerUi?.setHarbor(Math.floor((px - v.originX) / v.scale), Math.floor((py - v.originY) / v.scale));
+    drawStage();
+    event.preventDefault();
+    return;
+  }
   const part = hitPart(px, py);
 
   if (!part) {
@@ -806,17 +824,25 @@ const cityUi = new CityUi(
   },
 );
 cityUiReady = true;
-plannerUi = new PlannerUi(cityUi, () =>
-  combined
-    ? {
-        mask: { w: combined.w, h: combined.h, data: combined.data, landCount: combined.landCount },
-        streetGuid: fieldPathGuid(),
-        label: `${combined.w} × ${combined.h} · ${num(combined.landCount)} Landkacheln (${parts.length} Teil${
-          parts.length === 1 ? '' : 'e'
-        })`,
-      }
-    : null,
+plannerUi = new PlannerUi(
+  cityUi,
+  () =>
+    combined
+      ? {
+          mask: { w: combined.w, h: combined.h, data: combined.data, landCount: combined.landCount },
+          streetGuid: fieldPathGuid(),
+          label: `${combined.w} × ${combined.h} · ${num(combined.landCount)} Landkacheln (${parts.length} Teil${
+            parts.length === 1 ? '' : 'e'
+          })`,
+        }
+      : null,
+  () => {
+    harborPick = true;
+    setView('arrange');
+    canvas.style.cursor = 'crosshair';
+  },
 );
+cityUi.setHarbor(plannerUi.currentHarbor());
 const modeAdmin = el<HTMLButtonElement>('#mode-admin');
 const modeCity = el<HTMLButtonElement>('#mode-city');
 
