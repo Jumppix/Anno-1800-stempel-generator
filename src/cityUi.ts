@@ -494,22 +494,6 @@ export class CityUi {
       ctx.fill();
     }
 
-    // Kreisradien für Rathaus/Post
-    if (this.layer === 'townHall' || this.layer === 'post' || this.layer === 'clipping') {
-      const kinds =
-        this.layer === 'townHall' ? ['townHall'] : this.layer === 'clipping' ? ['tradeUnion'] : ['postOffice', 'postBox'];
-      for (const b of c.buildings) {
-        if (!kinds.includes(b.entry.kind) || !b.entry.radius) continue;
-        ctx.beginPath();
-        ctx.arc(ox + (b.cx + 0.5) * scale, oy + (b.cy + 0.5) * scale, b.entry.radius * scale, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(111, 159, 224, 0.16)';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(111, 159, 224, 0.8)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-      }
-    }
-
     // Gebäude
     for (const b of c.buildings) {
       if (b.x + b.w < vis.x0 || b.y + b.h < vis.y0 || b.x > vis.x1 || b.y > vis.y1) continue;
@@ -546,6 +530,39 @@ export class CityUi {
     }
 
     ctx.globalAlpha = 1;
+    // Kreisradien der Ebene (Rathaus, Handelskammer, Post) über den Gebäuden:
+    // leicht getönte Fläche, kräftige Linie mit dunklem Rand, Mittelpunkt.
+    if (this.layer === 'townHall' || this.layer === 'post' || this.layer === 'clipping') {
+      const kinds =
+        this.layer === 'townHall' ? ['townHall'] : this.layer === 'clipping' ? ['tradeUnion'] : ['postOffice', 'postBox'];
+      const circles = c.buildings.filter((b) => kinds.includes(b.entry.kind) && b.entry.radius);
+      const color = this.layer === 'townHall' ? '94, 224, 255' : this.layer === 'clipping' ? '255, 214, 92' : '232, 140, 255';
+      for (const b of circles) {
+        ctx.beginPath();
+        ctx.arc(ox + (b.cx + 0.5) * scale, oy + (b.cy + 0.5) * scale, (b.entry.radius ?? 0) * scale, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${color}, 0.10)`;
+        ctx.fill();
+      }
+      for (const b of circles) {
+        const cx = ox + (b.cx + 0.5) * scale;
+        const cy = oy + (b.cy + 0.5) * scale;
+        ctx.beginPath();
+        ctx.arc(cx, cy, (b.entry.radius ?? 0) * scale, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.strokeStyle = `rgb(${color})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.max(2, Math.min(5, scale * 0.6)), 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${color})`;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
     if (sel && selRadius) {
       const cx = ox + (sel.cx + 0.5) * scale;
       const cy = oy + (sel.cy + 0.5) * scale;
