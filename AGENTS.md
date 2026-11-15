@@ -91,6 +91,7 @@ unnötig verändern.
   Option Mindest-Ingenieure (250 je Gaskraftwerk).
 - Brücken (`addBridges`, Zelltyp `BRIDGE`, `GridPlan.bridges`) und
   Straßenstummel (`replaceRoadStubs`) in `src/fill.ts`.
+  Abgetrennte Straßenstücke langer Bänder werden per `connectRoadPieces` angebunden.
 - `src/camera.ts`: Zoom/Verschieben (Mausrad, rechte Maustaste) für Anordnen,
   Ergebnis und Plan/Analyse; Ereignisse in `main.ts`, `CityUi.camera`.
 - `src/style.css`: Styling.

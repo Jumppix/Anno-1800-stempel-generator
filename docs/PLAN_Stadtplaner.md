@@ -582,6 +582,28 @@ Bandverschiebung hilft fast überall (die im Beitrag genannte „Symmetrie“
 ist für unsere Stufen-Optimierung kein Nachteil, da sie jedes Haus einzeln
 bewertet).
 
+**Nachtrag (lange Reihen wie im Rekord-Spielstand, bis 35 Häuser ohne
+Querstraße):** Der Verlust ab 10er-Linien lag vor allem an der Bebauung:
+Längsstraßen an der Küste erreichten in langen Bändern keine Querstraße,
+wurden als abgetrenntes Netz verworfen und das Land blieb leer (35er: 14 %
+Restfläche). Neu: `connectRoadPieces` in `src/fill.ts` schließt solche Stücke
+über den kürzesten Weg durch freies Land an (≤ 14 Kacheln, nur wenn das Stück
+mindestens so lang ist wie der Weg, 3 Runden) – wie die Rand-/Stichstraßen im
+Rekord-Spielstand. Bebauung Insel 2 (Häuser / Restfläche):
+| je Linie | 6 | 12 | 16 | 24 | 35 |
+| --- | --- | --- | --- | --- | --- |
+| vorher | 2.155 / 6,5 % | 2.161 / 8,6 % | 2.128 / 10,6 % | 2.088 / 12,9 % | 2.058 / 14,6 % |
+| neu | 2.163 / 6,2 % | 2.201 / 6,6 % | 2.203 / 7,0 % | 2.209 / 7,4 % | 2.209 / 7,6 % |
+Ganze Pipeline (Rathäuser, Versorgung, Ministerium, Lufthafen, Stufen, Post,
+volle Zeitung; ohne Nachverdichtung): 6er 633.950, 12er 634.400, 16er 634.200,
+24er 630.800, 35er 635.600 (vorher 35er 596.200). Mit 20 s Nachverdichtung:
+6er 644.900 (2.014 Häuser), 12er 640.200, 35er 642.500 (2.058 Häuser).
+Lange Reihen bringen also mehr Häuser (+44), aber die Straßenwege werden
+länger: Kaufhaus-Abdeckung 98 → 87 %, Einrichtungshaus 93 → 73 % (der
+Rekordbauer nimmt 90–95 % bewusst in Kauf). Mehr Läden („Vollversorgung“)
+kosten mehr, als sie bringen (beide −21.000). Ergebnis: im Rahmen der
+Streuung gleichauf; Standard bleibt 6, 16/24/35 sind wählbar.
+
 ## 21. Brücken, Straßenstummel, eigene Ingenieure, Speichern
 
 - **Brücken** (`addBridges` in `fill.ts`): Getrennte Straßennetze werden über

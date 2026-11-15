@@ -274,27 +274,145 @@ export function pruneRoads(s: FillState): number {
 // ---------------------------------------------------------------------------
 
 export function labelComponents(w: number, h: number, inSet: (i: number) => boolean): Int32Array {
-  const label = new Int32Array(w * h).fill(-1);
+  const N = w * h;
+  const label = new Int32Array(N).fill(-1);
+  const stack = new Int32Array(N);
   let next = 0;
-  const stack: number[] = [];
-  for (let i = 0; i < w * h; i++) {
-    if (label[i] >= 0 || !inSet(i)) continue;
-    label[i] = next;
-    stack.push(i);
-    while (stack.length) {
-      const j = stack.pop() as number;
+  for (let i0 = 0; i0 < N; i0++) {
+    if (label[i0] >= 0 || !inSet(i0)) continue;
+    label[i0] = next;
+    let top = 0;
+    stack[top++] = i0;
+    while (top) {
+      const j = stack[--top];
       const x = j % w;
-      const y = (j - x) / w;
-      for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, y > 0 ? j - w : -1, y < h - 1 ? j + w : -1]) {
-        if (k >= 0 && label[k] < 0 && inSet(k)) {
-          label[k] = next;
-          stack.push(k);
-        }
-      }
+      if (x > 0 && label[j - 1] < 0 && inSet(j - 1)) { label[j - 1] = next; stack[top++] = j - 1; }
+      if (x < w - 1 && label[j + 1] < 0 && inSet(j + 1)) { label[j + 1] = next; stack[top++] = j + 1; }
+      if (j >= w && label[j - w] < 0 && inSet(j - w)) { label[j - w] = next; stack[top++] = j - w; }
+      if (j + w < N && label[j + w] < 0 && inSet(j + w)) { label[j + w] = next; stack[top++] = j + w; }
     }
     next++;
   }
   return label;
+}
+
+/**
+ * Straßenstücke, die nicht am größten Netz ihres Landstücks hängen, über den
+ * kürzesten Weg durch freies Land anschließen (wie die Rand- und Stichstraßen
+ * im Rekord-Spielstand). Nur wenn das Stück mindestens so lang ist wie der
+ * Weg (sonst kostet der Weg mehr Hausplätze, als das Stück erschließt) und
+ * der Weg höchstens `maxLen` Kacheln hat. Mehrere Runden: Stücke dürfen sich
+ * über bereits angeschlossene verbinden.
+ */
+export function connectRoadPieces(s: FillState, maxLen = 14, rounds = 3, landLabels?: Int32Array): number {
+  const { w, h, cell } = s;
+  const N = w * h;
+  let added = 0;
+  const dist = new Int32Array(N);
+  const parent = new Int32Array(N);
+  const queue = new Int32Array(N);
+  const land = landLabels ?? labelComponents(w, h, (i) => cell[i] !== WATER);
+  const road = new Int32Array(N);
+  for (let round = 0; round < rounds; round++) {
+    // Straßenkomponenten
+    road.fill(-1);
+    const size: number[] = [];
+    for (let i0 = 0; i0 < N; i0++) {
+      if (road[i0] >= 0 || cell[i0] !== ROAD) continue;
+      const id = size.length;
+      let n = 0;
+      let top = 0;
+      queue[top++] = i0;
+      road[i0] = id;
+      while (top) {
+        const i = queue[--top];
+        n++;
+        const x = i % w;
+        if (x > 0 && road[i - 1] < 0 && cell[i - 1] === ROAD) { road[i - 1] = id; queue[top++] = i - 1; }
+        if (x < w - 1 && road[i + 1] < 0 && cell[i + 1] === ROAD) { road[i + 1] = id; queue[top++] = i + 1; }
+        if (i >= w && road[i - w] < 0 && cell[i - w] === ROAD) { road[i - w] = id; queue[top++] = i - w; }
+        if (i + w < N && road[i + w] < 0 && cell[i + w] === ROAD) { road[i + w] = id; queue[top++] = i + w; }
+      }
+      size.push(n);
+    }
+    if (size.length <= 1) break;
+    const main = new Map<number, number>();
+    for (let i = 0; i < N; i++) {
+      const r = road[i];
+      if (r < 0) continue;
+      const cur = main.get(land[i]);
+      if (cur === undefined || size[r] > size[cur]) main.set(land[i], r);
+    }
+    const mainOf = new Uint8Array(size.length);
+    for (const r of main.values()) mainOf[r] = 1;
+    if (main.size === size.length) break;
+    // Breitensuche von allen Hauptnetzen durch freies Land.
+    dist.fill(0);
+    let head = 0;
+    let tail = 0;
+    for (let i = 0; i < N; i++) {
+      if (road[i] >= 0 && mainOf[road[i]]) {
+        dist[i] = -1;
+        queue[tail++] = i;
+      }
+    }
+    while (head < tail) {
+      const i = queue[head++];
+      const d = (dist[i] < 0 ? 0 : dist[i]) + 1;
+      if (d > maxLen) continue;
+      const x = i % w;
+      let j = i - 1;
+      if (x > 0 && dist[j] === 0 && cell[j] === FREE) { dist[j] = d; parent[j] = i; queue[tail++] = j; }
+      j = i + 1;
+      if (x < w - 1 && dist[j] === 0 && cell[j] === FREE) { dist[j] = d; parent[j] = i; queue[tail++] = j; }
+      j = i - w;
+      if (j >= 0 && dist[j] === 0 && cell[j] === FREE) { dist[j] = d; parent[j] = i; queue[tail++] = j; }
+      j = i + w;
+      if (j < N && dist[j] === 0 && cell[j] === FREE) { dist[j] = d; parent[j] = i; queue[tail++] = j; }
+    }
+    // Je Nebenstück der kürzeste Anschluss.
+    const bestF = new Int32Array(size.length).fill(-1);
+    const bestD = new Int32Array(size.length).fill(1 << 30);
+    for (let i = 0; i < N; i++) {
+      const r = road[i];
+      if (r < 0 || mainOf[r]) continue;
+      const x = i % w;
+      let j = i - 1;
+      if (x > 0 && dist[j] > 0 && dist[j] < bestD[r]) { bestD[r] = dist[j]; bestF[r] = j; }
+      j = i + 1;
+      if (x < w - 1 && dist[j] > 0 && dist[j] < bestD[r]) { bestD[r] = dist[j]; bestF[r] = j; }
+      j = i - w;
+      if (j >= 0 && dist[j] > 0 && dist[j] < bestD[r]) { bestD[r] = dist[j]; bestF[r] = j; }
+      j = i + w;
+      if (j < N && dist[j] > 0 && dist[j] < bestD[r]) { bestD[r] = dist[j]; bestF[r] = j; }
+    }
+    let changed = false;
+    for (let r = 0; r < size.length; r++) {
+      if (bestF[r] < 0 || size[r] < bestD[r]) continue;
+      let i = bestF[r];
+      while (dist[i] > 0) {
+        if (cell[i] === FREE) {
+          cell[i] = ROAD;
+          added++;
+        }
+        i = parent[i];
+      }
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  return added;
+}
+
+/** Landstücke je Maske (ändern sich nicht zwischen den Gitterlagen). */
+const LAND_CACHE = new WeakMap<Uint8Array, Int32Array>();
+function landLabelsOf(mask: LandMask): Int32Array {
+  let land = LAND_CACHE.get(mask.data);
+  if (!land) {
+    land = labelComponents(mask.w, mask.h, (i) => mask.data[i] !== 0);
+    LAND_CACHE.set(mask.data, land);
+  }
+  return land;
 }
 
 /**
@@ -348,8 +466,12 @@ export function latticeFill(
     }
   }
 
+  // Abgeschnittene Straßenstücke (z. B. Längsstraßen an der Küste, die bei
+  // langen Bändern keine Querstraße erreichen) über kurze Stichwege anbinden.
+  connectRoadPieces(s, 14, 3, landLabelsOf(mask));
+
   // Je Landstück nur das größte Straßennetz behalten.
-  const land = labelComponents(w, h, (i) => cell[i] !== WATER);
+  const land = landLabelsOf(mask);
   const roadLabel = labelComponents(w, h, (i) => cell[i] === ROAD);
   const sizeByRoad = new Map<number, number>();
   for (let i = 0; i < cell.length; i++) {
