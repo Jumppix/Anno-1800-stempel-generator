@@ -16,6 +16,7 @@
 import { footprint, lookup, type BuildingKind } from './catalog';
 import { skyscraperResidents, UNIVERSITY_MAX_RANGE, universityFactor, type SkyLevel, type SkyTier } from './rules';
 import { BLOCKED, BRIDGE, FREE, HOUSE, isWay, ROAD, SERVICE, WATER, touchesBridge, touchesRoad, type FillState } from './fill';
+import { findFormations, PRODUCTION_WAREHOUSE_RANGE, type ProductionOptions, type ProductionReport } from './production';
 
 export interface PlacedService {
   guid: number;
@@ -109,6 +110,11 @@ export interface ServiceOptions {
    * wenige Häuser verdrängt. Zählt als Lagerhaus.
    */
   airport?: { harbor: { x: number; y: number } | null };
+  /**
+   * Geclippte Produktion (production.ts): gewünschte Gebäude zwischen je zwei
+   * Handelskammern, vor allen anderen Gebäuden gesetzt (starre Formation).
+   */
+  production?: ProductionOptions;
 }
 
 export interface ServiceReport {
@@ -121,6 +127,7 @@ export interface ServiceReport {
   removedHouses: number;
   /** Anteil der verbleibenden Häuser, die je Art versorgt sind. */
   coverage: Partial<Record<BuildingKind, number>>;
+  production?: ProductionReport;
 }
 
 interface Candidate {
@@ -357,6 +364,129 @@ export function placeServices(
   };
 
   const houseCost = (k: number): number => HV + (inTownHall[k] ? RV : 0);
+
+  // --- Geclippte Produktion: starre Formation zuerst (Handelskammern im
+  //     Abstand 30, Gebäude auf den Kantenmitten). Die besten Formationen der
+  //     Suche im echten Plan durchrechnen: Straßenstücke, die dabei vom Netz
+  //     abgeschnitten werden (z. B. zwischen zwei Gebäuden auf derselben
+  //     Längsstraße), entfallen; Häuser ohne Anschluss weichen mit. Jedes
+  //     Gebäude und jede Kammer braucht eine Straße. Gewählt wird die Formation
+  //     mit dem geringsten tatsächlichen Verlust.
+  if (options.production && options.production.requests.some((r) => r.count > 0)) {
+    const requested = options.production.requests.reduce((n, r) => n + Math.max(0, r.count), 0);
+    const pr: ProductionReport = { requested, placed: 0, byGuid: {}, tradeUnions: 0, lattice: '', houses: 0, powerPlants: 0 };
+    report.production = pr;
+    const N = w * h;
+    /** Zusammenhangskomponenten der Wege (Straße + Brücke). */
+    const labelWays = (): { label: Int32Array; size: number[] } => {
+      const label = new Int32Array(N).fill(-1);
+      const size: number[] = [];
+      const stack: number[] = [];
+      for (let i0 = 0; i0 < N; i0++) {
+        if (label[i0] >= 0 || !isWay(cell[i0])) continue;
+        const id = size.length;
+        let n = 0;
+        label[i0] = id;
+        stack.push(i0);
+        while (stack.length) {
+          const i = stack.pop() as number;
+          n++;
+          const x = i % w;
+          for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+            if (j < 0 || j >= N || label[j] >= 0 || !isWay(cell[j])) continue;
+            label[j] = id;
+            stack.push(j);
+          }
+        }
+        size.push(n);
+      }
+      return { label, size };
+    };
+    const original = labelWays().label;
+    const MAX_FRAGMENT = 40;
+    type Trial = { cost: number; own: Set<number>; orphans: number[]; fragments: number[]; tiles: Map<number, number> };
+    const trial = (f: (typeof formations)[number]): Trial | null => {
+      const tiles = new Map<number, number>();
+      const own = new Set<number>();
+      for (const r of f.rects) {
+        for (let dy = 0; dy < r.h; dy++) {
+          for (let dx = 0; dx < r.w; dx++) {
+            const i = (r.y + dy) * w + r.x + dx;
+            const v = cell[i];
+            if (v === WATER || v === BLOCKED || v === SERVICE || v === BRIDGE || tiles.has(i) || touchesBridge(cell, w, i)) return null;
+            tiles.set(i, v);
+            if (v === HOUSE) own.add(houseAt[i]);
+          }
+        }
+      }
+      for (const i of tiles.keys()) cell[i] = SERVICE;
+      // Abgeschnittene Wegstücke: je ursprünglichem Netz bleibt das größte Stück.
+      const after = labelWays();
+      const keep = new Map<number, { id: number; n: number }>();
+      for (let i = 0; i < N; i++) {
+        const a = after.label[i];
+        if (a < 0) continue;
+        const o = original[i];
+        const k = keep.get(o);
+        if (!k || (k.id !== a && after.size[a] > k.n)) keep.set(o, { id: a, n: after.size[a] });
+      }
+      const fragments: number[] = [];
+      let tooBig = false;
+      const counted = new Set<number>();
+      for (let i = 0; i < N; i++) {
+        const a = after.label[i];
+        if (a < 0 || keep.get(original[i])?.id === a) continue;
+        fragments.push(i);
+        if (!counted.has(a)) {
+          counted.add(a);
+          if (after.size[a] > MAX_FRAGMENT) tooBig = true;
+        }
+      }
+      let result: Trial | null = null;
+      if (!tooBig) {
+        for (const i of fragments) cell[i] = FREE;
+        if (f.rects.every((r) => ring(r.x, r.y, r.w, r.h).some((i) => cell[i] === ROAD))) {
+          const orphans: number[] = [];
+          for (let k = 0; k < s.houses.length; k++) {
+            if (own.has(k) || !isAlive(k)) continue;
+            if (!houseRing[k].some((i) => cell[i] === ROAD)) orphans.push(k);
+          }
+          let cost = 0;
+          for (const k of own) cost += houseCost(k);
+          for (const k of orphans) cost += houseCost(k);
+          result = { cost, own, orphans, fragments, tiles };
+        }
+        for (const i of fragments) cell[i] = ROAD;
+      }
+      for (const [i, v] of tiles) cell[i] = v;
+      return result;
+    };
+    const formations = findFormations(s, options.production.requests, houseCost, 40, !!options.production.tiltedSquare);
+    let best: { f: (typeof formations)[number]; t: Trial } | null = null;
+    for (const f of formations) {
+      if (best && f.placed < best.f.placed) break;
+      const t = trial(f);
+      if (t && (!best || t.cost < best.t.cost)) best = { f, t };
+    }
+    if (best) {
+      const { f, t } = best;
+      for (const i of t.tiles.keys()) cell[i] = SERVICE;
+      for (const i of t.fragments) {
+        cell[i] = FREE;
+        origRoad[i] = 0;
+      }
+      for (const k of [...t.own, ...t.orphans]) removedBy[k]++;
+      for (const r of f.rects) {
+        const entry = lookup(r.guid);
+        services.push({ guid: r.guid, kind: entry.kind, name: entry.name, x: r.x, y: r.y, w: r.w, h: r.h, turns: r.turns });
+        if (entry.kind === 'production') pr.byGuid[r.guid] = (pr.byGuid[r.guid] ?? 0) + 1;
+      }
+      pr.placed = f.placed;
+      pr.tradeUnions = f.tradeUnions;
+      pr.lattice = f.lattice;
+      pr.houses = t.own.size + t.orphans.length;
+    }
+  }
 
   // --- Lufthafen mit zwei Modulen: weit weg von der Anlegestelle, wenig Verlust.
   //     Lufthafen 15×10 (Drehung 0), Module je 3×5 nebeneinander an der langen
@@ -698,14 +828,56 @@ export function placeServices(
   // Reparatur: Spätere Gebäude auf Querstraßen können Wege früherer verlängern.
   // Mit den endgültigen Straßen neu rechnen und Lücken gezielt schließen.
   for (const spec of specs) runSpec(spec);
-  for (const spec of specs) report.placed[spec.kind] = services.filter((sv) => sv.kind === spec.kind).length;
   refreshMinistry();
 
+  // --- Strom für die Produktion: jedes Produktionsgebäude in Reichweite eines Kraftwerks.
+  const POWER_GUID = SERVICE_SPECS.find((sp) => sp.kind === 'powerPlant')?.guid ?? 117547;
+  if (options.production?.power && report.production) {
+    const factories = services.filter((sv) => sv.kind === 'production');
+    const powered = new Uint8Array(factories.length);
+    const markPowered = (starts: readonly number[]): void => {
+      bfs(starts, (lookup(POWER_GUID).roadRange ?? 0) + bonusFor('powerPlant', starts));
+      factories.forEach((sv, k) => {
+        if (!powered[k] && reached(ring(sv.x, sv.y, sv.w, sv.h))) powered[k] = 1;
+      });
+    };
+    for (const sv of services) if (sv.kind === 'powerPlant') markPowered(ring(sv.x, sv.y, sv.w, sv.h).filter((i) => cell[i] === ROAD));
+    if (!powered.every(Boolean)) {
+      const cands = candidatesFor(POWER_GUID);
+      for (;;) {
+        if (powered.every(Boolean)) break;
+        let best = -1;
+        let bestScore = 0;
+        for (let ci = 0; ci < cands.length; ci++) {
+          const c = cands[ci];
+          bfs(c.starts, (lookup(POWER_GUID).roadRange ?? 0) + bonusFor('powerPlant', c.starts));
+          let n = 0;
+          factories.forEach((sv, k) => {
+            if (!powered[k] && reached(ring(sv.x, sv.y, sv.w, sv.h))) n++;
+          });
+          if (!n) continue;
+          let cost = 0;
+          for (const k of c.houses) if (isAlive(k)) cost += houseCost(k);
+          const score = n * 10_000 - cost;
+          if (score > bestScore && stillValid(c)) {
+            bestScore = score;
+            best = ci;
+          }
+        }
+        if (best < 0) break;
+        place(cands[best], POWER_GUID);
+        markPowered(cands[best].starts);
+        report.production.powerPlants++;
+      }
+    }
+  }
+  for (const spec of specs) report.placed[spec.kind] = services.filter((sv) => sv.kind === spec.kind).length;
+
   // --- Lagerhäuser: jedes Gebäude mit Lagerbedarf braucht eines in Reichweite.
-  const needy = services.filter((sv) => lookup(sv.guid).needsWarehouse);
+  const needy = services.filter((sv) => lookup(sv.guid).needsWarehouse || sv.kind === 'production');
   if (needy.length) {
     const reachMaps = needy.map((sv) => {
-      bfs(ring(sv.x, sv.y, sv.w, sv.h), lookup(sv.guid).roadRange ?? 0);
+      bfs(ring(sv.x, sv.y, sv.w, sv.h), sv.kind === 'production' ? PRODUCTION_WAREHOUSE_RANGE : (lookup(sv.guid).roadRange ?? 0));
       const m = new Uint8Array(w * h);
       for (let i = 0; i < m.length; i++) if (gen[i] === g) m[i] = 1;
       return m;

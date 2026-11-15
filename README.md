@@ -144,6 +144,13 @@ Insel wird bebaut (`src/fill.ts`):
 10. Lufthafen (15×10) mit Item-Terminal und Luftpostlager, möglichst weit weg
    von der Hauptanlegestelle (per Klick in „Anordnen“ gesetzt); zählt als
    Lagerhaus.
+11. Geclippte Produktion (`src/production.ts`): Gebäude aus der Liste aller
+   clipbaren Produktionsgebäude (gerade Breite und Länge, z. B.
+   Hochrad-Werkhalle, Baumschule, Chemiefabrik) mit Anzahl wählen. Jedes steht
+   genau zwischen zwei Handelskammern (Mitten 30 auseinander, Gebäudemitte 15
+   von beiden) – quadratisch oder als Raute wie in den Clipping-Stempeln.
+   Handelskammern, Lagerhaus (Reichweite 20) und auf Wunsch Strom werden
+   ergänzt; gesucht wird die Formation mit den wenigsten verdrängten Häusern.
 
 Insel 2 mit Stufen (6er-Linien, 4-5): ≈ 549.700 Einwohner (nur Stufe 3 ≈
 484.000). Brücken verbinden getrennte Inselteile (Ansicht/Berechnung, nicht

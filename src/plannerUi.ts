@@ -20,7 +20,8 @@ import type { LandMask } from './solver';
 import { SolveRunner } from './solveRunner';
 import { buildGenericStamp } from './stamp';
 import type { PlannerJob, PlannerMessage } from './planner.worker';
-import type { BuildingKind } from './catalog';
+import { CLIPPABLE, lookup, type BuildingKind } from './catalog';
+import type { ProductionRequest } from './production';
 import type { LevelMode } from './levels';
 import { cityWideWebBonus, localDepartmentRange, welfareBonus, type RuleConfig } from './rules';
 import type { PostReport } from './post';
@@ -104,6 +105,10 @@ export class PlannerUi {
   private jobId = 0;
 
   private readonly harborInfo = el<HTMLElement>('#plan-harbor-info');
+  private readonly prodType = el<HTMLSelectElement>('#prod-type');
+  private readonly prodCount = el<HTMLInputElement>('#prod-count');
+  private readonly prodList = el<HTMLElement>('#prod-list');
+  private production: ProductionRequest[] = [];
 
   constructor(
     private readonly cityUi: CityUi,
@@ -125,7 +130,81 @@ export class PlannerUi {
       const i = Number(button.dataset.i);
       if (this.stamps[i]) download(this.stampName(i), this.stamps[i]);
     });
+    this.setupProduction();
     this.refreshIsland();
+  }
+
+  // --- Produktion (Clipping): Auswahl der Gebäude, gespeichert im Browser.
+  private static readonly PROD_KEY = 'anno-planner-production';
+
+  private setupProduction(): void {
+    const groups = new Map<string, typeof CLIPPABLE[number][]>();
+    for (const c of CLIPPABLE) {
+      const list = groups.get(c.group);
+      if (list) list.push(c);
+      else groups.set(c.group, [c]);
+    }
+    this.prodType.innerHTML = [...groups]
+      .map(
+        ([g, list]) =>
+          `<optgroup label="${g}">${list
+            .map((c) => `<option value="${c.guid}">${c.name} (${c.size[1]}×${c.size[0]})</option>`)
+            .join('')}</optgroup>`,
+      )
+      .join('');
+    let saved: ProductionRequest[] | null = null;
+    try {
+      const raw = localStorage.getItem(PlannerUi.PROD_KEY);
+      if (raw) saved = JSON.parse(raw) as ProductionRequest[];
+    } catch {
+      saved = null;
+    }
+    this.production = Array.isArray(saved)
+      ? saved.filter((r) => CLIPPABLE.some((c) => c.guid === r.guid) && r.count > 0)
+      : [{ guid: 1010323, count: 4 }];
+    el<HTMLButtonElement>('#prod-add').addEventListener('click', () => {
+      const guid = Number(this.prodType.value);
+      const count = Math.max(1, Math.min(60, Math.round(Number(this.prodCount.value) || 0)));
+      const known = this.production.find((r) => r.guid === guid);
+      if (known) known.count += count;
+      else this.production.push({ guid, count });
+      this.saveProduction();
+    });
+    this.prodList.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-remove]');
+      if (!button) return;
+      this.production = this.production.filter((r) => r.guid !== Number(button.dataset.remove));
+      this.saveProduction();
+    });
+    this.prodList.addEventListener('change', (event) => {
+      const input = (event.target as HTMLElement).closest<HTMLInputElement>('input[data-count]');
+      if (!input) return;
+      const r = this.production.find((x) => x.guid === Number(input.dataset.count));
+      if (r) r.count = Math.max(1, Math.min(60, Math.round(Number(input.value) || 1)));
+      this.saveProduction();
+    });
+    this.renderProduction();
+  }
+
+  private saveProduction(): void {
+    try {
+      localStorage.setItem(PlannerUi.PROD_KEY, JSON.stringify(this.production));
+    } catch {
+      /* nur für diese Sitzung */
+    }
+    this.renderProduction();
+  }
+
+  private renderProduction(): void {
+    this.prodList.innerHTML = this.production.length
+      ? this.production
+          .map((r) => {
+            const c = CLIPPABLE.find((x) => x.guid === r.guid);
+            const name = c ? `${c.name} (${c.size[1]}×${c.size[0]})` : lookup(r.guid).name;
+            return `<div class="prod-row"><span title="${name}">${name}</span><input type="number" min="1" max="60" step="1" value="${r.count}" data-count="${r.guid}" aria-label="Anzahl ${name}" /><button type="button" class="ghost" data-remove="${r.guid}" title="Entfernen">✕</button></div>`;
+          })
+          .join('')
+      : '<div class="prod-empty">Keine geclippte Produktion gewählt.</div>';
   }
 
   private harborKey(): string | null {
@@ -224,8 +303,9 @@ export class PlannerUi {
     const levelMode = this.levelMode.value as LevelMode;
     const levelMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
     let serviced: { city: CityPlan; report: ServiceReport; refilled: number } | null = null;
-    if (kinds.length) {
-      this.status.textContent = 'Versorgung wird geplant (Kaufhaus, Einrichtungshaus, Drogerie, Universität, Kraftwerk, Lagerhäuser) …';
+    const withProduction = this.production.some((r) => r.count > 0);
+    if (kinds.length || withProduction) {
+      this.status.textContent = `${withProduction ? 'Geclippte Produktion und ' : ''}Versorgung wird geplant (Kaufhaus, Einrichtungshaus, Drogerie, Universität, Kraftwerk, Lagerhäuser) …`;
       serviced = await this.services(src.mask, dense, kinds, goal);
     }
     let city = serviced ? { ...serviced.city, removedHouses: refilled.removedHouses } : dense;
@@ -316,6 +396,17 @@ export class PlannerUi {
         university: 'Universität',
         powerPlant: 'Kraftwerk',
       };
+      const p = r.production;
+      if (p) {
+        const parts = Object.entries(p.byGuid).map(([g, n]) => `${n}× ${lookup(Number(g)).name}`);
+        items.push(
+          p.placed
+            ? `Produktion (${p.lattice}): ${parts.join(', ')} · ${p.tradeUnions} Handelskammern · ${p.houses} Häuser verdrängt${
+                p.powerPlants ? ` · ${p.powerPlants} Kraftwerk${p.powerPlants === 1 ? '' : 'e'} extra` : ''
+              }${p.placed < p.requested ? ` – <strong>nur ${p.placed} von ${p.requested}</strong> (kein Platz)` : ''}`
+            : `Produktion: <strong>keine Formation gefunden</strong> (${p.requested} gewünscht)`,
+        );
+      }
       items.push(
         `Versorgung: ${kinds
           .filter((k) => r.placed[k])
@@ -435,7 +526,10 @@ export class PlannerUi {
           ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules) }
           : undefined;
       const airport = el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined;
-      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems, ministry, airport };
+      const production = this.production.some((r) => r.count > 0)
+        ? { requests: this.production.map((r) => ({ ...r })), power: el<HTMLInputElement>('#prod-power').checked, tiltedSquare: el<HTMLInputElement>('#prod-tilted').checked }
+        : undefined;
+      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems, ministry, airport, production };
       worker.postMessage(job);
     });
   }

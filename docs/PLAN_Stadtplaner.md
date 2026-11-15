@@ -671,7 +671,49 @@ Recherche (Wiki „Needs“, „Mail“, „Post Office“, „Post Box“, „N
 - Zeitung: Nutzer nutzt dauerhaft die volle Zeitung (3 × Sparmaßnahmen,
   −68 % Verbrauch) – Standard in den Regeln.
 
-## 23. Noch offene Fragen
+## 23. Phase 5: geclippte Produktion (Auswahl durch den Nutzer)
+
+- **Auswahl:** Liste aller clipbaren Produktionsgebäude der Alten Welt
+  (`CLIPPABLE` in `src/catalog.ts`, aus den Anno-Designer-Presets): Fabriken,
+  Mehrfachfabriken und Baumschulen mit **gerader Breite und Länge** – z. B.
+  Hochrad-Werkhalle 6×6, Glühbirnenfabrik 6×6, Brillenfabrik 6×4, Schneiderei
+  6×4, Glashütte 6×4, Weberei/Siederei 4×4, Baumschulen 4×4, Chemiefabriken
+  8×8, Schuster 8×6, Telefonfabrik 10×8, Dampfwagenfabrik 12×8,
+  Mehrfachfabriken (Luftschiffe) 6×10. Ohne Küstengebäude (Salpeter, Quarz),
+  Felder und Holzfäller. Im Planer: Gebäude + Anzahl hinzufügen (mehrere
+  Arten möglich), im Browser gespeichert; Standard 4 Hochrad-Werkhallen.
+- **Geometrie:** Handelskammer-Mitten genau 30 auseinander (ganzzahlig:
+  (30, 0), (0, 30), (24, 18), (18, 24)), Gebäudemitte auf der Kantenmitte →
+  Abstand 15,0 zu beiden (wie in beiden Stempeln). Gitter: **quadratisch**
+  (alle Größen, beide Drehungen) und **Raute** (24, ±18)/(±18, 24) (nur
+  quadratische Gebäude, Angabe des Nutzers). Optional „schräges Quadrat“
+  (24, 18)/(−18, 24): jede Kante wie in der Raute, die Form selbst ist im
+  Spiel ungetestet → standardmäßig aus.
+- **Suche** (`findFormations`): je Gitter und Verschiebung (≈ 900 je Gitter)
+  wächst gierig eine Formation – Kante zwischen gesetzten Kammern, neue Kammer
+  mit allen Kanten zu gesetzten, oder neues Kammerpaar –, jeweils mit den
+  geringsten Kosten je Gebäude (Häuser ≈ 225–256 Einwohner, Straßenkachel 40).
+  Große Gebäude werden zuerst verteilt.
+- **Prüfung im Plan** (`services.ts`): die 40 besten Formationen werden
+  durchgerechnet. Schneidet die Formation ein Straßenstück vom Netz ab (z. B.
+  Längsstraße zwischen zwei Gebäuden), entfällt es (höchstens 40 Kacheln,
+  sonst ungültig); Häuser ohne Anschluss weichen mit; jedes Gebäude und jede
+  Kammer braucht eine Straße. Gewählt wird der geringste echte Verlust.
+- Die Produktion wird **vor** Lufthafen, Ministerium und Läden gesetzt (starre
+  Form). Danach: Strom (zusätzliches Kraftwerk nur, wenn eine Fabrik außerhalb
+  jeder Kraftwerksreichweite liegt; abwählbar für Galvanismus) und Lagerhäuser
+  (Produktion → Lagerhaus über ≤ 20 Straßenkacheln, Annahme).
+- Insel 2 (6er-Linien, Rathäuser, Versorgung, Ministerium, ohne Stufen,
+  ≈ 482.000 Einwohner ohne Produktion), Verlust an Einwohnern:
+  4 Hochrad-Werkhallen ≈ −5.000 (Raute, 4 HK, 29 Häuser),
+  8 Hochrad ≈ −16.500 (Raute, 7 HK), 8 Baumschulen ≈ −12.000 (Raute, 7 HK),
+  4 Hochrad + 4 Baumschulen ≈ −14.800, 4 Dampfwagenfabriken ≈ −13.000
+  (quadratisch), 6 Brillenfabriken ≈ −12.300 (quadratisch). Jedes Gebäude
+  von genau 2 HK erfasst, Straßennetz unverändert, keine Warnungen.
+
+## 24. Noch offene Fragen
+- Lagerhaus-Reichweite für Produktion (Annahme 20 Straßenkacheln).
+- Schräges Quadrat (24, 18)/(−18, 24) im Spiel testen.
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

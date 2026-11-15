@@ -87,8 +87,61 @@ export const CATALOG_LIST: readonly CatalogEntry[] = [
   E({ guid: 966, kind: 'airportModule', name: 'Luftpostlager', size: [5, 3] }),
   E({ guid: 269602, kind: 'localDepartment', name: 'Regionalministerium', size: [8, 5] }),
   E({ guid: 1010371, kind: 'warehouse', name: 'Lagerhaus', size: [5, 5] }),
-  E({ guid: 1010323, kind: 'production', name: 'Hochrad-Werkhalle', size: [6, 6] }),
 ];
+
+/**
+ * Clipbare Produktionsgebäude der Alten Welt: gerade Breite und Länge, damit
+ * die Mitte genau auf der Mitte zwischen zwei Handelskammern liegen kann
+ * (Abstand 15,0 zu beiden). Quelle: Anno-Designer-Presets (Fabriken,
+ * Mehrfachfabriken, Baumschulen); ohne Küstengebäude, Felder und Holzfäller.
+ */
+export interface ClippableBuilding {
+  guid: number;
+  name: string;
+  /** Preset-Größe [x, z]. */
+  size: readonly [number, number];
+  group: string;
+}
+
+const C = (guid: number, name: string, x: number, z: number, group: string): ClippableBuilding => ({
+  guid,
+  name,
+  size: [x, z],
+  group,
+});
+
+export const CLIPPABLE: readonly ClippableBuilding[] = [
+  C(1010323, 'Hochrad-Werkhalle', 6, 6, 'Ingenieure'),
+  C(1010286, 'Glühbirnenfabrik', 6, 6, 'Ingenieure'),
+  C(101250, 'Brillenfabrik', 6, 4, 'Ingenieure'),
+  C(1010303, 'Dampfwagenfabrik', 12, 8, 'Investoren'),
+  C(1010315, 'Weberei', 4, 4, 'Bauern'),
+  C(1010281, 'Siederei', 4, 4, 'Arbeiter'),
+  C(1010325, 'Schneiderei', 6, 4, 'Handwerker'),
+  C(1010319, 'Glashütte', 6, 4, 'Handwerker'),
+  C(132933, 'Baumschule', 4, 4, 'Baumschule'),
+  C(133496, 'Baumschule: Konfitüre', 4, 4, 'Baumschule'),
+  C(135088, 'Baumschule: Kirschbaumholz', 4, 4, 'Baumschule'),
+  C(135085, 'Baumschule: Harz', 4, 4, 'Baumschule'),
+  C(132771, 'Chemiefabrik', 8, 8, 'Chemiefabrik'),
+  C(132777, 'Chemiefabrik: Limonade', 8, 8, 'Chemiefabrik'),
+  C(132786, 'Chemiefabrik: Shampoo', 8, 8, 'Chemiefabrik'),
+  C(133533, 'Chemiefabrik: Souvenirs', 8, 8, 'Chemiefabrik'),
+  C(135133, 'Chemiefabrik: Farben und Lacke', 8, 8, 'Chemiefabrik'),
+  C(118733, 'Schuster', 8, 6, 'Gelehrte'),
+  C(118735, 'Telefonfabrik', 10, 8, 'Gelehrte'),
+  C(124739, 'Fortschrittliche Baumwollweberei', 4, 4, 'Gelehrte'),
+  C(923, 'Versorgungsfabrik', 6, 10, 'Mehrfachfabrik (Luftschiffe)'),
+  C(924, 'Bombenfabrik', 6, 10, 'Mehrfachfabrik (Luftschiffe)'),
+  C(934, 'Seeminenfabrik', 6, 10, 'Mehrfachfabrik (Luftschiffe)'),
+  C(935, 'Flugblattdruckerei', 6, 10, 'Mehrfachfabrik (Luftschiffe)'),
+  C(936, 'Hilfspaketfabrik', 6, 10, 'Mehrfachfabrik (Luftschiffe)'),
+  C(937, 'Löschwasserfabrik', 6, 10, 'Mehrfachfabrik (Luftschiffe)'),
+];
+
+for (const c of CLIPPABLE) {
+  (CATALOG_LIST as CatalogEntry[]).push(E({ guid: c.guid, kind: 'production', name: c.name, size: c.size }));
+}
 
 /** Kaufhaus, Einrichtungshaus und Drogerie gibt es in Varianten je Patent. */
 const VARIANTS: Readonly<Record<number, number>> = {

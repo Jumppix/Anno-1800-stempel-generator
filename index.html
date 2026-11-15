@@ -147,6 +147,22 @@
             <input id="plan-ministry" type="checkbox" checked />
             Regionalministerium einplanen (Wohlfahrt/Richtlinie aus „Palast &amp; Ministerium“)
           </label>
+          <div class="sub-title">Produktion (Clipping)</div>
+          <div class="prod-add">
+            <select id="prod-type" aria-label="Produktionsgebäude"></select>
+            <input id="prod-count" type="number" min="1" max="60" step="1" value="4" aria-label="Anzahl" />
+            <button id="prod-add" class="ghost" type="button">+ Hinzufügen</button>
+          </div>
+          <div id="prod-list" class="prod-list"></div>
+          <label class="check-row">
+            <input id="prod-power" type="checkbox" checked />
+            Strom für die Produktion (Kraftwerk in Reichweite)
+          </label>
+          <label class="check-row">
+            <input id="prod-tilted" type="checkbox" />
+            Auch schräges Quadrat erlauben (Kanten wie Raute, Form im Spiel ungetestet)
+          </label>
+          <p class="micro">Jedes Gebäude steht genau zwischen zwei Handelskammern (Mitten 30 auseinander, Gebäudemitte 15 von beiden) – quadratisch oder als Raute wie in deinen Stempeln. Nur Gebäude mit gerader Breite und Länge; schräge Formationen nur für quadratische. Handelskammern und Lagerhaus werden ergänzt.</p>
           <details class="advanced">
             <summary>Erweitert</summary>
             <label class="select-row">Versorgungsziel

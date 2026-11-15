@@ -84,6 +84,9 @@ unnötig verändern.
 - `src/post.ts`: Briefkästen planen (Produktion nach Einwohnern im Radius, Post inselweit);
   Ministerium und Lufthafen (`options.ministry`, `options.airport`, Komplex-ID 9001) in `services.ts`;
   Hauptanlegestelle per Klick (`PlannerUi.setHarbor`, `harborPick` in `main.ts`).
+- `src/production.ts`: geclippte Produktion (Phase 5) – Liste `CLIPPABLE` in `catalog.ts`,
+  `findFormations` (HK-Gitter mit Kanten genau 30: quadratisch, Raute, optional schräges Quadrat;
+  Gebäude auf Kantenmitte), Einbau/Strom/Lagerhaus in `services.ts` (`options.production`).
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;
   Option Mindest-Ingenieure (250 je Gaskraftwerk).
 - Brücken (`addBridges`, Zelltyp `BRIDGE`, `GridPlan.bridges`) und
@@ -134,8 +137,8 @@ unnötig verändern.
 - Spielbarkeit des großen Ein-Stempel-Exports ist noch ein Praxistest.
 - Kein automatisierter End-to-End-/Browser-Test (nur `npm run check` für den
   Solver).
-- Stadtplaner: Produktion (Clipping-Formation) folgt in Phase 5
-  (`docs/PLAN_Stadtplaner.md`).
+- Stadtplaner: Lagerhaus-Reichweite der Produktion (20) ist eine Annahme;
+  im Spiel prüfen (`PRODUCTION_WAREHOUSE_RANGE`).
 - Optimalität ist für große Inseln nicht bewiesen; Benchmark-Insel
   189 × 290: 41 HK / 25–26 Rathäuser (alter Solver: 33 HK).
 - Der Feldweg-GUID wird aus dem ersten importierten Stempel übernommen

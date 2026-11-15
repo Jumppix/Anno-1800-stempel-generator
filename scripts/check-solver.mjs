@@ -185,6 +185,29 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
         airA.warnings.length === 0 && airCity.conflicts === 0 && air.city.plan.networks === dense.plan.networks,
       `${air.report.airport.distance} Kacheln, ${air.report.airport.houses} Häuser verdrängt; ${airA.warnings.join('; ')}`);
   }
+  {
+    // Phase 5: geclippte Produktion – 4 Hochrad-Werkhallen + 4 Baumschulen, jede von genau 2 HK erfasst.
+    const prod = planServices(mask, dense, {
+      kinds,
+      fullCoverageValue: 0,
+      production: { requests: [{ guid: 1010323, count: 4 }, { guid: 132933, count: 4 }], power: true },
+    });
+    const itemsP = planToStampItems(mask, prod.city, { coast: false, coastGuid: 1000178 });
+    const prodCity = cityFromStamp(decodeStampFull(buildGenericStamp(itemsP.buildings, 'ow', itemsP.streets)));
+    const prodA = analyzeCity(prodCity, DEFAULT_RULES);
+    const factories = prodCity.buildings.filter((b) => b.entry.kind === 'production');
+    const hits = factories.map((b) => prodA.tradeUnionHits.get(b.index) ?? 0);
+    const unions = prodCity.buildings.filter((b) => b.entry.kind === 'tradeUnion');
+    let close = 0;
+    for (let i = 0; i < unions.length; i++) for (let j = i + 1; j < unions.length; j++) {
+      if (Math.hypot(unions[i].cx - unions[j].cx, unions[i].cy - unions[j].cy) < 30 - 1e-9) close++;
+    }
+    const p = prod.report.production;
+    expect('Produktion: 8 Gebäude geclippt (je 2 HK), HK-Abstand ≥ 30, Netz unverändert, keine Warnungen',
+      p?.placed === 8 && factories.length === 8 && hits.every((n) => n === 2) && close === 0 &&
+        prod.city.plan.networks === dense.plan.networks && prodA.warnings.length === 0 && prodCity.conflicts === 0,
+      `${p?.placed} Gebäude (${p?.lattice}), ${p?.tradeUnions} HK, ${p?.houses} Häuser verdrängt, Treffer ${hits.join('')}; ${prodA.warnings.join('; ')}`);
+  }
   let rhClose = 0;
   for (let i = 0; i < city.townHalls.length; i++) for (let j = i + 1; j < city.townHalls.length; j++) {
     if (Math.hypot(city.townHalls[i].x - city.townHalls[j].x, city.townHalls[i].y - city.townHalls[j].y) < 40) rhClose++;

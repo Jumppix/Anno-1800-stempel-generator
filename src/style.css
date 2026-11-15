@@ -931,3 +931,45 @@ details.advanced + button.primary {
   min-width: 0;
   margin: 0;
 }
+
+.prod-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.2em auto;
+  gap: 6px;
+  align-items: center;
+  margin: 4px 0 6px;
+}
+
+.prod-add select,
+.prod-add input {
+  min-width: 0;
+}
+
+.prod-list {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.prod-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.2em auto;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.85em;
+}
+
+.prod-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prod-row input {
+  min-width: 0;
+}
+
+.prod-empty {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
