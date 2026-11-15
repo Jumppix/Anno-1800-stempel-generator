@@ -582,7 +582,36 @@ Bandverschiebung hilft fast überall (die im Beitrag genannte „Symmetrie“
 ist für unsere Stufen-Optimierung kein Nachteil, da sie jedes Haus einzeln
 bewertet).
 
-## 21. Noch offene Fragen
+## 21. Brücken, Straßenstummel, eigene Ingenieure, Speichern
+
+- **Brücken** (`addBridges` in `fill.ts`): Getrennte Straßennetze werden über
+  gerade Wasserstreifen bis zur gewählten Länge (Standard 12) verbunden –
+  erst die kürzesten, die alles verbinden, dann je Netzpaar bis zu zwei
+  weitere im Abstand ≥ 40 Kacheln; 1 Kachel Abstand zwischen parallelen
+  Brücken. Brückenkacheln (Zelltyp `BRIDGE`, `GridPlan.bridges`) zählen für
+  Wege und Zusammenhang, sind aber kein Bauplatz; sie stehen in der Ansicht,
+  nicht im exportierten Stempel (Brücke baust du im Spiel).
+  Fehler gefunden und behoben: Die Netz-Prüfung für Rathäuser auf
+  Querstraßen zählte Brücken nicht – dadurch wurden 9 von 25 Rathäusern
+  verworfen. Insel 2: 4 Netze → 1 Netz mit 5 Brücken.
+- **Straßenstummel** (`replaceRoadStubs`): 3×3-Plätze aus freien Kacheln und
+  bis zu drei Straßenkacheln werden bebaut, wenn das Netz zusammenhängt und
+  alle Nachbarn angeschlossen bleiben (die Lücke aus dem Screenshot). Insel 2:
+  +16…18 Häuser. Läuft am Ende der Nachverdichtung und vor der Versorgung.
+- **Eigene Ingenieure**: Gaskraftwerk braucht 250 Ingenieure (Wiki); mit der
+  Option plant die Stufen-Optimierung mindestens 250 × Kraftwerke
+  Ingenieurs-Einwohner ein (Strafterm im Annealing, in jeder Bauweise
+  erlaubt). Insel 2: 12–16 Ingenieurs-Hochhäuser, ≈ ±0 Einwohner.
+- **Speichern**: Teile, Anordnung, Region, Modus und alle Planer-/Regel-
+  Einstellungen im Browser (localStorage, `src/persist.ts`).
+- Seitenleiste: Grundeinstellungen sichtbar, Rechenzeiten u. Ä. unter
+  „Erweitert“; Regeln und Stadt-Analyse einklappbar; „Inselrand als Feldweg“
+  entfernt; Ergebnis als kurze Liste.
+
+Insel 2 (6er-Linien, Brücken 12, eigene Ingenieure, automatisch): ≈ 551.000
+Einwohner, 2.009 Häuser, 25 Rathäuser, keine Warnungen.
+
+## 22. Noch offene Fragen
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

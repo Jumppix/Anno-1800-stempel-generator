@@ -842,3 +842,71 @@ button.ghost:disabled {
 .sub-block + button.primary {
   margin-top: 14px;
 }
+
+/* Einklappbare Bereiche */
+details.advanced {
+  margin: 8px 0 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+
+details.advanced > summary,
+details.card-details > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 11px;
+  user-select: none;
+}
+
+details.advanced > summary::before,
+details.card-details > summary::before {
+  content: '▸ ';
+}
+
+details.advanced[open] > summary::before,
+details.card-details[open] > summary::before {
+  content: '▾ ';
+}
+
+details.advanced[open] > summary {
+  margin-bottom: 8px;
+}
+
+details.card-details > summary h2 {
+  display: inline;
+  margin: 0;
+}
+
+details.card-details[open] > summary {
+  margin-bottom: 10px;
+}
+
+details.advanced + button.primary {
+  margin-top: 12px;
+}
+
+.check-grid + details.advanced {
+  margin-top: 4px;
+}
+
+/* Kompakte Ergebniszeilen des Planers */
+.plan-status {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.plan-status ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.plan-status li {
+  margin-bottom: 3px;
+}
+
+.plan-status strong {
+  color: var(--text);
+}

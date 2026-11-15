@@ -24,6 +24,11 @@ export const HOUSE = 3;
 export const BLOCKED = 4;
 /** Versorgungsgebäude (wie BLOCKED, braucht aber Straßenanschluss). */
 export const SERVICE = 5;
+/** Brücke: Straße über Wasser (zählt für Wege, ist aber kein Bauplatz). */
+export const BRIDGE = 6;
+
+/** Straße oder Brücke (für Wege und Zusammenhang des Netzes). */
+export const isWay = (v: number): boolean => v === ROAD || v === BRIDGE;
 
 export interface FillHouse {
   x: number;
@@ -217,7 +222,7 @@ export function pruneRoads(s: FillState): number {
   const nearHouse = (i: number): boolean => {
     const x = i % w;
     const y = (i - x) / w;
-    const needs = (v: number): boolean => v === HOUSE || v === SERVICE;
+    const needs = (v: number): boolean => v === HOUSE || v === SERVICE || v === BRIDGE;
     return (
       (x > 0 && needs(cell[i - 1])) ||
       (x < w - 1 && needs(cell[i + 1])) ||
@@ -229,10 +234,10 @@ export function pruneRoads(s: FillState): number {
     const x = i % w;
     const y = (i - x) / w;
     let d = 0;
-    if (x > 0 && cell[i - 1] === ROAD) d++;
-    if (x < w - 1 && cell[i + 1] === ROAD) d++;
-    if (y > 0 && cell[i - w] === ROAD) d++;
-    if (y < h - 1 && cell[i + w] === ROAD) d++;
+    if (x > 0 && isWay(cell[i - 1])) d++;
+    if (x < w - 1 && isWay(cell[i + 1])) d++;
+    if (y > 0 && isWay(cell[i - w])) d++;
+    if (y < h - 1 && isWay(cell[i + w])) d++;
     return d;
   };
   let removed = 0;
@@ -508,4 +513,235 @@ export function searchFill(
     onProgress?.(best, i + 1, finalists.length);
   });
   return best as unknown as FillResult;
+}
+
+// ---------------------------------------------------------------------------
+// Brücken über Flussarme
+// ---------------------------------------------------------------------------
+
+/**
+ * Getrennte Straßennetze (Inselteile zwischen Flussarmen) mit Brücken
+ * verbinden: gerade über höchstens `maxLen` Wasserkacheln, Start und Ende auf
+ * Straße oder freiem Land direkt an einer Straße (wird zur Straße). Erst die
+ * kürzesten Brücken, die alles verbinden (Kruskal), dann je Paar bis zu zwei
+ * weitere, mindestens 40 Kacheln von den vorhandenen entfernt (kürzere Wege
+ * für die Versorgung). Parallele Brücken halten 1 Kachel Abstand (Spielregel).
+ * Liefert die Zahl der Brücken.
+ */
+export function addBridges(s: FillState, maxLen: number): number {
+  if (maxLen <= 0) return 0;
+  const { w, h, cell } = s;
+  const net = labelComponents(w, h, (i) => isWay(cell[i]));
+  const netOf = (i: number, skip: number): number => {
+    if (cell[i] === ROAD) return net[i];
+    if (cell[i] !== FREE) return -1;
+    const x = i % w;
+    const y = (i - x) / w;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
+      if (j >= 0 && j !== skip && cell[j] === ROAD) return net[j];
+    }
+    return -1;
+  };
+  interface Cand {
+    a: number;
+    b: number;
+    tiles: number[];
+    ends: [number, number];
+    cost: number;
+    mx: number;
+    my: number;
+    dir: 0 | 1;
+  }
+  const cands: Cand[] = [];
+  const dirs: Array<[number, number]> = [
+    [1, 0],
+    [0, 1],
+  ];
+  for (let i = 0; i < cell.length; i++) {
+    if (cell[i] !== ROAD && cell[i] !== FREE) continue;
+    const x0 = i % w;
+    const y0 = (i - x0) / w;
+    dirs.forEach(([dx, dy], di) => {
+      const first = (y0 + dy) * w + x0 + dx;
+      if (x0 + dx >= w || y0 + dy >= h || cell[first] !== WATER) return;
+      const tiles: number[] = [];
+      let x = x0 + dx;
+      let y = y0 + dy;
+      while (x < w && y < h && cell[y * w + x] === WATER && tiles.length <= maxLen) {
+        tiles.push(y * w + x);
+        x += dx;
+        y += dy;
+      }
+      if (x >= w || y >= h || tiles.length === 0 || tiles.length > maxLen) return;
+      const j = y * w + x;
+      if (cell[j] !== ROAD && cell[j] !== FREE) return;
+      const a = netOf(i, tiles[0]);
+      const b = netOf(j, tiles[tiles.length - 1]);
+      if (a < 0 || b < 0 || a === b) return;
+      const cost = tiles.length + (cell[i] === FREE ? 1 : 0) + (cell[j] === FREE ? 1 : 0);
+      const mid = tiles[tiles.length >> 1];
+      cands.push({ a, b, tiles, ends: [i, j], cost, mx: mid % w, my: Math.floor(mid / w), dir: di as 0 | 1 });
+    });
+  }
+  cands.sort((p, q) => p.cost - q.cost);
+  const parent = new Map<number, number>();
+  const find = (k: number): number => {
+    let r = k;
+    while (parent.has(r) && parent.get(r) !== r) r = parent.get(r) as number;
+    return r;
+  };
+  const built: Cand[] = [];
+  const blocked = (c: Cand): boolean =>
+    c.tiles.some((t) => cell[t] !== WATER) ||
+    c.ends.some((e) => cell[e] !== ROAD && cell[e] !== FREE) ||
+    // Abstand zu parallelen Brücken: Nachbarkacheln quer zur Richtung frei.
+    c.tiles.some((t) => {
+      const side = c.dir === 0 ? [t - w, t + w] : [t - 1, t + 1];
+      return side.some((n) => n >= 0 && n < cell.length && cell[n] === BRIDGE);
+    });
+  const build = (c: Cand): void => {
+    for (const t of c.tiles) cell[t] = BRIDGE;
+    for (const e of c.ends) if (cell[e] === FREE) cell[e] = ROAD;
+    built.push(c);
+  };
+  for (const c of cands) {
+    const ra = find(c.a);
+    const rb = find(c.b);
+    if (ra === rb || blocked(c)) continue;
+    build(c);
+    parent.set(ra, rb);
+  }
+  // Zusätzliche Brücken je Netzpaar für kürzere Wege.
+  for (const c of cands) {
+    if (built.includes(c) || blocked(c)) continue;
+    const same = built.filter((b) => (b.a === c.a && b.b === c.b) || (b.a === c.b && b.b === c.a));
+    if (same.length === 0 || same.length >= 3) continue;
+    if (same.some((b) => Math.abs(b.mx - c.mx) + Math.abs(b.my - c.my) < 40)) continue;
+    build(c);
+  }
+  return built.length;
+}
+
+/**
+ * Straßenstummel durch Häuser ersetzen: Ein 3×3-Platz aus freien Kacheln und
+ * höchstens drei Straßenkacheln wird bebaut, wenn das Straßennetz ohne diese
+ * Kacheln zusammenhängt, alle angrenzenden Häuser/Gebäude angeschlossen
+ * bleiben und das neue Haus selbst an einer Straße liegt. Wiederholt, bis
+ * nichts mehr geht; danach gieriges Füllen. Liefert neue Häuser.
+ */
+export function replaceRoadStubs(s: FillState): number {
+  const { w, h, cell } = s;
+  const nb = (i: number): number[] => {
+    const x = i % w;
+    const out: number[] = [];
+    if (x > 0) out.push(i - 1);
+    if (x < w - 1) out.push(i + 1);
+    if (i >= w) out.push(i - w);
+    if (i + w < w * h) out.push(i + w);
+    return out;
+  };
+  const separates = (tiles: number[]): boolean => {
+    const removed = new Set(tiles);
+    const ends = new Set<number>();
+    for (const t of tiles) for (const n of nb(t)) if (isWay(cell[n]) && !removed.has(n)) ends.add(n);
+    if (ends.size <= 1) return false;
+    const list = [...ends];
+    const seen = new Set<number>([list[0]]);
+    const queue = [list[0]];
+    let found = 1;
+    for (let k = 0; k < queue.length; k++) {
+      for (const n of nb(queue[k])) {
+        if (!isWay(cell[n]) || removed.has(n) || seen.has(n)) continue;
+        seen.add(n);
+        if (ends.has(n) && ++found === ends.size) return false;
+        queue.push(n);
+      }
+    }
+    return true;
+  };
+  // Hausindex je Kachel, um angrenzende Häuser zu prüfen.
+  const houseAt = new Int32Array(w * h).fill(-1);
+  s.houses.forEach((hs, k) => {
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) houseAt[(hs.y + dy) * w + hs.x + dx] = k;
+  });
+  const hasAccess = (x: number, y: number, bw: number, bh: number): boolean => {
+    for (let d = 0; d < bw; d++) {
+      if (y > 0 && isWay(cell[(y - 1) * w + x + d]) && cell[(y - 1) * w + x + d] === ROAD) return true;
+      if (y + bh < h && cell[(y + bh) * w + x + d] === ROAD) return true;
+    }
+    for (let d = 0; d < bh; d++) {
+      if (x > 0 && cell[(y + d) * w + x - 1] === ROAD) return true;
+      if (x + bw < w && cell[(y + d) * w + x + bw] === ROAD) return true;
+    }
+    return false;
+  };
+  let added = 0;
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    for (let y = 0; y + 3 <= h; y++) {
+      for (let x = 0; x + 3 <= w; x++) {
+        const roads: number[] = [];
+        let ok = true;
+        for (let dy = 0; dy < 3 && ok; dy++) {
+          for (let dx = 0; dx < 3; dx++) {
+            const i = (y + dy) * w + x + dx;
+            if (cell[i] === ROAD) roads.push(i);
+            else if (cell[i] !== FREE) {
+              ok = false;
+              break;
+            }
+          }
+        }
+        if (!ok || roads.length === 0 || roads.length > 3) continue;
+        if (separates(roads)) continue;
+        for (const i of roads) cell[i] = FREE;
+        // Nachbarn (Häuser, Versorgungsgebäude) müssen weiter eine Straße berühren.
+        let fine = touchesRoad(s, x, y);
+        if (fine) {
+          const touched = new Set<number>();
+          for (const r of roads) for (const n of nb(r)) if (cell[n] === HOUSE) touched.add(houseAt[n]);
+          for (const k of touched) {
+            const hs = s.houses[k];
+            if (!hs || !touchesRoad(s, hs.x, hs.y)) fine = false;
+          }
+          for (const r of roads) {
+            for (const n of nb(r)) {
+              if (cell[n] !== SERVICE) continue;
+              // Versorgungsgebäude: irgendeine Straße am Rand des zusammenhängenden SERVICE-Blocks?
+              let bx0 = n % w;
+              let by0 = Math.floor(n / w);
+              let bx1 = bx0;
+              let by1 = by0;
+              const stack = [n];
+              const seen = new Set<number>([n]);
+              while (stack.length) {
+                const j = stack.pop() as number;
+                const jx = j % w;
+                const jy = Math.floor(j / w);
+                bx0 = Math.min(bx0, jx);
+                by0 = Math.min(by0, jy);
+                bx1 = Math.max(bx1, jx);
+                by1 = Math.max(by1, jy);
+                for (const q of nb(j)) if (cell[q] === SERVICE && !seen.has(q)) (seen.add(q), stack.push(q));
+              }
+              if (!hasAccess(bx0, by0, bx1 - bx0 + 1, by1 - by0 + 1)) fine = false;
+            }
+          }
+        }
+        if (!fine) {
+          for (const i of roads) cell[i] = ROAD;
+          continue;
+        }
+        placeHouse(s, x, y, -1);
+        const k = s.houses.length - 1;
+        for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) houseAt[(y + dy) * w + x + dx] = k;
+        added++;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  added += greedyFill(s);
+  pruneRoads(s);
+  return added;
 }

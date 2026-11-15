@@ -20,9 +20,11 @@ import {
   ROAD,
   HOUSE,
   SERVICE,
+  isWay,
   footprintFree,
   labelComponents,
   pruneRoads,
+  replaceRoadStubs,
   snugness,
   touchesRoad,
   type FillHouse,
@@ -86,7 +88,7 @@ function separatesRoads(s: FillState, tiles: number[]): boolean {
     return out;
   };
   const ends = new Set<number>();
-  for (const t of tiles) for (const n of neighbours(t)) if (cell[n] === ROAD && !removed.has(n)) ends.add(n);
+  for (const t of tiles) for (const n of neighbours(t)) if (isWay(cell[n]) && !removed.has(n)) ends.add(n);
   if (ends.size <= 1) return false;
   const list = [...ends];
   const seen = new Set<number>([list[0]]);
@@ -94,7 +96,7 @@ function separatesRoads(s: FillState, tiles: number[]): boolean {
   let found = 1;
   for (let q = 0; q < queue.length; q++) {
     for (const n of neighbours(queue[q])) {
-      if (cell[n] !== ROAD || seen.has(n)) continue;
+      if (!isWay(cell[n]) || seen.has(n)) continue;
       seen.add(n);
       if (ends.has(n) && ++found === ends.size) return false;
       queue.push(n);
@@ -352,6 +354,7 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
       effortScale = level;
     }
   }
+  result.gained += replaceRoadStubs(s);
   pruneRoads(s);
   return result;
 }

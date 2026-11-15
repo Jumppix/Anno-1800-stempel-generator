@@ -19,6 +19,7 @@ import {
 } from './island';
 import { render } from './render';
 import { Camera } from './camera';
+import { loadIsland, persistSettings, saveIsland } from './persist';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
 
 function el<T extends HTMLElement>(selector: string): T {
@@ -467,6 +468,7 @@ function update(): void {
   clearStamp.hidden = parts.length === 0;
   alignAll.disabled = parts.length < 2;
   plannerUi?.refreshIsland();
+  saveIsland(parts, regionEl.value, mode);
 }
 
 function updateOffsetInputs(part: IslandPart): void {
@@ -819,4 +821,18 @@ modeCity.addEventListener('click', () => setMode('city'));
 
 new ResizeObserver(() => drawStage()).observe(stage);
 
+// Einstellungen des Stadtplaners und der Regeln merken.
+persistSettings(
+  document,
+  'input[id^="plan-"], select[id^="plan-"], input[id^="svc-"], select[id^="svc-"], input[id^="rule-"], select[id^="rule-"]',
+);
+
+// Letzte Insel (Teile + Anordnung) und Modus wiederherstellen.
+const savedIsland = loadIsland(() => `p${nextPartId++}`);
+if (savedIsland && savedIsland.parts.length) {
+  parts = savedIsland.parts;
+  selectedId = parts[parts.length - 1].id;
+  if (savedIsland.region === 'ow' || savedIsland.region === 'nw') regionEl.value = savedIsland.region;
+}
+if (savedIsland?.mode === 'city') setMode('city');
 update();

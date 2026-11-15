@@ -201,6 +201,21 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   expect('Stufen: ≥ 8 % mehr Einwohner als nur Stufe 3', planB.totals.residents >= planA.totals.residents * 1.08,
     `${planA.totals.residents} → ${planB.totals.residents} (${lv.mode}, ${JSON.stringify(lv.counts)})`);
   expect('Stufen: Ingenieure höchstens Stufe 3', [...lv.planned.values()].every((st) => st.tier === 'investor' || st.level === 3));
+  const lvEng = optimizeLevels(planA.residences, DEFAULT_RULES, '45', Math.min(budget * 2, 6000), 5, { minEngineers: 1500 });
+  expect('Stufen: Mindestzahl Ingenieure (eigene Arbeitskraft) erfüllt', lvEng.engineers >= 1500, `${lvEng.engineers} / 1500`);
+
+  // 7. Brücken verbinden die Flussarme der Benchmark-Insel zu einem Straßennetz.
+  const { addBridges, replaceRoadStubs } = await server.ssrLoadModule('/src/fill.ts');
+  const bridged = searchFill(mask, { orientation: 'auto', housesPerLine: 6 });
+  const nBridges = addBridges(bridged, 12);
+  const bridgedPlan = planFromFill(bridged);
+  expect('Brücken: ein zusammenhängendes Straßennetz', bridgedPlan.networks === 1 && nBridges >= 3, `${nBridges} Brücken, ${bridgedPlan.networks} Netze`);
+  expect('Brücken: nur auf Wasser', bridgedPlan.bridges.every((i) => !mask.data[i]));
+  const stubCity = refillAroundTownHalls(mask, finishPlan(bridgedPlan, [], 12));
+  const { fillRoadStubs } = await server.ssrLoadModule('/src/planner.ts');
+  const stubbed = fillRoadStubs(mask, stubCity);
+  expect('Straßenstummel: Netz bleibt zusammenhängend', stubbed.city.plan.networks === stubCity.plan.networks, `+${stubbed.added} Häuser`);
+  void replaceRoadStubs;
 }
 
 for (const c of cityChecks) {

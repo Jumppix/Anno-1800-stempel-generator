@@ -76,6 +76,12 @@ unnötig verändern.
 - `src/placement.ts`: 2D-Anordnen-Ansicht, pixelgenaue Zeichnung,
   Kachelraster, Drag-Hit-Test.
 - `src/render.ts`: Ergebnisansicht.
+- `src/persist.ts`: letzte Insel (Teile/Anordnung) und Einstellungen im
+  Browser speichern.
+- `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;
+  Option Mindest-Ingenieure (250 je Gaskraftwerk).
+- Brücken (`addBridges`, Zelltyp `BRIDGE`, `GridPlan.bridges`) und
+  Straßenstummel (`replaceRoadStubs`) in `src/fill.ts`.
 - `src/camera.ts`: Zoom/Verschieben (Mausrad, rechte Maustaste) für Anordnen,
   Ergebnis und Plan/Analyse; Ereignisse in `main.ts`, `CityUi.camera`.
 - `src/style.css`: Styling.

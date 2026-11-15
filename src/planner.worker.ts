@@ -1,6 +1,6 @@
 // Rechnet die Bebauung (Gittersuche mit Bandverschiebung) und die
 // Nachverdichtung im Hintergrund, damit die Oberfläche bedienbar bleibt.
-import { searchFill, type FillResult, type Orientation } from './fill';
+import { addBridges, searchFill, type FillResult, type Orientation } from './fill';
 import { compactCity, planServices, planToStampItems, type CityPlan } from './planner';
 import { analyzeCity } from './analysis';
 import { cityFromStamp } from './city';
@@ -13,10 +13,21 @@ import type { ServiceReport } from './services';
 import type { LandMask } from './solver';
 
 export type PlannerJob =
-  | { kind: 'fill'; id: number; mask: LandMask; orientation: 'auto' | Orientation; housesPerLine: number }
+  | { kind: 'fill'; id: number; mask: LandMask; orientation: 'auto' | Orientation; housesPerLine: number; bridgeLen: number }
   | { kind: 'compact'; id: number; mask: LandMask; city: CityPlan; budgetMs: number; seed: number }
   | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean; houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>; townHallItems?: boolean }
-  | { kind: 'levels'; id: number; mask: LandMask; city: CityPlan; rules: RuleConfig; mode: LevelMode; budgetMs: number; seed: number };
+  | {
+      kind: 'levels';
+      id: number;
+      mask: LandMask;
+      city: CityPlan;
+      rules: RuleConfig;
+      mode: LevelMode;
+      budgetMs: number;
+      seed: number;
+      /** Ingenieure für die eigene Arbeitskraft einplanen (Kraftwerke). */
+      selfWorkforce: boolean;
+    };
 
 export type PlannerMessage =
   | { kind: 'fill'; id: number; result: FillResult }
@@ -33,6 +44,8 @@ export type PlannerMessage =
       mode: string;
       counts: Record<string, number>;
       tried: Array<{ mode: string; residents: number }>;
+      engineers: number;
+      minEngineers: number;
     };
 
 const scope = self as unknown as {
@@ -44,15 +57,19 @@ scope.onmessage = (event) => {
   const job = event.data;
   if (job.kind === 'fill') {
     const result = searchFill(job.mask, { orientation: job.orientation, housesPerLine: job.housesPerLine });
+    addBridges(result, job.bridgeLen);
     scope.postMessage({ kind: 'fill', id: job.id, result });
     return;
   }
   if (job.kind === 'levels') {
     // Gleicher Stempel wie in der Ansicht → gleiche Gebäudeindizes.
-    const items = planToStampItems(job.mask, job.city, { coast: false, coastGuid: 1000178 });
+    const items = planToStampItems(job.mask, job.city, { coast: false, coastGuid: 1000178, bridges: true });
     const city = cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets)));
     const analysis = analyzeCity(city, job.rules);
-    const r = optimizeLevels(analysis.residences, job.rules, job.mode, job.budgetMs, job.seed);
+    // Gaskraftwerk: 250 Ingenieure Arbeitskraft (Wiki); Einwohner = Arbeitskraft.
+    const plants = (job.city.services ?? []).filter((sv) => sv.kind === 'powerPlant').length;
+    const minEngineers = job.selfWorkforce ? plants * 250 : 0;
+    const r = optimizeLevels(analysis.residences, job.rules, job.mode, job.budgetMs, job.seed, { minEngineers });
     scope.postMessage({
       kind: 'levels',
       id: job.id,
@@ -62,6 +79,8 @@ scope.onmessage = (event) => {
       mode: r.mode,
       counts: r.counts,
       tried: r.tried,
+      engineers: r.engineers,
+      minEngineers: r.minEngineers,
     });
     return;
   }

@@ -241,6 +241,11 @@ export class CityUi {
     this.draw();
   }
 
+  /** Summen der aktuellen Analyse (für die Statuszeile des Planers). */
+  totals(): Analysis['totals'] | null {
+    return this.analysis?.totals ?? null;
+  }
+
   /** Aktuelle Regeln (Palast, Items, Lieferdienst …) für den Planer. */
   currentRules(): RuleConfig {
     return { ...this.rules };

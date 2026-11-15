@@ -50,6 +50,29 @@ function download(name: string, data: Uint8Array | Blob): void {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+/** Anzahl Brücken = zusammenhängende Gruppen von Brückenkacheln. */
+function countBridges(tiles: readonly number[], w: number): number {
+  const set = new Set(tiles);
+  const seen = new Set<number>();
+  let n = 0;
+  for (const t of tiles) {
+    if (seen.has(t)) continue;
+    n++;
+    const stack = [t];
+    seen.add(t);
+    while (stack.length) {
+      const i = stack.pop() as number;
+      for (const j of [i - 1, i + 1, i - w, i + w]) {
+        if (set.has(j) && !seen.has(j)) {
+          seen.add(j);
+          stack.push(j);
+        }
+      }
+    }
+  }
+  return n;
+}
+
 export class PlannerUi {
   private readonly islandInfo = el<HTMLElement>('#plan-island');
   private readonly orientation = el<HTMLSelectElement>('#plan-orientation');
@@ -59,7 +82,6 @@ export class PlannerUi {
   private readonly budget = el<HTMLSelectElement>('#plan-budget');
   private readonly compactBudget = el<HTMLSelectElement>('#plan-compact');
   private readonly svcGoal = el<HTMLSelectElement>('#svc-goal');
-  private readonly coast = el<HTMLInputElement>('#plan-coast');
   private readonly runButton = el<HTMLButtonElement>('#plan-run');
   private readonly status = el<HTMLElement>('#plan-status');
   private readonly exportBox = el<HTMLElement>('#plan-export');
@@ -86,7 +108,6 @@ export class PlannerUi {
     this.runner = new SolveRunner(() => undefined);
     this.runButton.addEventListener('click', () => void this.run());
     this.split.addEventListener('change', () => this.buildStamps());
-    this.coast.addEventListener('change', () => this.buildStamps());
     el<HTMLButtonElement>('#plan-image').addEventListener('click', () => this.saveImage());
     this.stampList.addEventListener('click', (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-i]');
@@ -183,62 +204,60 @@ export class PlannerUi {
     this.result = { city, mask: src.mask, streetGuid: src.streetGuid, planned: levels.planned };
     this.buildStamps();
     const secs = ((performance.now() - started) / 1000).toFixed(1);
-    const free = freeTiles(src.mask, city);
-    const parts = [
-      `${num(city.houses.length)} Häuser (${plan.orientation === 'vertical' ? 'senkrechte' : 'waagerechte'} Gruppen, ${num(
-        fill.extraHouses,
-      )} frei gesetzt)`,
-      `${city.townHalls.length} Rathäuser`,
-    ];
-    if (refilled.removedHouses) {
-      parts.push(`${refilled.removedHouses} Häuser unter Rathäusern entfernt, ${refilled.refilled} drumherum neu gesetzt`);
+    const totals = this.cityUi.totals();
+    const items: string[] = [];
+    if (totals) {
+      items.push(
+        `<strong>${num(totals.residents)} Einwohner</strong> (Schätzung) · Rathausradius ${Math.round(totals.townHallShare * 100)} %`,
+      );
     }
+    {
+      const names: Record<string, string> = { l3: 'nur Stufe 3', '335': '3-3-5', '45': '4-5', free: 'frei gemischt' };
+      const c = levels.counts;
+      const mix = [c.V5 ? `${num(c.V5)}× V5` : '', c.V4 ? `${num(c.V4)}× V4` : '', c.V3 ? `${num(c.V3)}× V3` : '', c.I3 ? `${num(c.I3)}× I3` : '']
+        .filter(Boolean)
+        .join(', ');
+      items.push(`Bauweise <strong>${names[levels.mode] ?? levels.mode}</strong>: ${mix}`);
+      if (levels.minEngineers > 0) {
+        items.push(
+          `Ingenieure ${num(levels.engineers)} / benötigt ${num(levels.minEngineers)} (Kraftwerke)${
+            levels.engineers < levels.minEngineers ? ' – <strong>zu wenig</strong>' : ' ✓'
+          }`,
+        );
+      }
+    }
+    items.push(
+      `${num(city.houses.length)} Häuser · ${city.townHalls.length} Rathäuser · Restfläche ${(
+        (100 * freeTiles(src.mask, city)) /
+        src.mask.landCount
+      ).toFixed(1)} %`,
+    );
     if (serviced) {
       const r = serviced.report;
-      const names: Record<string, string> = {
+      const short: Record<string, string> = {
         departmentStore: 'Kaufhaus',
         furnitureStore: 'Einrichtungsh.',
         drugStore: 'Drogerie',
         university: 'Universität',
         powerPlant: 'Kraftwerk',
       };
-      const list = kinds
-        .map((k) => `${r.placed[k] ?? 0}× ${names[k]} (${Math.round((r.coverage[k] ?? 0) * 100)} %)`)
-        .join(', ');
-      parts.push(`Versorgung: ${list}, ${r.warehouses}× Lagerhaus – ${r.removedHouses} Häuser ersetzt, ${serviced.refilled} neu gesetzt`);
+      items.push(
+        `Versorgung: ${kinds
+          .filter((k) => r.placed[k])
+          .map((k) => `${r.placed[k]}× ${short[k]}`)
+          .join(', ')}, ${r.warehouses}× Lagerhaus`,
+      );
     }
-    {
-      const names: Record<string, string> = { l3: 'nur Stufe 3', '335': '3-3-5', '45': '4-5', free: 'frei gemischt' };
-      const c = levels.counts;
-      const mix = [c.I3 ? `${c.I3}× I3` : '', c.V3 ? `${c.V3}× V3` : '', c.V4 ? `${c.V4}× V4` : '', c.V5 ? `${c.V5}× V5` : '']
-        .filter(Boolean)
-        .join(', ');
-      const gain = levels.residents - levels.startResidents;
-      parts.push(
-        `Stufen: ${names[levels.mode] ?? levels.mode} (${mix}) – ${gain >= 0 ? '+' : ''}${num(gain)} Einwohner gegenüber nur Stufe 3${
-          levels.tried.length > 1
-            ? ` · geprüft: ${levels.tried.map((t) => `${names[t.mode] ?? t.mode} ${num(t.residents)}`).join(', ')}`
-            : ''
+    const bridges = countBridges(city.plan.bridges ?? [], src.mask.w);
+    if (bridges || city.plan.networks > 1) {
+      items.push(
+        `${bridges ? `${bridges} Brücke${bridges === 1 ? '' : 'n'}` : 'keine Brücken'} · ${
+          city.plan.networks > 1 ? `${city.plan.networks} getrennte Straßennetze` : 'ein zusammenhängendes Straßennetz'
         }`,
       );
     }
-    if (compacted) {
-      parts.push(
-        `Nachverdichtung ${compacted.gained >= 0 ? '+' : ''}${compacted.gained} Häuser${
-          compacted.moved ? `, ${compacted.moved} Rathaus-Verschiebungen` : ''
-        }`,
-      );
-    }
-    if (city.droppedTownHalls) parts.push(`${city.droppedTownHalls} Rathaus/-häuser mit zu wenig Häusern verworfen`);
-    parts.push(`${num(free)} freie Restkacheln (${((100 * free) / src.mask.landCount).toFixed(1)} %, meist schmale Ränder)`);
-    if (city.plan.networks > 1) {
-      parts.push(
-        `${city.plan.networks} getrennte Straßennetze (Flussarme)${
-          serviced ? ' – verbinde sie im Spiel per Brücke; bis dahin wird jedes Teil eigens versorgt' : ''
-        }`,
-      );
-    }
-    this.status.textContent = `Fertig nach ${secs} s · ${parts.join(' · ')}.`;
+    items.push(`Fertig nach ${secs} s${compacted ? ` · Nachverdichtung +${compacted.gained} Häuser` : ''}`);
+    this.status.innerHTML = `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
     this.running = false;
     this.refreshIsland();
   }
@@ -263,6 +282,8 @@ export class PlannerUi {
     mode: string;
     counts: Record<string, number>;
     tried: Array<{ mode: string; residents: number }>;
+    engineers: number;
+    minEngineers: number;
   }> {
     const id = ++this.jobId;
     const worker = this.worker(0);
@@ -276,7 +297,8 @@ export class PlannerUi {
         }
         resolve({ ...msg, planned });
       };
-      const job: PlannerJob = { kind: 'levels', id, mask, city, rules: this.cityUi.currentRules(), mode, budgetMs, seed: 11 };
+      const selfWorkforce = el<HTMLInputElement>('#plan-engineers').checked;
+      const job: PlannerJob = { kind: 'levels', id, mask, city, rules: this.cityUi.currentRules(), mode, budgetMs, seed: 11, selfWorkforce };
       worker.postMessage(job);
     });
   }
@@ -312,7 +334,8 @@ export class PlannerUi {
         const msg = event.data;
         if (msg.id === id && msg.kind === 'fill') resolve(msg.result);
       };
-      const job: PlannerJob = { kind: 'fill', id, mask, orientation, housesPerLine };
+      const bridgeLen = Number(el<HTMLSelectElement>('#plan-bridges').value) || 0;
+      const job: PlannerJob = { kind: 'fill', id, mask, orientation, housesPerLine, bridgeLen };
       worker.postMessage(job);
     });
   }
@@ -365,9 +388,11 @@ export class PlannerUi {
   private buildStamps(): void {
     if (!this.result) return;
     const { city, mask, streetGuid } = this.result;
-    const items = planToStampItems(mask, city, { coast: this.coast.checked, coastGuid: streetGuid });
+    const items = planToStampItems(mask, city, { coast: false, coastGuid: streetGuid, bridges: true });
+    // Export ohne Brücken (die baust du im Spiel über den Fluss).
+    const exportItems = planToStampItems(mask, city, { coast: false, coastGuid: streetGuid });
     const full = buildGenericStamp(items.buildings, 'ow', items.streets);
-    const bands = splitBands(items, this.split.checked ? 13500 : Infinity);
+    const bands = splitBands(exportItems, this.split.checked ? 13500 : Infinity);
     this.stamps = bands.map((b) => buildGenericStamp(b.buildings, 'ow', b.streets));
     // Maske → Stadtkachel: das Stadtmodell beginnt CITY_PAD Kacheln vor dem kleinsten Element.
     const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((st) => st.x)];

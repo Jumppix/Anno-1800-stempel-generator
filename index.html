@@ -91,72 +91,81 @@
         <section class="card" data-mode="city" hidden>
           <h2>Wohnraster planen</h2>
           <p id="plan-island" class="hint">–</p>
-          <label class="select-row">Gruppen
-            <select id="plan-orientation">
-              <option value="auto">Automatisch (meiste Häuser)</option>
-              <option value="vertical">Senkrecht (2 × 4)</option>
-              <option value="horizontal">Waagerecht (4 × 2)</option>
+          <label class="select-row">Bauweise
+            <select id="plan-levels">
+              <option value="auto" selected>Automatisch (meiste Einwohner)</option>
+              <option value="45">4-5 (Investoren Stufe 4/5)</option>
+              <option value="335">3-3-5 (Ing./Inv. 3 + Inv. 5)</option>
+              <option value="free">Frei gemischt (Stufe 3–5)</option>
+              <option value="l3">Nur Stufe 3</option>
             </select>
           </label>
           <label class="select-row">Häuser je Linie
             <select id="plan-line">
-              <option value="3">3 (6er-Gruppe)</option>
-              <option value="4">4 (8er-Gruppe)</option>
-              <option value="5">5 (10er-Gruppe)</option>
-              <option value="6" selected>6 (12er-Gruppe, meiste Einwohner)</option>
-              <option value="8">8 (16er-Gruppe)</option>
-              <option value="10">10 (20er-Gruppe)</option>
-              <option value="12">12 (24er-Gruppe)</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6" selected>6 (meiste Einwohner)</option>
+              <option value="8">8</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+            </select>
+          </label>
+          <label class="select-row">Brücken
+            <select id="plan-bridges">
+              <option value="0">keine</option>
+              <option value="8">über Wasser bis 8 Kacheln</option>
+              <option value="12" selected>über Wasser bis 12 Kacheln</option>
+              <option value="20">über Wasser bis 20 Kacheln</option>
             </select>
           </label>
           <label class="check-row">
-            <input id="plan-townhalls" type="checkbox" checked />
-            Rathäuser einplanen (maximal viele Häuser im Radius 20)
+            <input id="plan-engineers" type="checkbox" checked />
+            Genug Ingenieure für die eigene Arbeitskraft (Kraftwerke)
           </label>
-          <label class="select-row">Min. Häuser je Rathaus
-            <input id="plan-mincover" type="number" min="0" max="200" step="1" value="12" />
-          </label>
-          <label class="select-row">Rechenzeit Rathäuser
-            <select id="plan-budget">
-              <option value="2000">Schnell · 2 s</option>
-              <option value="6000" selected>Gründlich · 6 s</option>
-              <option value="20000">Sehr gründlich · 20 s</option>
-            </select>
-          </label>
-          <label class="select-row">Nachverdichtung
-            <select id="plan-compact">
-              <option value="0">Aus</option>
-              <option value="10000">10 s</option>
-              <option value="20000" selected>20 s</option>
-              <option value="60000">60 s</option>
-            </select>
-          </label>
-          <div class="sub-block">
-            <div class="sub-title">Versorgung (über Straße)</div>
-            <div class="check-grid">
-              <label class="check-row"><input id="svc-departmentStore" type="checkbox" checked />Kaufhaus</label>
-              <label class="check-row"><input id="svc-furnitureStore" type="checkbox" checked />Einrichtungshaus</label>
-              <label class="check-row"><input id="svc-drugStore" type="checkbox" checked />Drogerie</label>
-              <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
-              <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
-            </div>
-            <label class="select-row">Ziel
+          <div class="sub-title">Versorgung</div>
+          <div class="check-grid">
+            <label class="check-row"><input id="svc-departmentStore" type="checkbox" checked />Kaufhaus</label>
+            <label class="check-row"><input id="svc-furnitureStore" type="checkbox" checked />Einrichtungshaus</label>
+            <label class="check-row"><input id="svc-drugStore" type="checkbox" checked />Drogerie</label>
+            <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
+            <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
+          </div>
+          <details class="advanced">
+            <summary>Erweitert</summary>
+            <label class="select-row">Versorgungsziel
               <select id="svc-goal">
-                <option value="0" selected>Max. Einwohner (nur wo es sich lohnt)</option>
-                <option value="30">Vollversorgung (≈ alle Häuser)</option>
+                <option value="0" selected>Max. Einwohner</option>
+                <option value="30">Vollversorgung</option>
               </select>
             </label>
-            <p class="micro">Lagerhäuser werden automatisch ergänzt, sodass jedes Kaufhaus, Einrichtungshaus, jede Drogerie und jedes Kraftwerk eines in Reichweite hat.</p>
-          </div>
-          <div class="sub-block">
-            <div class="sub-title">Hochhaus-Stufen</div>
-            <label class="select-row">Bauweise
-              <select id="plan-levels">
-                <option value="auto" selected>Automatisch (meiste Einwohner)</option>
-                <option value="45">4-5 (Investoren Stufe 4/5)</option>
-                <option value="335">3-3-5 (Ing./Inv. Stufe 3 + Investoren 5)</option>
-                <option value="free">Frei gemischt (Stufe 3–5)</option>
-                <option value="l3">Nur Stufe 3</option>
+            <label class="select-row">Gruppen
+              <select id="plan-orientation">
+                <option value="auto">Automatisch</option>
+                <option value="vertical">Senkrecht</option>
+                <option value="horizontal">Waagerecht</option>
+              </select>
+            </label>
+            <label class="check-row">
+              <input id="plan-townhalls" type="checkbox" checked />
+              Rathäuser einplanen
+            </label>
+            <label class="select-row">Min. Häuser je Rathaus
+              <input id="plan-mincover" type="number" min="0" max="200" step="1" value="12" />
+            </label>
+            <label class="select-row">Rechenzeit Rathäuser
+              <select id="plan-budget">
+                <option value="2000">2 s</option>
+                <option value="6000" selected>6 s</option>
+                <option value="20000">20 s</option>
+              </select>
+            </label>
+            <label class="select-row">Nachverdichtung
+              <select id="plan-compact">
+                <option value="0">Aus</option>
+                <option value="10000">10 s</option>
+                <option value="20000" selected>20 s</option>
+                <option value="60000">60 s</option>
               </select>
             </label>
             <label class="select-row">Rechenzeit Stufen
@@ -166,16 +175,11 @@
                 <option value="45000">45 s</option>
               </select>
             </label>
-            <p class="micro">Stufe 4/5 brauchen zusätzlich Schreibmaschinen, Billardtische, Spielzeug, Violinen und eine Drogerie (Investoren 5) sowie Baumaterial (Aufzüge). Exportiert werden weiter Bauernhäuser – die Zielstufe je Haus zeigt die Ansicht (V4/V5).</p>
-          </div>
+            <p class="micro">Stufe 4/5 brauchen Schreibmaschinen, Billardtische, Spielzeug, Violinen, Aufzüge und für Investoren 5 eine Drogerie. Lagerhäuser werden automatisch ergänzt. Brücken: Wasserstreifen zwischen getrennten Inselteilen werden überbrückt (die genaue Lage baust du im Spiel).</p>
+          </details>
           <button id="plan-run" class="primary" type="button">Wohnraster planen</button>
-          <p id="plan-status" class="hint"></p>
-          <p class="hint">Die ganze Landfläche wird bebaut: Raster mit je Band verschobenen Längsstraßen, Rathäuser bevorzugt auf Querstraßen, danach schiebt die Nachverdichtung Häuser und Rathäuser lokal um, bis keine Restfläche mehr nutzbar ist. Häuser werden als Bauernhäuser exportiert – welche Linie Ingenieure (I) und Investoren (V) werden, zeigt die Ansicht bzw. der Bauplan.</p>
+          <div id="plan-status" class="plan-status"></div>
           <div id="plan-export" hidden>
-            <label class="check-row">
-              <input id="plan-coast" type="checkbox" checked />
-              Inselrand als Feldweg (zum Ausrichten)
-            </label>
             <label class="check-row">
               <input id="plan-split" type="checkbox" />
               In Stempel bis 13.500 Kacheln aufteilen
@@ -186,20 +190,25 @@
         </section>
 
         <section class="card" data-mode="city" hidden>
-          <h2>Stadt-Stempel analysieren</h2>
-          <p class="hint">Einen Ausschnitt deiner fertigen Stadt im Spiel als Stempel speichern und hier laden – mit Häusern, Straßen und Versorgungsgebäuden.</p>
-          <label class="file-button">
-            <input id="city-file" type="file" />
-            <span>Stadt-Stempel wählen</span>
+          <h2>Ansicht</h2>
+          <label class="select-row">Ebene
+            <select id="city-layer"></select>
           </label>
-          <p id="city-info" class="hint">Kein Stadt-Stempel geladen.</p>
-          <button id="city-demo" class="ghost" type="button">Beispielstadt öffnen</button>
-          <button id="catalog-stamp" class="ghost" type="button">Katalog-Teststempel herunterladen</button>
-          <p class="hint">Der Teststempel enthält jedes bekannte Gebäude (auch gedreht) und den Lufthafen mit Modulen – zum Prüfen von GUIDs, Größen und Drehung im Spiel.</p>
+          <label class="select-row">Schichten
+            <select id="rule-tiers">
+              <option value="groups">nach Gruppen / Plan</option>
+              <option value="stamp">wie im Stempel</option>
+            </select>
+          </label>
+          <details class="advanced">
+            <summary>Bedienung</summary>
+            <p class="micro"><strong>Klick</strong>: Gebäude anwählen (Infofeld, Radius/Reichweite). <strong>Strg+Klick</strong>: Gruppe Ingenieure ↔ Investoren · <strong>Umschalt+Klick</strong>: einzelnes Haus. <strong>Mausrad</strong>: Zoom (ab ca. 4× Werte auf den Häusern) · <strong>rechte Maustaste halten</strong>: verschieben. Grün = versorgt, Rot = fehlt, Panorama 0–5.</p>
+          </details>
         </section>
 
         <section class="card" data-mode="city" hidden>
-          <h2>Palast &amp; Regionalministerium</h2>
+          <details class="card-details">
+          <summary><h2>Palast, Ministerium &amp; Items</h2></summary>
           <label class="select-row">Palastflügel
             <input id="rule-wings" type="number" min="0" max="200" step="1" />
           </label>
@@ -229,24 +238,26 @@
             Wohlfahrt auch für Feuerwehr/Polizei/Hospital
           </label>
           <p id="rule-info" class="micro"></p>
-          <p class="hint">Reichweiten mit Pflasterstraße laut Anno-Wiki. Das Regionalministerium reicht halb so weit wie der Palast; nur öffentliche Gebäude in seiner Straßenreichweite bekommen den Bonus.</p>
+          <p class="micro">Reichweiten mit Pflasterstraße laut Anno-Wiki; das Regionalministerium reicht halb so weit wie der Palast.</p>
+          </details>
         </section>
 
         <section class="card" data-mode="city" hidden>
-          <h2>Ansicht</h2>
-          <label class="select-row">Ebene
-            <select id="city-layer"></select>
+          <details class="card-details">
+          <summary><h2>Stadt-Stempel analysieren</h2></summary>
+          <p class="hint">Einen Ausschnitt deiner fertigen Stadt im Spiel als Stempel speichern und hier laden – mit Häusern, Straßen und Versorgungsgebäuden.</p>
+          <label class="file-button">
+            <input id="city-file" type="file" />
+            <span>Stadt-Stempel wählen</span>
           </label>
-          <label class="select-row">Schichten
-            <select id="rule-tiers">
-              <option value="groups">8er-Gruppen (Bauernhäuser)</option>
-              <option value="stamp">wie im Stempel</option>
-            </select>
-          </label>
-          <p class="hint">Stempel aus dem normalen Spiel enthalten nur Bauernhäuser; alle zählen als Hochhaus Stufe 3. Aneinanderstoßende Häuser bilden eine Gruppe aus je einer Linie Ingenieure und Investoren (senkrechte Gruppe: Spalten, waagerechte: Reihen). Welche Linie was ist, wählt das Tool nach bestem Panorama.</p>
-          <p class="hint"><strong>Klick auf ein Gebäude</strong> wählt es an und zeigt alle Infos (mit Knöpfen zum Tauschen von Ingenieuren/Investoren). <strong>Strg+Klick</strong>: ganze Gruppe tauschen · <strong>Umschalt+Klick</strong>: einzelnes Haus Ingenieur → Investor → automatisch. <strong>Mausrad</strong> zoomt (ab etwa 4× stehen Einwohner und Panorama auf den Häusern), <strong>rechte Maustaste halten</strong> verschiebt die Ansicht.</p>
-          <p class="hint">Grün = versorgt/im Radius, Rot = fehlt. Panorama: Zahl 0–5 (5 = intensiv). Maus über ein Gebäude zeigt Details.</p>
+          <p id="city-info" class="hint">Kein Stadt-Stempel geladen.</p>
+          <button id="city-demo" class="ghost" type="button">Beispielstadt öffnen</button>
+          <button id="catalog-stamp" class="ghost" type="button">Katalog-Teststempel herunterladen</button>
+          <p class="micro">Der Teststempel enthält jedes bekannte Gebäude (auch gedreht) und den Lufthafen mit Modulen.</p>
+          </details>
         </section>
+
+
 
         <section class="card stats" data-mode="city" hidden>
           <h2>Auswertung</h2>

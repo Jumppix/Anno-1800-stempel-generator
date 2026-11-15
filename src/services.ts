@@ -15,7 +15,7 @@
 
 import { footprint, lookup, type BuildingKind } from './catalog';
 import { skyscraperResidents, UNIVERSITY_MAX_RANGE, universityFactor, type SkyLevel, type SkyTier } from './rules';
-import { BLOCKED, FREE, HOUSE, ROAD, SERVICE, WATER, touchesRoad, type FillState } from './fill';
+import { BLOCKED, BRIDGE, FREE, HOUSE, isWay, ROAD, SERVICE, WATER, touchesRoad, type FillState } from './fill';
 
 export interface PlacedService {
   guid: number;
@@ -160,7 +160,7 @@ export function placeServices(
     let head = 0;
     let tail = 0;
     for (const i of starts) {
-      if (cell[i] !== ROAD || gen[i] === g) continue;
+      if (!isWay(cell[i]) || gen[i] === g) continue;
       gen[i] = g;
       dist[i] = 1;
       queue[tail++] = i;
@@ -171,7 +171,7 @@ export function placeServices(
       if (d >= range) continue;
       const x = i % w;
       const visit = (j: number): void => {
-        if (cell[j] !== ROAD || gen[j] === g) return;
+        if (!isWay(cell[j]) || gen[j] === g) return;
         gen[j] = g;
         dist[j] = d + 1;
         queue[tail++] = j;
@@ -198,7 +198,7 @@ export function placeServices(
       return out;
     };
     const ends = new Set<number>();
-    for (const t of tiles) for (const n of nb(t)) if (cell[n] === ROAD && !removed.has(n)) ends.add(n);
+    for (const t of tiles) for (const n of nb(t)) if (isWay(cell[n]) && !removed.has(n)) ends.add(n);
     if (ends.size <= 1) return false;
     const list = [...ends];
     const seen = new Set<number>([list[0]]);
@@ -206,7 +206,7 @@ export function placeServices(
     let found = 1;
     for (let k = 0; k < q.length; k++) {
       for (const n of nb(q[k])) {
-        if (cell[n] !== ROAD || removed.has(n) || seen.has(n)) continue;
+        if (!isWay(cell[n]) || removed.has(n) || seen.has(n)) continue;
         seen.add(n);
         if (ends.has(n) && ++found === ends.size) return false;
         q.push(n);
@@ -234,7 +234,7 @@ export function placeServices(
             for (let dx = 0; dx < bw; dx++) {
               const i = (y + dy) * w + x + dx;
               const c = cell[i];
-              if (c === WATER || c === BLOCKED || c === SERVICE) {
+              if (c === WATER || c === BLOCKED || c === SERVICE || c === BRIDGE) {
                 ok = false;
                 break;
               }
@@ -272,7 +272,7 @@ export function placeServices(
     for (let dy = 0; dy < c.h; dy++) {
       for (let dx = 0; dx < c.w; dx++) {
         const v = cell[(c.y + dy) * w + c.x + dx];
-        if (v === WATER || v === BLOCKED || v === SERVICE) return false;
+        if (v === WATER || v === BLOCKED || v === SERVICE || v === BRIDGE) return false;
       }
     }
     if (!c.starts.some((i) => cell[i] === ROAD)) return false;

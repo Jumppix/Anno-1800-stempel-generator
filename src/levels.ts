@@ -48,6 +48,9 @@ export interface LevelResult {
   counts: Record<string, number>;
   /** Ergebnisse je geprüfter Bauweise (bei „auto“). */
   tried: Array<{ mode: Exclude<LevelMode, 'auto'>; residents: number }>;
+  /** Ingenieure (Einwohner) im Ergebnis und geforderte Mindestzahl. */
+  engineers: number;
+  minEngineers: number;
 }
 
 function mulberry32(seed: number): () => number {
@@ -73,7 +76,12 @@ export function optimizeLevels(
   mode: LevelMode,
   budgetMs: number,
   seed = 1,
+  options: { minEngineers?: number } = {},
 ): LevelResult {
+  // Mindestzahl Ingenieure (Arbeitskraft z. B. für Kraftwerke): Strafe je
+  // fehlendem Ingenieur, Ingenieure sind dann in jeder Bauweise erlaubt.
+  const minEng = Math.max(0, options.minEngineers ?? 0);
+  const PENALTY = 60;
   const sky = residences.filter((r) => r.tier === 'engineer' || r.tier === 'investor');
   const n = sky.length;
   const cx = sky.map((r) => r.building.cx);
@@ -151,13 +159,35 @@ export function optimizeLevels(
     for (let i = 0; i < n; i++) t += valueOf(i, state);
     return t;
   };
+  const engineersOf = (state: Int8Array): number => {
+    let t = 0;
+    for (let i = 0; i < n; i++) if (state[i] === 0) t += valueOf(i, state);
+    return t;
+  };
+  /** Einwohner und Ingenieure der Häuser i und Nachbarn. */
+  const localOf = (i: number, state: Int8Array): [number, number] => {
+    let v = valueOf(i, state);
+    let e = state[i] === 0 ? v : 0;
+    const ids = nbr[i];
+    for (let k = 0; k < ids.length; k++) {
+      const x = valueOf(ids[k], state);
+      v += x;
+      if (state[ids[k]] === 0) e += x;
+    }
+    return [v, e];
+  };
+  const objective = (total: number, eng: number): number => total - PENALTY * Math.max(0, minEng - eng);
 
   const stateIndex = (r: ResidenceInfo): number => (r.tier === 'engineer' ? 0 : r.level === 5 ? 3 : r.level === 4 ? 2 : 1);
   const initial = Int8Array.from(sky.map(stateIndex));
   const startResidents = totalOf(initial);
 
-  const anneal = (m: Exclude<LevelMode, 'auto'>, ms: number, s0: number): { state: Int8Array; value: number } => {
-    const allowed = ALLOWED[m];
+  const anneal = (
+    m: Exclude<LevelMode, 'auto'>,
+    ms: number,
+    s0: number,
+  ): { state: Int8Array; value: number; engineers: number; score: number } => {
+    const allowed = minEng > 0 && !ALLOWED[m].includes(0) ? [0, ...ALLOWED[m]] : ALLOWED[m];
     const rnd = mulberry32(s0);
     const state = Int8Array.from(initial);
     // Start: Ausgangsschichten auf erlaubte Zustände abbilden.
@@ -165,8 +195,10 @@ export function optimizeLevels(
       if (allowed.includes(state[i])) continue;
       state[i] = m === '45' ? (state[i] === 0 ? 2 : 3) : allowed[0];
     }
-    let cur = totalOf(state);
-    let best = { state: Int8Array.from(state), value: cur };
+    let total = totalOf(state);
+    let eng = engineersOf(state);
+    let cur = objective(total, eng);
+    let best = { state: Int8Array.from(state), score: cur };
     const deadline = now() + ms;
     const T0 = 40;
     const T1 = 0.3;
@@ -183,62 +215,78 @@ export function optimizeLevels(
       const old = state[i];
       const next = allowed[Math.floor(rnd() * allowed.length)];
       if (next === old) continue;
-      const ids = nbr[i];
-      let before = valueOf(i, state);
-      for (let k = 0; k < ids.length; k++) before += valueOf(ids[k], state);
+      const [vb, eb] = localOf(i, state);
       state[i] = next;
-      let after = valueOf(i, state);
-      for (let k = 0; k < ids.length; k++) after += valueOf(ids[k], state);
-      const d = after - before;
+      const [va, ea] = localOf(i, state);
+      const nt = total + va - vb;
+      const ne = eng + ea - eb;
+      const score = objective(nt, ne);
+      const d = score - cur;
       if (d >= 0 || rnd() < Math.exp(d / t)) {
-        cur += d;
-        if (cur > best.value) best = { state: Int8Array.from(state), value: cur };
+        total = nt;
+        eng = ne;
+        cur = score;
+        if (cur > best.score) best = { state: Int8Array.from(state), score: cur };
       } else {
         state[i] = old;
       }
     }
     // Abschluss: gierig, bis keine Einzeländerung mehr hilft.
     const st = best.state;
-    let value = totalOf(st);
+    total = totalOf(st);
+    eng = engineersOf(st);
     for (let round = 0; round < 10; round++) {
       let improved = false;
       for (let i = 0; i < n; i++) {
-        const ids = nbr[i];
         const old = st[i];
-        let before = valueOf(i, st);
-        for (let k = 0; k < ids.length; k++) before += valueOf(ids[k], st);
+        const [vb, eb] = localOf(i, st);
+        const base = objective(total, eng);
         let bestS = old;
-        let bestD = 0;
-        for (const s of allowed) {
-          if (s === old) continue;
-          st[i] = s;
-          let after = valueOf(i, st);
-          for (let k = 0; k < ids.length; k++) after += valueOf(ids[k], st);
-          if (after - before > bestD) {
-            bestD = after - before;
-            bestS = s;
+        let bestScore = base;
+        let bestT = total;
+        let bestE = eng;
+        for (const s2 of allowed) {
+          if (s2 === old) continue;
+          st[i] = s2;
+          const [va, ea] = localOf(i, st);
+          const nt = total + va - vb;
+          const ne = eng + ea - eb;
+          const sc = objective(nt, ne);
+          if (sc > bestScore + 1e-9) {
+            bestScore = sc;
+            bestS = s2;
+            bestT = nt;
+            bestE = ne;
           }
         }
         st[i] = bestS;
         if (bestS !== old) {
-          value += bestD;
+          total = bestT;
+          eng = bestE;
           improved = true;
         }
       }
       if (!improved) break;
     }
-    return { state: st, value };
+    const value = total;
+    return { state: st, value, engineers: eng, score: objective(total, eng) };
   };
 
   const modes: Array<Exclude<LevelMode, 'auto'>> = mode === 'auto' ? ['335', '45', 'free'] : [mode];
   const tried: LevelResult['tried'] = [];
-  let bestRun: { state: Int8Array; value: number; mode: Exclude<LevelMode, 'auto'> } | null = null;
+  let bestRun: { state: Int8Array; value: number; engineers: number; score: number; mode: Exclude<LevelMode, 'auto'> } | null =
+    null;
   modes.forEach((m, k) => {
     const run = anneal(m, budgetMs / modes.length, seed + k * 7919);
     tried.push({ mode: m, residents: run.value });
-    if (!bestRun || run.value > bestRun.value) bestRun = { ...run, mode: m };
+    if (!bestRun || run.score > bestRun.score) bestRun = { ...run, mode: m };
   });
-  const result = bestRun as unknown as { state: Int8Array; value: number; mode: Exclude<LevelMode, 'auto'> };
+  const result = bestRun as unknown as {
+    state: Int8Array;
+    value: number;
+    engineers: number;
+    mode: Exclude<LevelMode, 'auto'>;
+  };
   const planned = new Map<number, HouseState>();
   const counts: Record<string, number> = { I3: 0, V3: 0, V4: 0, V5: 0 };
   sky.forEach((r, i) => {
@@ -246,5 +294,14 @@ export function optimizeLevels(
     planned.set(r.building.index, st);
     counts[st.tier === 'engineer' ? 'I3' : `V${st.level}`]++;
   });
-  return { planned, residents: result.value, startResidents, mode: result.mode, counts, tried };
+  return {
+    planned,
+    residents: result.value,
+    startResidents,
+    mode: result.mode,
+    counts,
+    tried,
+    engineers: result.engineers,
+    minEngineers: minEng,
+  };
 }

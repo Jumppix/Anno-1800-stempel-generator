@@ -137,7 +137,10 @@ Insel wird bebaut (`src/fill.ts`):
    die Zielstufe (V4/V5).
 
 Insel 2 mit Stufen (6er-Linien, 4-5): ≈ 549.700 Einwohner (nur Stufe 3 ≈
-484.000).
+484.000). Brücken verbinden getrennte Inselteile (Ansicht/Berechnung, nicht
+im Export), überflüssige Straßenstummel werden bebaut, optional genug
+Ingenieure für die Kraftwerke. Die zuletzt geladene Insel und alle
+Einstellungen werden im Browser gespeichert.
 
 Insel 2 (189 × 290): ≈ 2.110 Häuser ohne bzw. ≈ 2.055 mit 25 Rathäusern
 (vorher 2.010), geschätzte Einwohner 390.400 → 398.300 (+2 %); mit
