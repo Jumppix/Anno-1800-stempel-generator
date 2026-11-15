@@ -590,10 +590,23 @@ export function compactCity(
   mask: LandMask,
   city: CityPlan,
   options: CompactOptions,
+  /** Zwischenstand für die Live-Ansicht (höchstens alle `snapshotMs`). */
+  onSnapshot?: (city: CityPlan, gained: number) => void,
+  snapshotMs = 2500,
 ): { city: CityPlan; result: CompactResult } {
   const s = cityToState(mask, city);
   const townHalls = city.townHalls.map((t) => ({ x: t.x, y: t.y }));
-  const result = compact(s, townHalls, options);
+  let last = performance.now();
+  const result = compact(s, townHalls, {
+    ...options,
+    onProgress: (gained) => {
+      options.onProgress?.(gained);
+      if (onSnapshot && performance.now() - last > snapshotMs) {
+        last = performance.now();
+        onSnapshot(stateToCity(s, city, townHalls.map((t) => ({ x: t.x, y: t.y }))), gained);
+      }
+    },
+  });
   return { city: stateToCity(s, city, townHalls), result };
 }
 

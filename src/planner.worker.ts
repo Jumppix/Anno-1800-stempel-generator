@@ -16,7 +16,7 @@ import type { LandMask } from './solver';
 
 export type PlannerJob =
   | { kind: 'fill'; id: number; mask: LandMask; orientation: 'auto' | Orientation; housesPerLine: number; bridgeLen: number }
-  | { kind: 'compact'; id: number; mask: LandMask; city: CityPlan; budgetMs: number; seed: number }
+  | { kind: 'compact'; id: number; mask: LandMask; city: CityPlan; budgetMs: number; seed: number; snapshots?: boolean }
   | { kind: 'services'; id: number; mask: LandMask; city: CityPlan; kinds: BuildingKind[]; fullCoverageValue: number; deliveryGoods: boolean; houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>; townHallItems?: boolean; ministry?: { range: number; welfare: number; web: number }; airport?: { harbor: { x: number; y: number } | null }; production?: ProductionOptions }
   | {
       kind: 'levels';
@@ -41,7 +41,7 @@ export type PlannerJob =
 
 export type PlannerMessage =
   | { kind: 'fill'; id: number; result: FillResult }
-  | { kind: 'progress'; id: number; gained: number }
+  | { kind: 'progress'; id: number; gained: number; city?: CityPlan }
   | { kind: 'compact'; id: number; city: CityPlan; gained: number; moved: number }
   | { kind: 'services'; id: number; city: CityPlan; report: ServiceReport; refilled: number }
   | { kind: 'post'; id: number; city: CityPlan; report: PostReport & { removedHouses: number } }
@@ -131,10 +131,15 @@ scope.onmessage = (event) => {
     scope.postMessage({ kind: 'services', id: job.id, city: r.city, report: r.report, refilled: r.refilled });
     return;
   }
-  const { city, result } = compactCity(job.mask, job.city, {
-    deadline: performance.now() + job.budgetMs,
-    seed: job.seed,
-    onProgress: (gained) => scope.postMessage({ kind: 'progress', id: job.id, gained }),
-  });
+  const { city, result } = compactCity(
+    job.mask,
+    job.city,
+    {
+      deadline: performance.now() + job.budgetMs,
+      seed: job.seed,
+      onProgress: (gained) => scope.postMessage({ kind: 'progress', id: job.id, gained }),
+    },
+    job.snapshots ? (snap, gained) => scope.postMessage({ kind: 'progress', id: job.id, gained, city: snap }) : undefined,
+  );
   scope.postMessage({ kind: 'compact', id: job.id, city, gained: result.gained, moved: result.townHallsMoved });
 };

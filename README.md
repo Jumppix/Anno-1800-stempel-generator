@@ -152,6 +152,10 @@ Insel wird bebaut (`src/fill.ts`):
    Handelskammern, Lagerhaus (Reichweite 20) und auf Wunsch Strom werden
    ergänzt; gesucht wird die Formation mit den wenigsten verdrängten Häusern.
 
+Beim Planen zuschauen (Standard an): Nach jedem Schritt (Bebauung,
+Rathäuser – während der Suche etwa alle 2 s –, Nachverdichtung, Versorgung,
+Stufen) zeigt die Plan-Ansicht den Zwischenstand.
+
 Insel 2 mit Stufen (6er-Linien, 4-5): ≈ 549.700 Einwohner (nur Stufe 3 ≈
 484.000). Brücken verbinden getrennte Inselteile (Ansicht/Berechnung, nicht
 im Export), überflüssige Straßenstummel werden bebaut, optional genug

@@ -271,6 +271,8 @@ export class PlannerUi {
     const fill = await this.fill(src.mask, orientation, Number(this.perLine.value) || 4);
     const plan = planFromFill(fill);
     this.status.textContent = `Bebauung: ${num(plan.houses.length)} Häuser. Rathäuser werden optimiert …`;
+    this.preview(src.mask, finishPlan(plan, [], 0), 'Zwischenstand: Bebauung');
+    let lastPreview = performance.now();
 
     let townHalls: Array<{ x: number; y: number }> = [];
     if (this.townHalls.checked && plan.houses.length) {
@@ -282,6 +284,11 @@ export class PlannerUi {
           this.status.textContent = `Rathäuser auf ${workers} Kern${workers === 1 ? '' : 'en'} … ${secs} s · bisher ${
             group?.chambers.length ?? 0
           } Rathäuser`;
+          // Zwischenstand höchstens alle 2 s zeigen (Analyse läuft im Hauptthread).
+          if (running && group && this.watch.checked && performance.now() - lastPreview > 2000) {
+            this.preview(src.mask, finishPlan(plan, group.chambers.map((c) => ({ x: c.x, y: c.y })), 0), 'Zwischenstand: Rathäuser');
+            lastPreview = performance.now();
+          }
           if (!running) resolve(group ? group.chambers.map((c) => ({ x: c.x, y: c.y })) : []);
         });
         void this.runner.start(problem.target, ['rh'], Number(this.budget.value) || 6000, null, {
@@ -293,11 +300,13 @@ export class PlannerUi {
 
     const finished = finishPlan(plan, townHalls, Math.max(0, Number(this.minCover.value) || 0));
     const refilled = refillAroundTownHalls(src.mask, finished);
+    this.preview(src.mask, refilled, 'Zwischenstand: Rathäuser');
     // Erst nachverdichten (Häuser/Rathäuser schieben), dann Versorgung setzen:
     // so verlängert kein späteres Verschieben die Wege zu Lagerhäusern.
     const compactMs = Number(this.compactBudget.value) || 0;
     const compacted = compactMs > 0 ? await this.compact(src.mask, refilled, compactMs, started) : null;
     const dense = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : refilled;
+    if (compacted) this.preview(src.mask, dense, 'Zwischenstand: Nachverdichtung');
     const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
     const goal = Number(this.svcGoal.value) || 0;
     const levelMode = this.levelMode.value as LevelMode;
@@ -309,9 +318,11 @@ export class PlannerUi {
       serviced = await this.services(src.mask, dense, kinds, goal);
     }
     let city = serviced ? { ...serviced.city, removedHouses: refilled.removedHouses } : dense;
+    if (serviced) this.preview(src.mask, city, 'Zwischenstand: Versorgung');
     // Hochhaus-Stufen (3-3-5 / 4-5) auf dem fertigen Plan optimieren.
     this.status.textContent = 'Hochhaus-Stufen werden optimiert (3-3-5 / 4-5) …';
     let levels = await this.levels(src.mask, city, levelMode, levelMs);
+    this.preview(src.mask, city, 'Zwischenstand: Hochhaus-Stufen', levels.planned);
     // Zweiter Durchgang: Versorgung passend zu den Stufen neu setzen (z. B. keine
     // Universität ohne Ingenieure, Drogerie für Investoren 5), dann Stufen erneut.
     if (kinds.length && levelMode !== 'l3') {
@@ -323,6 +334,7 @@ export class PlannerUi {
       this.status.textContent = 'Versorgung wird an die Hochhaus-Stufen angepasst …';
       const second = await this.services(src.mask, dense, kinds, goal, states);
       const city2 = { ...second.city, removedHouses: refilled.removedHouses };
+      this.preview(src.mask, city2, 'Zwischenstand: Versorgung angepasst');
       this.status.textContent = 'Hochhaus-Stufen werden erneut optimiert …';
       const levels2 = await this.levels(src.mask, city2, levelMode, levelMs);
       const total = (l: typeof levels): number => l.residents;
@@ -441,6 +453,34 @@ export class PlannerUi {
     this.status.innerHTML = `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
     this.running = false;
     this.refreshIsland();
+  }
+
+  private readonly watch = el<HTMLInputElement>('#plan-watch');
+
+  /** Zwischenstand in der Plan-Ansicht zeigen (ohne Export-Stempel). */
+  private preview(
+    mask: LandMask,
+    city: CityPlan,
+    title: string,
+    planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>,
+  ): void {
+    if (!this.watch.checked) return;
+    try {
+      const items = planToStampItems(mask, city, { coast: false, coastGuid: 1000178, bridges: true });
+      const bytes = buildGenericStamp(items.buildings, 'ow', items.streets);
+      const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((st) => st.x)];
+      const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y)];
+      const minX = xs.reduce((m, v) => Math.min(m, v), Infinity);
+      const minY = ys.reduce((m, v) => Math.min(m, v), Infinity);
+      this.cityUi.show(
+        bytes,
+        title,
+        { w: mask.w, h: mask.h, data: mask.data, dx: CITY_PAD - minX, dy: CITY_PAD - minY },
+        planned ? new Map(planned) : undefined,
+      );
+    } catch {
+      /* Vorschau ist nur Anzeige */
+    }
   }
 
   private worker(i: number): Worker {
@@ -577,6 +617,7 @@ export class PlannerUi {
             if (msg.id !== id) return;
             if (msg.kind === 'progress') {
               progress[i] = msg.gained;
+              if (msg.city) this.preview(mask, msg.city, `Zwischenstand: Nachverdichtung (+${msg.gained} Häuser)`);
               const secs = ((performance.now() - started) / 1000).toFixed(0);
               this.status.textContent = `Nachverdichtung auf ${cores} Kern${cores === 1 ? '' : 'en'} … ${secs} s · bisher +${Math.max(
                 ...progress,
@@ -585,7 +626,8 @@ export class PlannerUi {
               resolve({ city: msg.city, gained: msg.gained, moved: msg.moved });
             }
           };
-          const job: PlannerJob = { kind: 'compact', id, mask, city, budgetMs, seed: 17 + i * 7919 };
+          // Zwischenstände nur vom ersten Kern (die Analyse läuft im Hauptthread).
+          const job: PlannerJob = { kind: 'compact', id, mask, city, budgetMs, seed: 17 + i * 7919, snapshots: i === 0 && this.watch.checked };
           worker.postMessage(job);
         });
       }),
