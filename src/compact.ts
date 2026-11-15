@@ -20,7 +20,7 @@ import {
   ROAD,
   HOUSE,
   SERVICE,
-  isWay,
+  touchesBridge,
   footprintFree,
   labelComponents,
   pruneRoads,
@@ -88,7 +88,8 @@ function separatesRoads(s: FillState, tiles: number[]): boolean {
     return out;
   };
   const ends = new Set<number>();
-  for (const t of tiles) for (const n of neighbours(t)) if (isWay(cell[n]) && !removed.has(n)) ends.add(n);
+  // Nur Landstraßen: jedes Ufer bleibt für sich zusammenhängend (Brücken keine Sackgassen).
+  for (const t of tiles) for (const n of neighbours(t)) if (cell[n] === ROAD && !removed.has(n)) ends.add(n);
   if (ends.size <= 1) return false;
   const list = [...ends];
   const seen = new Set<number>([list[0]]);
@@ -96,7 +97,7 @@ function separatesRoads(s: FillState, tiles: number[]): boolean {
   let found = 1;
   for (let q = 0; q < queue.length; q++) {
     for (const n of neighbours(queue[q])) {
-      if (!isWay(cell[n]) || seen.has(n)) continue;
+      if (cell[n] !== ROAD || seen.has(n)) continue;
       seen.add(n);
       if (ends.has(n) && ++found === ends.size) return false;
       queue.push(n);
@@ -238,8 +239,14 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
             for (let xx = 0; xx < 4; xx++) {
               const i = (ny + yy) * w + nx + xx;
               if (cell[i] === ROAD) {
-                // Keine Straße wegnehmen, an der ein Versorgungsgebäude hängt.
-                if (cell[i - 1] === SERVICE || cell[i + 1] === SERVICE || cell[i - w] === SERVICE || cell[i + w] === SERVICE) {
+                // Keine Straße wegnehmen, an der ein Versorgungsgebäude oder eine Brücke hängt.
+                if (
+                  cell[i - 1] === SERVICE ||
+                  cell[i + 1] === SERVICE ||
+                  cell[i - w] === SERVICE ||
+                  cell[i + w] === SERVICE ||
+                  touchesBridge(cell, w, i)
+                ) {
                   free = false;
                 }
                 roadTiles.push(i);

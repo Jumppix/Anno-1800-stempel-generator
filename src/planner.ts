@@ -11,7 +11,7 @@
 
 import { outerBoundary } from './coast';
 import { FARMER_HOUSE, STREET_GUIDS } from './catalog';
-import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, replaceRoadStubs, ROAD, SERVICE, WATER, type FillResult, type FillState } from './fill';
+import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, pruneBridges, replaceRoadStubs, ROAD, SERVICE, WATER, type FillResult, type FillState } from './fill';
 import { compact, type CompactOptions, type CompactResult } from './compact';
 import { placeServices, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
 import type { LandMask, OverlapPenalty } from './solver';
@@ -195,8 +195,17 @@ export function townHallProblem(
 export function crossRoadTiles(plan: GridPlan): Uint8Array {
   const { w, h } = plan;
   const roads = plan.roads;
-  // Für die Zusammenhangsprüfung zählen Brücken als Straße.
-  const ways = withBridges(plan.roads, plan.bridges);
+  // Straßenkacheln am Brückenkopf (grenzen an eine Brücke).
+  let bridgeHead: Uint8Array | null = null;
+  if (plan.bridges?.length) {
+    bridgeHead = new Uint8Array(roads.length);
+    for (const b of plan.bridges) {
+      const bx = b % w;
+      for (const k of [bx > 0 ? b - 1 : -1, bx < w - 1 ? b + 1 : -1, b - w, b + w]) {
+        if (k >= 0 && k < roads.length && roads[k]) bridgeHead[k] = 1;
+      }
+    }
+  }
   const out = new Uint8Array(roads.length);
   const vertical = plan.orientation === 'vertical';
   const cand = new Uint8Array(roads.length);
@@ -228,7 +237,9 @@ export function crossRoadTiles(plan: GridPlan): Uint8Array {
       for (let s = k; s + 4 <= end; s++) {
         const tiles = [at(s), at(s) + step, at(s) + 2 * step, at(s) + 3 * step];
         for (const t of tiles) removed[t] = 1;
-        if (!separates(ways, w, h, removed, tiles)) for (const t of tiles) out[t] = 1;
+        // Nur Landstraßen prüfen (jedes Ufer bleibt zusammenhängend), Brückenköpfe nie überbauen.
+        const head = bridgeHead ? tiles.some((t) => bridgeHead[t]) : false;
+        if (!head && !separates(roads, w, h, removed, tiles)) for (const t of tiles) out[t] = 1;
         for (const t of tiles) removed[t] = 0;
       }
       k = end;
@@ -268,14 +279,6 @@ function separates(roads: Uint8Array, w: number, h: number, removed: Uint8Array,
 }
 
 /** Zahl der Straßennetze, wenn `removed` (Kacheln) zusätzlich fehlen. */
-/** Straßen plus Brückenkacheln als eine Maske. */
-function withBridges(roads: Uint8Array, bridges?: readonly number[]): Uint8Array {
-  if (!bridges?.length) return roads;
-  const all = Uint8Array.from(roads);
-  for (const i of bridges) all[i] = 1;
-  return all;
-}
-
 function networksWithout(roads: Uint8Array, w: number, removed: Uint8Array): number {
   const r = new Uint8Array(roads.length);
   for (let i = 0; i < r.length; i++) r[i] = roads[i] && !removed[i] ? 1 : 0;
@@ -330,12 +333,11 @@ export function finishPlan(
   };
 
   // Rathäuser auf Querstraßen nur, wenn das Straßennetz zusammenhängend bleibt.
-  const baseNetworks = plan.networks;
+  // Landstraßen je Ufer müssen zusammenhängend bleiben (Brücken zählen hier nicht).
+  const baseLandNetworks = countNetworks(plan.roads, w);
   let kept: Array<{ x: number; y: number }> = [];
   for (const t of townHalls) {
-    if (onRoad(t) && networksWithout(withBridges(plan.roads, plan.bridges), w, footprint([...kept, t])) > baseNetworks) {
-      continue;
-    }
+    if (onRoad(t) && networksWithout(plan.roads, w, footprint([...kept, t])) > baseLandNetworks) continue;
     kept.push(t);
   }
 
@@ -547,6 +549,9 @@ function cityToState(mask: LandMask, city: CityPlan): FillState {
 }
 
 function stateToCity(s: FillState, city: CityPlan, townHalls: Array<{ x: number; y: number }>): CityPlan {
+  pruneBridges(s);
+  const bridges: number[] = [];
+  for (let i = 0; i < s.cell.length; i++) if (s.cell[i] === BRIDGE) bridges.push(i);
   const roads = new Uint8Array(s.w * s.h);
   let roadCount = 0;
   for (let i = 0; i < roads.length; i++) {
@@ -558,7 +563,7 @@ function stateToCity(s: FillState, city: CityPlan, townHalls: Array<{ x: number;
   const houses = s.houses.map((hs) => ({ x: hs.x, y: hs.y, line: hs.line, group: -1 }));
   return {
     ...city,
-    plan: { ...city.plan, roads, roadCount, networks: countNetworks(roads, s.w, city.plan.bridges), houses },
+    plan: { ...city.plan, roads, roadCount, networks: countNetworks(roads, s.w, bridges), houses, bridges },
     houses,
     townHalls,
   };

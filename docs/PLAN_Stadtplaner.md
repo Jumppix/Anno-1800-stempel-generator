@@ -594,6 +594,12 @@ bewertet).
   Fehler gefunden und behoben: Die Netz-Prüfung für Rathäuser auf
   Querstraßen zählte Brücken nicht – dadurch wurden 9 von 25 Rathäusern
   verworfen. Insel 2: 4 Netze → 1 Netz mit 5 Brücken.
+  Zweiter Fehler (Spieltest): Brückenköpfe wurden abgeschnitten, weil alle
+  Prüfungen „Netz bleibt zusammenhängend“ die Brücke selbst als Verbindung
+  zählten. Jetzt gilt: Jedes Ufer muss für sich zusammenhängend bleiben
+  (nur Landstraßen), Straßenkacheln am Brückenkopf werden nie überbaut, und
+  Brücken ohne Anschluss auf beiden Seiten werden wieder entfernt
+  (`pruneBridges`).
 - **Straßenstummel** (`replaceRoadStubs`): 3×3-Plätze aus freien Kacheln und
   bis zu drei Straßenkacheln werden bebaut, wenn das Netz zusammenhängt und
   alle Nachbarn angeschlossen bleiben (die Lücke aus dem Screenshot). Insel 2:

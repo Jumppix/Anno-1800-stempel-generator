@@ -215,6 +215,21 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   const { fillRoadStubs } = await server.ssrLoadModule('/src/planner.ts');
   const stubbed = fillRoadStubs(mask, stubCity);
   expect('Straßenstummel: Netz bleibt zusammenhängend', stubbed.city.plan.networks === stubCity.plan.networks, `+${stubbed.added} Häuser`);
+  // Jede Brücke hängt nach allen Schritten auf beiden Ufern an Landstraßen.
+  const W = mask.w;
+  const br = new Set(stubbed.city.plan.bridges ?? []);
+  let deadEnds = 0;
+  const seenB = new Set();
+  for (const b of br) {
+    if (seenB.has(b)) continue;
+    const g = [b];
+    seenB.add(b);
+    for (let q = 0; q < g.length; q++) for (const k of [g[q] - 1, g[q] + 1, g[q] - W, g[q] + W]) if (br.has(k) && !seenB.has(k)) (seenB.add(k), g.push(k));
+    const heads = new Set();
+    for (const t of g) for (const k of [t - 1, t + 1, t - W, t + W]) if (k >= 0 && stubbed.city.plan.roads[k]) heads.add(k);
+    if (heads.size < 2) deadEnds++;
+  }
+  expect('Brücken: keine Brücke als Sackgasse', deadEnds === 0, `${deadEnds} ohne Anschluss`);
   void replaceRoadStubs;
 }
 

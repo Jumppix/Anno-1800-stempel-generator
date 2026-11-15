@@ -15,7 +15,7 @@
 
 import { footprint, lookup, type BuildingKind } from './catalog';
 import { skyscraperResidents, UNIVERSITY_MAX_RANGE, universityFactor, type SkyLevel, type SkyTier } from './rules';
-import { BLOCKED, BRIDGE, FREE, HOUSE, isWay, ROAD, SERVICE, WATER, touchesRoad, type FillState } from './fill';
+import { BLOCKED, BRIDGE, FREE, HOUSE, isWay, ROAD, SERVICE, WATER, touchesBridge, touchesRoad, type FillState } from './fill';
 
 export interface PlacedService {
   guid: number;
@@ -198,7 +198,8 @@ export function placeServices(
       return out;
     };
     const ends = new Set<number>();
-    for (const t of tiles) for (const n of nb(t)) if (isWay(cell[n]) && !removed.has(n)) ends.add(n);
+    // Nur Landstraßen: jedes Ufer bleibt für sich zusammenhängend (Brücken keine Sackgassen).
+    for (const t of tiles) for (const n of nb(t)) if (cell[n] === ROAD && !removed.has(n)) ends.add(n);
     if (ends.size <= 1) return false;
     const list = [...ends];
     const seen = new Set<number>([list[0]]);
@@ -206,7 +207,7 @@ export function placeServices(
     let found = 1;
     for (let k = 0; k < q.length; k++) {
       for (const n of nb(q[k])) {
-        if (!isWay(cell[n]) || removed.has(n) || seen.has(n)) continue;
+        if (cell[n] !== ROAD || removed.has(n) || seen.has(n)) continue;
         seen.add(n);
         if (ends.has(n) && ++found === ends.size) return false;
         q.push(n);
@@ -243,8 +244,9 @@ export function placeServices(
             }
           }
           if (!ok) continue;
-          // Straßen unter der Fläche nur als Querstraßen-Stück (höchstens eine Zeile/Spalte).
-          if (roads.length > Math.max(bw, bh)) continue;
+          // Straßen unter der Fläche nur als Querstraßen-Stück (höchstens eine Zeile/Spalte),
+          // nie ein Brückenkopf.
+          if (roads.length > Math.max(bw, bh) || roads.some((i) => touchesBridge(cell, w, i))) continue;
           const starts = ring(x, y, bw, bh).filter((i) => cell[i] === ROAD);
           if (!starts.length) continue;
           let cost = 0;

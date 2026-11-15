@@ -30,6 +30,17 @@ export const BRIDGE = 6;
 /** Straße oder Brücke (für Wege und Zusammenhang des Netzes). */
 export const isWay = (v: number): boolean => v === ROAD || v === BRIDGE;
 
+/** Grenzt Kachel i an eine Brücke (Brückenkopf)? Solche Straßen bleiben immer stehen. */
+export function touchesBridge(cell: Uint8Array, w: number, i: number): boolean {
+  const x = i % w;
+  return (
+    (x > 0 && cell[i - 1] === BRIDGE) ||
+    (x < w - 1 && cell[i + 1] === BRIDGE) ||
+    (i >= w && cell[i - w] === BRIDGE) ||
+    (i + w < cell.length && cell[i + w] === BRIDGE)
+  );
+}
+
 export interface FillHouse {
   x: number;
   y: number;
@@ -643,7 +654,9 @@ export function replaceRoadStubs(s: FillState): number {
   const separates = (tiles: number[]): boolean => {
     const removed = new Set(tiles);
     const ends = new Set<number>();
-    for (const t of tiles) for (const n of nb(t)) if (isWay(cell[n]) && !removed.has(n)) ends.add(n);
+    // Nur Landstraßen: Jedes Ufer bleibt für sich zusammenhängend, sonst
+    // würde eine Brücke zur Sackgasse.
+    for (const t of tiles) for (const n of nb(t)) if (cell[n] === ROAD && !removed.has(n)) ends.add(n);
     if (ends.size <= 1) return false;
     const list = [...ends];
     const seen = new Set<number>([list[0]]);
@@ -651,7 +664,7 @@ export function replaceRoadStubs(s: FillState): number {
     let found = 1;
     for (let k = 0; k < queue.length; k++) {
       for (const n of nb(queue[k])) {
-        if (!isWay(cell[n]) || removed.has(n) || seen.has(n)) continue;
+        if (cell[n] !== ROAD || removed.has(n) || seen.has(n)) continue;
         seen.add(n);
         if (ends.has(n) && ++found === ends.size) return false;
         queue.push(n);
@@ -693,7 +706,7 @@ export function replaceRoadStubs(s: FillState): number {
           }
         }
         if (!ok || roads.length === 0 || roads.length > 3) continue;
-        if (separates(roads)) continue;
+        if (roads.some((r) => touchesBridge(cell, w, r)) || separates(roads)) continue;
         for (const i of roads) cell[i] = FREE;
         // Nachbarn (Häuser, Versorgungsgebäude) müssen weiter eine Straße berühren.
         let fine = touchesRoad(s, x, y);
@@ -744,4 +757,44 @@ export function replaceRoadStubs(s: FillState): number {
   added += greedyFill(s);
   pruneRoads(s);
   return added;
+}
+
+/**
+ * Brücken ohne Anschluss auf beiden Ufern entfernen (wieder Wasser). Eine
+ * Brücke ist eine zusammenhängende Gruppe von Brückenkacheln; nützlich nur,
+ * wenn mindestens zwei Landstraßen-Kacheln sie berühren. Liefert die Zahl der
+ * entfernten Brücken.
+ */
+export function pruneBridges(s: FillState): number {
+  const { w, cell } = s;
+  const seen = new Uint8Array(cell.length);
+  let removed = 0;
+  for (let i = 0; i < cell.length; i++) {
+    if (cell[i] !== BRIDGE || seen[i]) continue;
+    const tiles: number[] = [];
+    const stack = [i];
+    seen[i] = 1;
+    while (stack.length) {
+      const j = stack.pop() as number;
+      tiles.push(j);
+      const x = j % w;
+      for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, j - w, j + w]) {
+        if (k >= 0 && k < cell.length && cell[k] === BRIDGE && !seen[k]) {
+          seen[k] = 1;
+          stack.push(k);
+        }
+      }
+    }
+    const heads = new Set<number>();
+    for (const j of tiles) {
+      const x = j % w;
+      for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, j - w, j + w]) {
+        if (k >= 0 && k < cell.length && cell[k] === ROAD) heads.add(k);
+      }
+    }
+    if (heads.size >= 2) continue;
+    for (const j of tiles) cell[j] = WATER;
+    removed++;
+  }
+  return removed;
 }
