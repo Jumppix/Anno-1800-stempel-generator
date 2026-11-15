@@ -134,6 +134,18 @@
             <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
             <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
           </div>
+          <details class="advanced">
+            <summary>Optionale Gebäude (ohne Einwohner-Bonus)</summary>
+            <div class="check-grid">
+              <label class="check-row"><input id="svc-fireStation" type="checkbox" />Feuerwache</label>
+              <label class="check-row"><input id="svc-policeStation" type="checkbox" />Polizeiwache</label>
+              <label class="check-row"><input id="svc-hospital" type="checkbox" />Hospital</label>
+              <label class="check-row"><input id="svc-bank" type="checkbox" />Bankhaus</label>
+              <label class="check-row"><input id="svc-varietyTheatre" type="checkbox" />Varieté</label>
+              <label class="check-row"><input id="svc-membersClub" type="checkbox" />Clubhaus</label>
+            </div>
+            <p class="micro">Bringen keine zusätzlichen Einwohner (Schutz vor Bränden/Unruhen/Krankheit bzw. Luxusbedürfnisse); gesetzt wird so, dass fast alle Häuser erreicht werden und möglichst wenige Häuser weichen.</p>
+          </details>
           <label class="check-row">
             <input id="plan-post" type="checkbox" checked />
             Briefkästen in Restkacheln (Post, Empire of the Skies)
@@ -161,11 +173,7 @@
             <input id="prod-power" type="checkbox" checked />
             Strom für die Produktion (Kraftwerk in Reichweite)
           </label>
-          <label class="check-row">
-            <input id="prod-tilted" type="checkbox" />
-            Auch schräges Quadrat erlauben (Kanten wie Raute, Form im Spiel ungetestet)
-          </label>
-          <p class="micro">Jedes Gebäude steht genau zwischen zwei Handelskammern (Mitten 30 auseinander, Gebäudemitte 15 von beiden) – quadratisch oder als Raute wie in deinen Stempeln. Nur Gebäude mit gerader Breite und Länge; schräge Formationen nur für quadratische. Handelskammern und Lagerhaus werden ergänzt.</p>
+          <p class="micro">Jedes Gebäude steht genau zwischen zwei Handelskammern (Mitten 30 auseinander, Gebäudemitte 15 von beiden) – quadratisch, als Raute oder versetzte Raute. Nur Gebäude mit gerader Breite und Länge; schräge Formationen nur für quadratische. Handelskammern und Lagerhaus werden ergänzt.</p>
           <details class="advanced">
             <summary>Erweitert</summary>
             <label class="select-row">Versorgungsziel
@@ -225,6 +233,11 @@
             </label>
             <div id="plan-stamps" class="stamp-list"></div>
             <button id="plan-image" class="ghost" type="button">Bauplan als Bild speichern</button>
+            <details id="plan-report" class="advanced report">
+              <summary>Bauliste &amp; Einwohner-Bericht</summary>
+              <div id="plan-report-body"></div>
+              <button id="plan-report-save" class="ghost" type="button">Bauliste als Text speichern</button>
+            </details>
           </div>
         </section>
 

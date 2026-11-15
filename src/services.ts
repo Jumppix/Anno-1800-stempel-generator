@@ -47,6 +47,12 @@ export interface ServiceSpec {
    * Handwerker, drei Waren und Strom; das Kraftwerk Gas und Arbeitskraft.
    */
   fixedCost: number;
+  /**
+   * Optionales Gebäude ohne Einwohner-Wirkung (Feuerwache, Polizei, Hospital,
+   * Bank, Varieté, Clubhaus): `value` ist dann ein Abdeckungswert je Haus,
+   * damit (fast) alle Häuser mit möglichst wenig Verlust erreicht werden.
+   */
+  optional?: boolean;
 }
 
 /**
@@ -63,6 +69,14 @@ export const SERVICE_SPECS: readonly ServiceSpec[] = [
   { kind: 'powerPlant', guid: 117547, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 225 },
   { kind: 'university', guid: 1010362, value: 3, itemValue: 1, deliveryValue: 0, fixedCost: 0 },
   { kind: 'drugStore', guid: 134629, value: 2.5, itemValue: 2.5, deliveryValue: 5, fixedCost: 450 },
+  // Optional (keine Einwohner): Abdeckungswert 30 je Haus → ein Gebäude lohnt,
+  // solange es deutlich mehr Häuser neu erreicht, als es verdrängt.
+  { kind: 'fireStation', guid: 1010463, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 0, optional: true },
+  { kind: 'policeStation', guid: 1010462, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 0, optional: true },
+  { kind: 'hospital', guid: 1010464, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 0, optional: true },
+  { kind: 'bank', guid: 1010365, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 0, optional: true },
+  { kind: 'varietyTheatre', guid: 1010361, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 0, optional: true },
+  { kind: 'membersClub', guid: 1010364, value: 30, itemValue: 0, deliveryValue: 0, fixedCost: 0, optional: true },
 ];
 
 export const WAREHOUSE_GUID = 1010371;
@@ -549,7 +563,12 @@ export function placeServices(
     // übrigen Häuser/Gebäude angeschlossen bleiben und der Lufthafen selbst
     // eine Straße berührt.
     let best: (AirCand & { starts: number[] }) | null = null;
-    for (const c of found.slice(0, 400)) {
+    // Nicht nur die besten 400: liegen sie alle an derselben ungünstigen Stelle
+    // (Netz würde getrennt), weiter suchen – höchstens ≈ 3 s.
+    const airDeadline = performance.now() + 3000;
+    for (let fi = 0; fi < found.length; fi++) {
+      const c = found[fi];
+      if (fi >= 400 && performance.now() > airDeadline) break;
       for (const i of c.roads) cell[i] = SERVICE;
       let ok = !separates(c.roads);
       if (ok) {
@@ -687,7 +706,7 @@ export function placeServices(
     };
     // Genauer Wert je Haus, wenn Schicht/Stufe bekannt: Einwohner mit minus ohne dieses Gebäude.
     const exact = new Float32Array(s.houses.length).fill(-1);
-    if (options.houseStates) {
+    if (options.houseStates && !spec.optional) {
       const all: Partial<Record<BuildingKind, boolean>> = {
         departmentStore: true,
         furnitureStore: true,
@@ -712,12 +731,14 @@ export function placeServices(
       });
     }
     const valueOf = (k: number): number =>
-      Math.max(
-        exact[k] >= 0
-          ? exact[k]
-          : spec.value + (inTownHall[k] ? spec.itemValue + (options.deliveryGoods ? spec.deliveryValue : 0) : 0),
-        options.fullCoverageValue ?? 0,
-      );
+      spec.optional
+        ? spec.value
+        : Math.max(
+            exact[k] >= 0
+              ? exact[k]
+              : spec.value + (inTownHall[k] ? spec.itemValue + (options.deliveryGoods ? spec.deliveryValue : 0) : 0),
+            options.fullCoverageValue ?? 0,
+          );
     /** Bester Wirkungsanteil je Haus über die gewählten Gebäude dieser Art. */
     const best = Float32Array.from(baseline);
     const chosen: number[] = [];

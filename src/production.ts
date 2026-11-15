@@ -12,7 +12,7 @@
 // Produktionsgebäude tragen:
 //   - quadratisch (30, 0)/(0, 30): wie der Stempel „quadratisch“, alle Größen;
 //   - Raute (24, ±18) bzw. (±18, 24): wie der Stempel „Raute“;
-//   - gedrehtes Quadrat (24, 18)/(−18, 24).
+//   - versetzte Raute (24, 18)/(−18, 24) (vom Nutzer im Spiel bestätigt).
 // Schräge Kanten nur für quadratische Gebäude (Angabe des Nutzers).
 //
 // Suche: für jedes Gitter und jede Verschiebung wächst gierig eine Formation
@@ -38,10 +38,7 @@ export interface ProductionOptions {
   requests: ProductionRequest[];
   /** Jedes Produktionsgebäude in Reichweite eines Kraftwerks. */
   power: boolean;
-  /**
-   * Auch das schräge Quadrat (Kanten (24, 18)/(−18, 24)) zulassen. Jede Kante
-   * ist wie in der Raute, die Form selbst ist aber nicht im Spiel getestet.
-   */
+  /** Auch ungetestete Formen zulassen (derzeit sind alle getestet). */
   tiltedSquare?: boolean;
 }
 
@@ -88,8 +85,9 @@ const LATTICES: readonly Lattice[] = [
   { name: 'quadratisch', a: [30, 0], b: [0, 30], squareOnly: false, tested: true },
   { name: 'Raute', a: [24, 18], b: [24, -18], squareOnly: true, tested: true },
   { name: 'Raute', a: [18, 24], b: [-18, 24], squareOnly: true, tested: true },
-  { name: 'Quadrat schräg', a: [24, 18], b: [-18, 24], squareOnly: true, tested: false },
-  { name: 'Quadrat schräg', a: [18, 24], b: [-24, 18], squareOnly: true, tested: false },
+  // Versetzte Raute (schräges Quadrat): vom Nutzer im Spiel bestätigt.
+  { name: 'versetzte Raute', a: [24, 18], b: [-18, 24], squareOnly: true, tested: true },
+  { name: 'versetzte Raute', a: [18, 24], b: [-24, 18], squareOnly: true, tested: true },
 ];
 
 /** Kosten einer überbauten Straßenkachel (Umwege, Anschlüsse). */

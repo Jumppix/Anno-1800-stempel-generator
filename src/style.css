@@ -973,3 +973,28 @@ details.advanced + button.primary {
   font-size: 0.8em;
   opacity: 0.7;
 }
+
+.report table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8em;
+  margin-bottom: 8px;
+}
+
+.report td {
+  padding: 2px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+}
+
+.report td:last-child {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-title {
+  font-weight: 700;
+  font-size: 0.85em;
+  margin: 8px 0 4px;
+}

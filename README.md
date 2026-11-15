@@ -152,6 +152,10 @@ Insel wird bebaut (`src/fill.ts`):
    Handelskammern, Lagerhaus (Reichweite 20) und auf Wunsch Strom werden
    ergänzt; gesucht wird die Formation mit den wenigsten verdrängten Häusern.
 
+Optionale Gebäude (Feuerwache, Polizei, Hospital, Bank, Varieté, Clubhaus)
+lassen sich zuschalten; nach dem Planen zeigt „Bauliste & Einwohner-Bericht“
+die Anzahl je Gebäude und die Einwohner-Aufschlüsselung (als Text speicherbar).
+
 Beim Planen zuschauen (Standard an): Nach jedem Schritt (Bebauung,
 Rathäuser – während der Suche etwa alle 2 s –, Nachverdichtung, Versorgung,
 Stufen) zeigt die Plan-Ansicht den Zwischenstand.

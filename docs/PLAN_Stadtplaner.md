@@ -735,9 +735,30 @@ Recherche (Wiki „Needs“, „Mail“, „Post Office“, „Post Box“, „N
   (quadratisch), 6 Brillenfabriken ≈ −12.300 (quadratisch). Jedes Gebäude
   von genau 2 HK erfasst, Straßennetz unverändert, keine Warnungen.
 
-## 24. Noch offene Fragen
+## 24. Phase 6 (Teil 1): Feinschliff
+
+- **Versetzte Raute** (24, 18)/(−18, 24) vom Nutzer im Spiel bestätigt →
+  wird jetzt immer mitgesucht (Checkbox entfällt); auf Insel 2 oft die
+  günstigste Form (4 Hochrad-Werkhallen, 4 HK, ≈ 26 Häuser).
+- **Optionale Gebäude** (Feuerwache, Polizeiwache, Hospital, Bankhaus,
+  Varieté, Clubhaus) unter „Optionale Gebäude“ in der Versorgung, Standard
+  aus. Sie bringen keine Einwohner; Bewertung als Abdeckungswert 30 je Haus
+  → so viele, dass fast alle Häuser erreicht werden, mit wenig Verlust.
+  Insel 2: 10 Feuerwachen + 7 Polizeiwachen erreichen je 99 %, kosten
+  ≈ 10.000 Einwohner (−1,6 %).
+- **Bauliste & Einwohner-Bericht** unter dem Export: Anzahl je Gebäude,
+  Pflasterstraßen-Kacheln, Brücken, Hochhaus-Stufen, Einwohner-
+  Aufschlüsselung (Rathaus-Items, Post) und Abdeckung je Bedürfnis; als
+  Textdatei speicherbar (`Wohnraster_Bauliste.txt`).
+- **Lufthafen-Fehler behoben:** Es wurden nur die 400 entferntesten Plätze
+  geprüft; lagen alle an einer Stelle, deren Straßen das Netz getrennt
+  hätten, hieß es „kein Platz gefunden“ (je nach Rathaus-Lösung etwa jeder
+  zweite Lauf mit Produktion). Jetzt wird weitergesucht (höchstens ≈ 3 s).
+- Teil 2 (offen): Bearbeiten per Drag (Gebäude verschieben, Zellen sperren,
+  Rest neu optimieren).
+
+## 25. Noch offene Fragen
 - Lagerhaus-Reichweite für Produktion (Annahme 20 Straßenkacheln).
-- Schräges Quadrat (24, 18)/(−18, 24) im Spiel testen.
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
   entfernte markiert?).

@@ -27,7 +27,19 @@ import { cityWideWebBonus, localDepartmentRange, welfareBonus, type RuleConfig }
 import type { PostReport } from './post';
 import type { ServiceReport } from './services';
 
-const SERVICE_KINDS_UI: BuildingKind[] = ['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'];
+const SERVICE_KINDS_UI: BuildingKind[] = [
+  'departmentStore',
+  'furnitureStore',
+  'drugStore',
+  'university',
+  'powerPlant',
+  'fireStation',
+  'policeStation',
+  'hospital',
+  'bank',
+  'varietyTheatre',
+  'membersClub',
+];
 
 export interface IslandSource {
   mask: LandMask;
@@ -124,6 +136,9 @@ export class PlannerUi {
     this.runButton.addEventListener('click', () => void this.run());
     this.split.addEventListener('change', () => this.buildStamps());
     el<HTMLButtonElement>('#plan-image').addEventListener('click', () => this.saveImage());
+    el<HTMLButtonElement>('#plan-report-save').addEventListener('click', () => {
+      if (this.reportText) download('Wohnraster_Bauliste.txt', new Blob([this.reportText], { type: 'text/plain;charset=utf-8' }));
+    });
     this.stampList.addEventListener('click', (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-i]');
       if (!button) return;
@@ -407,6 +422,12 @@ export class PlannerUi {
         drugStore: 'Drogerie',
         university: 'Universität',
         powerPlant: 'Kraftwerk',
+        fireStation: 'Feuerwache',
+        policeStation: 'Polizei',
+        hospital: 'Hospital',
+        bank: 'Bank',
+        varietyTheatre: 'Varieté',
+        membersClub: 'Clubhaus',
       };
       const p = r.production;
       if (p) {
@@ -567,7 +588,7 @@ export class PlannerUi {
           : undefined;
       const airport = el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined;
       const production = this.production.some((r) => r.count > 0)
-        ? { requests: this.production.map((r) => ({ ...r })), power: el<HTMLInputElement>('#prod-power').checked, tiltedSquare: el<HTMLInputElement>('#prod-tilted').checked }
+        ? { requests: this.production.map((r) => ({ ...r })), power: el<HTMLInputElement>('#prod-power').checked }
         : undefined;
       const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems, ministry, airport, production };
       worker.postMessage(job);
@@ -675,6 +696,88 @@ export class PlannerUi {
       })
       .join('');
     this.exportBox.hidden = false;
+    this.buildReport(items.buildings, items.streets.length, countBridges(city.plan.bridges ?? [], mask.w));
+  }
+
+  private reportText = '';
+
+  /** Bauliste (Anzahl je Gebäude) und Einwohner-Bericht des fertigen Plans. */
+  private buildReport(
+    buildings: ReadonlyArray<{ guid: number }>,
+    streets: number,
+    bridges: number,
+  ): void {
+    const counts = new Map<number, number>();
+    for (const b of buildings) counts.set(b.guid, (counts.get(b.guid) ?? 0) + 1);
+    const list = [...counts]
+      .map(([guid, n]) => ({ name: guid === 1010343 ? 'Wohnhaus (als Bauernhaus, im Spiel hochziehen)' : lookup(guid).name, n }))
+      .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'de'));
+    const t = this.cityUi.totals();
+    const planned = this.result?.planned;
+    const levelCounts = { V5: 0, V4: 0, V3: 0, I3: 0 };
+    if (planned) {
+      for (const st of planned.values()) {
+        if (st.tier === 'engineer') levelCounts.I3++;
+        else levelCounts[`V${st.level}` as 'V3' | 'V4' | 'V5']++;
+      }
+    }
+    const pct = (v: number): string => `${Math.round(v * 100)} %`;
+    const kindNames: Partial<Record<BuildingKind, string>> = {
+      departmentStore: 'Kaufhaus',
+      furnitureStore: 'Einrichtungshaus',
+      drugStore: 'Drogerie',
+      university: 'Universität',
+      powerPlant: 'Strom',
+      fireStation: 'Feuerwache',
+      policeStation: 'Polizei',
+      hospital: 'Hospital',
+      bank: 'Bank',
+      varietyTheatre: 'Varieté',
+      membersClub: 'Clubhaus',
+    };
+    const resRows: Array<[string, string]> = t
+      ? [
+          ['Einwohner (Schätzung)', num(t.residents)],
+          ['davon Investoren', num(t.byTier.investor)],
+          ['davon Ingenieure', num(t.byTier.engineer)],
+          ['davon durch Rathaus-Items', num(t.itemResidents)],
+          ['davon durch Post', num(t.mail.residents)],
+          ['Häuser im Rathausradius', pct(t.townHallShare)],
+          ['Post Produktion / Bedarf', t.mail.need ? `${t.mail.production.toFixed(0)} / ${t.mail.need.toFixed(0)} t/min` : '–'],
+          ...Object.entries(t.coverage)
+            .filter(([k, v]) => (v ?? 0) > 0 && kindNames[k as BuildingKind])
+            .map(([k, v]) => [`Abdeckung ${kindNames[k as BuildingKind]}`, pct(v ?? 0)] as [string, string]),
+        ]
+      : [];
+    const levelRows: Array<[string, string]> = planned
+      ? [
+          ['Investoren Stufe 5', num(levelCounts.V5)],
+          ['Investoren Stufe 4', num(levelCounts.V4)],
+          ['Investoren Stufe 3', num(levelCounts.V3)],
+          ['Ingenieure Stufe 3', num(levelCounts.I3)],
+        ].filter(([, v]) => v !== '0') as Array<[string, string]>
+      : [];
+    const buildRows: Array<[string, string]> = [
+      ...list.map((x) => [x.name, num(x.n)] as [string, string]),
+      ['Pflasterstraße (Kacheln)', num(streets)],
+      ...(bridges ? [['Brücken (selbst bauen)', num(bridges)] as [string, string]] : []),
+    ];
+    const table = (title: string, rows: Array<[string, string]>): string =>
+      rows.length
+        ? `<div class="report-title">${title}</div><table>${rows
+            .map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`)
+            .join('')}</table>`
+        : '';
+    el<HTMLElement>('#plan-report-body').innerHTML =
+      table('Bauliste', buildRows) + table('Hochhaus-Stufen', levelRows) + table('Einwohner', resRows);
+    const text = (title: string, rows: Array<[string, string]>): string =>
+      rows.length ? `${title}\n${rows.map(([a, b]) => `  ${a.padEnd(48, ' ')} ${b}`).join('\n')}\n\n` : '';
+    const m = this.result?.mask;
+    this.reportText =
+      `Anno 1800 Wohnraster – Bauliste (${m ? `${m.w} × ${m.h}` : ''})\n\n` +
+      text('Bauliste', buildRows) +
+      text('Hochhaus-Stufen', levelRows) +
+      text('Einwohner', resRows);
   }
 
   private stampName(i: number): string {

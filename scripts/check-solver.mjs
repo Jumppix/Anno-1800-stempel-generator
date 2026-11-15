@@ -208,6 +208,14 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
         prod.city.plan.networks === dense.plan.networks && prodA.warnings.length === 0 && prodCity.conflicts === 0,
       `${p?.placed} Gebäude (${p?.lattice}), ${p?.tradeUnions} HK, ${p?.houses} Häuser verdrängt, Treffer ${hits.join('')}; ${prodA.warnings.join('; ')}`);
   }
+  {
+    // Phase 6: optionale Gebäude (keine Einwohner) erreichen fast alle Häuser.
+    const opt = planServices(mask, dense, { kinds: new Set([...kinds, 'fireStation']), fullCoverageValue: 0 });
+    const fire = opt.report.coverage.fireStation ?? 0;
+    expect('Optionale Gebäude: Feuerwachen erreichen ≥ 95 % der Häuser, Netz unverändert',
+      fire >= 0.95 && opt.city.plan.networks === dense.plan.networks,
+      `${opt.report.placed.fireStation} Feuerwachen, ${(fire * 100).toFixed(1)} %`);
+  }
   let rhClose = 0;
   for (let i = 0; i < city.townHalls.length; i++) for (let j = i + 1; j < city.townHalls.length; j++) {
     if (Math.hypot(city.townHalls[i].x - city.townHalls[j].x, city.townHalls[i].y - city.townHalls[j].y) < 40) rhClose++;
