@@ -245,15 +245,23 @@ Stempeldatei
 - Die Rohkoordinaten aus dem Stempel werden in `stampReader.ts` mit der
   Anno-Designer-Konvention `(x, y) = (−rawY, −rawX)` gedreht. Das behebt die
   frühere Spiegelung in der 2D-Ansicht.
-- Mehrere Stempel werden über ihr Straßenmuster ausgerichtet
-  (`alignAllParts`/`alignPartTo` in `island.ts`, FFT in `fft.ts`): Per
-  Kreuzkorrelation werden **alle** überlappenden Versätze bewertet –
-  gemeinsame Straßen + gemeinsames Wasser − 32 × Widersprüche, wobei
-  Widersprüche nur zählen, wo beide Stempel Daten haben (im Auswahlrechteck
-  beider). Unabhängig von der Ladereihenfolge: Das größte Teil bleibt liegen,
-  danach kommt jeweils das am besten passende Teil. Beim Nachladen bleiben
-  vorhandene Teile liegen. Referenz `test-parts/insel2/` (189 × 290, 25.630
-  Land) wird in jeder Reihenfolge exakt getroffen.
+- Mehrere Stempel werden automatisch zusammengesetzt (`assembleParts` in
+  `src/assemble.ts`). Stempel kennen nur Lagen relativ zu ihrer Mitte; die
+  Anordnung kommt aus der Form, und Information steckt fast nur an der Küste:
+  - Je Paar werden alle Verschiebungen bewertet (FFT): übereinstimmende
+    Küstenkacheln und Uferwasser (offenes Meer zählt nicht), − 32 ×
+    Widersprüche; zusätzlich **Nähte** (Kante an Kante ohne Überlappung) und
+    geschlossene Schnittkanten (quer durchs Land geschnittener Rand, hinter dem
+    ein Nachbarteil Land hat).
+  - Die Gesamtanordnung sucht eine Strahlsuche nach der Summe aller
+    Paarbewertungen minus offener Schnittkanten – unabhängig von der
+    Ladereihenfolge. Beim Nachladen bleiben vorhandene Teile liegen.
+  - Lässt sich ein Teil um 1–3 Kacheln verschieben, ohne schlechter zu passen,
+    wird es als „nicht eindeutig“ gemeldet und in die Mitte des Bereichs gelegt.
+  - Tipp: Stempel mit 10–20 Kacheln Überlappung speichern, die auf beiden Seiten
+    bis an die Küste reicht – dann ist die Lage eindeutig.
+  - Referenzen: `test-parts/insel2/` (große Überlappungen, exakt) und
+    `test-parts/insel3/` (Kante an Kante, ±1–3 Kacheln, wird gemeldet).
 
 ### Gebäude und Regel
 

@@ -235,12 +235,18 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
 
 // 7. Automatisches Ausrichten der Stempelteile (unabhängig von der Ladereihenfolge).
 {
-  const { alignAllParts, combineParts } = await server.ssrLoadModule('/src/island.ts');
+  const { assembleParts } = await server.ssrLoadModule('/src/assemble.ts');
+  const { combineParts } = await server.ssrLoadModule('/src/island.ts');
   const load = (path, id) => {
     const d = decodeStamp(new Uint8Array(readFileSync(path)));
     return { id, name: id, w: d.width, h: d.height, mask: d.mask, landCount: d.landCount, offsetX: 0, offsetY: 0, color: '', region: d.region, streetGuid: d.streetGuid };
   };
-  const truth = { Feldweg_01: [48, -22], Feldweg_02: [149, 49], Feldweg_03: [138, -60], Kaistrasse: [48, -172] };
+  const rel = (parts, ref) => {
+    const r = parts.find((p) => p.id === ref);
+    return Object.fromEntries(parts.map((p) => [p.id, [p.offsetX - r.offsetX, p.offsetY - r.offsetY]]));
+  };
+  // Insel 2: großzügige Überlappungen mit Küste → exakt wie im Spiel.
+  const truth2 = { Feldweg_01: [0, 0], Feldweg_02: [101, 71], Feldweg_03: [90, -38], Kaistrasse: [0, -150] };
   const orders = [
     ['Feldweg_01', 'Feldweg_02', 'Feldweg_03', 'Kaistrasse'],
     ['Kaistrasse', 'Feldweg_03', 'Feldweg_02', 'Feldweg_01'],
@@ -250,25 +256,34 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   let size = '';
   for (const order of orders) {
     const parts = order.map((n) => load(`test-parts/insel2/${n}`, n));
-    alignAllParts(parts);
-    const ref = parts.find((p) => p.id === 'Feldweg_01');
-    if (parts.every((p) => p.offsetX - ref.offsetX === truth[p.id][0] - 48 && p.offsetY - ref.offsetY === truth[p.id][1] + 22)) good++;
+    const r = assembleParts(parts);
+    const got = rel(parts, 'Feldweg_01');
+    if (Object.entries(truth2).every(([k, v]) => got[k][0] === v[0] && got[k][1] === v[1]) && r.spread.size === 0) good++;
     const c = combineParts(parts);
     size = `${c.w} × ${c.h}`;
   }
-  expect('Ausrichten: Insel 2 in jeder Ladereihenfolge wie im Spiel', good === orders.length, `${good}/${orders.length}, ${size}`);
+  expect('Ausrichten: Insel 2 in jeder Ladereihenfolge wie im Spiel, eindeutig', good === orders.length, `${good}/${orders.length}, ${size}`);
   // Einzeln nachladen: vorhandene Teile bleiben liegen, neue finden ihren Platz.
   const one = [];
   for (const n of ['Kaistrasse', 'Feldweg_03', 'Feldweg_01', 'Feldweg_02']) {
     const prev = new Set(one.map((p) => p.id));
     one.push(load(`test-parts/insel2/${n}`, n));
-    alignAllParts(one, prev);
+    assembleParts(one, prev);
   }
-  const r1 = one.find((p) => p.id === 'Feldweg_01');
-  expect('Ausrichten: Insel 2 einzeln nachgeladen', one.every((p) => p.offsetX - r1.offsetX === truth[p.id][0] - 48 && p.offsetY - r1.offsetY === truth[p.id][1] + 22));
+  const g1 = rel(one, 'Feldweg_01');
+  expect('Ausrichten: Insel 2 einzeln nachgeladen', Object.entries(truth2).every(([k, v]) => g1[k][0] === v[0] && g1[k][1] === v[1]),
+    JSON.stringify(g1));
+  // Insel 3: Teile Kante an Kante bzw. Überlappung ohne Küste → Lage bis auf ±1–3, unsichere Teile gemeldet.
+  const parts3 = ['Kaistrasse', 'Feldweg', 'Kaistrasse_02', 'Feldweg_02'].map((n) => load(`test-parts/insel3/${n}`, n));
+  const r3 = assembleParts(parts3);
+  const g3 = rel(parts3, 'Kaistrasse_02');
+  const near = (k, x, y, tol) => Math.abs(g3[k][0] - x) <= tol && Math.abs(g3[k][1] - y) <= tol;
+  expect('Ausrichten: Insel 3 (Nähte ohne Überlappung) wie im Screenshot ±3, Unsicheres gemeldet',
+    near('Feldweg', -80, -34, 0) && near('Feldweg_02', 0, -80, 1) && near('Kaistrasse', 50, 80, 3) && r3.spread.size > 0,
+    `${JSON.stringify(g3)} unsicher: ${[...r3.spread].map(([k, v]) => `${k}±${v}`).join(', ')}`);
   const a = load('test-parts/Insel_Teil_A', 'A');
   const b = load('test-parts/Insel_Teil_B', 'B');
-  alignAllParts([a, b]);
+  assembleParts([a, b]);
   expect('Ausrichten: Insel_Teil_A + B', b.offsetX - a.offsetX === 0 && b.offsetY - a.offsetY === -16, `${b.offsetX - a.offsetX}, ${b.offsetY - a.offsetY}`);
 }
 

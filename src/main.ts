@@ -9,7 +9,6 @@ import { outerBoundary } from './coast';
 import { buildStamp, REGIONS, type RegionKey, type StampStreet } from './stamp';
 import { decodeStamp } from './stampReader';
 import {
-  alignAllParts,
   alignPart,
   combineParts,
   overlapCount,
@@ -19,6 +18,7 @@ import {
 } from './island';
 import { render } from './render';
 import { Camera } from './camera';
+import { assembleParts, type AssembleResult } from './assemble';
 import { loadIsland, persistSettings, saveIsland } from './persist';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
 
@@ -494,6 +494,25 @@ function clearAll(): void {
   update();
 }
 
+/** Hinweis zur automatischen Ausrichtung (fehlende/unsichere Teile). */
+function alignmentNote(r: AssembleResult): string {
+  const name = (id: string): string => {
+    const i = parts.findIndex((p) => p.id === id);
+    return i >= 0 ? `T${i + 1}` : id;
+  };
+  const notes: string[] = [];
+  if (r.missed.size) {
+    notes.push(`${[...r.missed].map(name).join(', ')} ohne passenden Nachbarn – rechts abgelegt, bitte von Hand ziehen.`);
+  }
+  if (r.spread.size) {
+    notes.push(
+      `Nicht eindeutig: ${[...r.spread].map(([id, d]) => `${name(id)} (±${d} Kachel${d === 1 ? '' : 'n'})`).join(', ')} – ` +
+        'die Überlappung enthält dort keine Küste. Bitte im Spiel prüfen oder Stempel mit mehr Überlappung an der Küste speichern.',
+    );
+  }
+  return notes.join(' ');
+}
+
 async function loadStamps(files: FileList): Promise<void> {
   const errors: string[] = [];
   let added = 0;
@@ -528,14 +547,16 @@ async function loadStamps(files: FileList): Promise<void> {
   }
 
   // Alle Teile gemeinsam ausrichten (unabhängig von der Ladereihenfolge).
-  let missedCount = 0;
-  if (added > 0) missedCount = alignAllParts(parts, new Set(previousIds)).size;
-  if (added > 0) selectedId = parts[parts.length - 1].id;
+  let note = '';
+  if (added > 0) {
+    stampInfo.textContent = 'Teile werden ausgerichtet …';
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    note = alignmentNote(assembleParts(parts, new Set(previousIds)));
+    selectedId = parts[parts.length - 1].id;
+  }
   update();
   if (errors.length) stampInfo.textContent = errors.join(' ');
-  else if (missedCount) {
-    stampInfo.textContent = `${missedCount} Teil(e) ohne passende Überlappung – rechts abgelegt, bitte von Hand ziehen.`;
-  }
+  else if (note) stampInfo.textContent += ` · ${note}`;
   stampFile.value = '';
 }
 
@@ -580,11 +601,9 @@ clearStamp.addEventListener('click', clearAll);
 
 alignAll.addEventListener('click', () => {
   if (parts.length < 2) return;
-  const missed = alignAllParts(parts);
+  const note = alignmentNote(assembleParts(parts));
   update();
-  if (missed.size) {
-    stampInfo.textContent = `${missed.size} Teil(e) ohne Überlappung – bitte näher an die anderen ziehen.`;
-  }
+  if (note) stampInfo.textContent += ` · ${note}`;
 });
 
 partList.addEventListener('input', (event) => {

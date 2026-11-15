@@ -48,8 +48,10 @@ unnötig verändern.
 - `src/buildings.ts`: Gebäudetypen (Größe, Radius, GUID, Farbe).
 - `src/stampReader.ts`: Binärparser, Koordinatentransformation
   `(x, y) = (−rawY, −rawX)`, Gebäude/Straßen/GUIDs.
-- `src/island.ts`: `combineParts`, `overlapCount`, `alignAllParts` (reihenfolgeunabhängig),
-  `alignPartTo`/`scanOffsets` (FFT-Kreuzkorrelation über alle Versätze, `src/fft.ts`).
+- `src/island.ts`: `combineParts`, `overlapCount`, `alignPartTo`/`scanOffsets` (Einzelteil).
+- `src/assemble.ts`: `assembleParts` – alle Teile gemeinsam zusammensetzen (Paarbewertung per FFT
+  inkl. Nähte und Schnittkanten, Strahlsuche, unsichere Teile melden); Referenzen
+  `test-parts/insel2/` (exakt) und `test-parts/insel3/` (Kante an Kante).
 - `src/solver.ts`: `solve` (Gitter-Starts → Iterated Local Search mit
   (1,2)-Tausch → Simulated-Annealing-Politur der Abdeckung), `validateLayout`,
   `splitChunks`.
