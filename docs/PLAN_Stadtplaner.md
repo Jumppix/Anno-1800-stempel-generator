@@ -640,9 +640,11 @@ Recherche (Wiki „Needs“, „Mail“, „Post Office“, „Post Box“, „N
   (Investoren) 0,00129 / 0,00032 / 0,00025 t; Zeitungs-Propaganda
   („Sparmaßnahmen“, Nutzer: −68 %) senkt ihn.
 - `post.ts`: Briefkästen (1×1, Radius 12, Abstand ≥ 24) gierig nach
-  Produktion auf freie Restkacheln mit Straßenanschluss; fehlt danach noch
-  Post, ersetzt ein Briefkasten ein Haus, wenn die zusätzliche Post mehr
-  Einwohner bringt als das Haus hat. Analyse: Produktion/Bedarf, Post-
+  Produktion **nur auf freie Restkacheln** mit Straßenanschluss (Ränder,
+  Rathaus-Reste, Lücken an Gebäuden). Früher durfte ein Briefkasten ein Haus
+  ersetzen – das kostete 3×3 Kacheln für ein 1×1-Gebäude (8 Kacheln leer);
+  auf Wunsch des Nutzers entfernt. Insel 2: 14 Briefkästen in Restkacheln
+  decken 346 von 315 t/min, Einwohner 618.100 → 624.100. Analyse: Produktion/Bedarf, Post-
   Einwohner anteilig. Einstellung „Post für die Häuser“ und „Zeitung:
   Verbrauch −%“ in Palast & Ministerium.
 - Insel 2 (4-5, Ministerium, Post, −68 %): ≈ 638.000 Einwohner, davon

@@ -6,11 +6,14 @@
 // sonst leer bleiben. Radien von Briefkästen/Postämtern dürfen sich nicht
 // überlappen (Mittelpunktabstand ≥ Summe der Radien).
 //
-// Vorgehen: Kandidaten = freie Landkacheln mit Straßenanschluss. Gierig den
-// Briefkasten mit der höchsten Produktion setzen (Abstand ≥ 24 zu anderen
-// Briefkästen), bis die Produktion den Bedarf × Reserve deckt.
+// Vorgehen: Kandidaten = freie Restkacheln mit Straßenanschluss (Ränder,
+// Rathaus-Reste, Lücken neben Gebäuden). Gierig den Briefkasten mit der
+// höchsten Produktion setzen (Abstand ≥ 24 zu anderen Briefkästen), bis die
+// Produktion den Bedarf × Reserve deckt. Häuser weichen nie: ein 1×1-
+// Briefkasten würde sonst ein 3×3-Haus kosten und 8 Kacheln ungenutzt lassen
+// (Wunsch des Nutzers). Fehlende Post kommt per Postamt/Luftpost.
 
-import { FREE, HOUSE, ROAD, SERVICE, type FillState } from './fill';
+import { FREE, ROAD, SERVICE, type FillState } from './fill';
 import { mailProduction } from './rules';
 import type { PlacedService } from './services';
 
@@ -61,20 +64,12 @@ export function placePostBoxes(
     }
     return sum;
   };
-  // Kandidaten: freie Kacheln (kostenlos) und Randkacheln von Häusern (das Haus
-  // weicht – lohnt sich, solange Post fehlt: ein Briefkasten versorgt die Post
-  // tausender Einwohner, ein Haus hat ~200–300).
-  const houseAt = new Int32Array(w * h).fill(-1);
-  s.houses.forEach((hs, k) => {
-    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) houseAt[(hs.y + dy) * w + hs.x + dx] = k;
-  });
-  const cands: Array<{ x: number; y: number; prod: number; house: number; cost: number }> = [];
+  // Kandidaten: nur freie Kacheln mit Straßenanschluss.
+  const cands: Array<{ x: number; y: number; prod: number }> = [];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      const isFree = cell[i] === FREE;
-      const isHouse = cell[i] === HOUSE && valuePerTon > 0;
-      if (!isFree && !isHouse) continue;
+      if (cell[i] !== FREE) continue;
       const road =
         (x > 0 && cell[i - 1] === ROAD) ||
         (x < w - 1 && cell[i + 1] === ROAD) ||
@@ -82,26 +77,23 @@ export function placePostBoxes(
         (y < h - 1 && cell[i + w] === ROAD);
       if (!road) continue;
       const prod = mailProduction(inRadius(x, y));
-      if (prod <= 0) continue;
-      const house = isHouse ? houseAt[i] : -1;
-      const cost = house >= 0 ? houses[house].res : 0;
-      cands.push({ x, y, prod, house, cost });
+      if (prod > 0) cands.push({ x, y, prod });
     }
   }
   const boxes: PlacedService[] = [];
   const removed = new Set<number>();
   let production = 0;
   const target = need * reserve;
-  const gainOf = (c: { prod: number; cost: number }): number =>
-    valuePerTon > 0 ? Math.min(c.prod, Math.max(0, target - production)) * valuePerTon - c.cost : c.cost ? -1 : c.prod;
+  // Wert: gedeckter Bedarf (bei bekanntem Wert je t/min in Einwohnern), sonst Produktion.
+  const gainOf = (c: { prod: number }): number =>
+    valuePerTon > 0 ? Math.min(c.prod, Math.max(0, target - production)) * valuePerTon : c.prod;
   for (;;) {
     if (production >= target) break;
     let best = -1;
     let bestGain = 0;
     for (let k = 0; k < cands.length; k++) {
       const c = cands[k];
-      if (c.house >= 0 && removed.has(c.house)) continue;
-      if (c.house < 0 && cell[c.y * w + c.x] !== FREE) continue;
+      if (cell[c.y * w + c.x] !== FREE) continue;
       const g = gainOf(c);
       if (g <= bestGain) continue;
       if (boxes.some((b) => Math.hypot(b.x - c.x, b.y - c.y) < 2 * BOX_RADIUS - 1e-9)) continue;
@@ -110,11 +102,6 @@ export function placePostBoxes(
     }
     if (best < 0) break;
     const c = cands[best];
-    if (c.house >= 0) {
-      const hs = s.houses[c.house];
-      for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) cell[(hs.y + dy) * w + hs.x + dx] = FREE;
-      removed.add(c.house);
-    }
     boxes.push({ guid: POST_BOX_GUID, kind: 'postBox', name: 'Briefkasten', x: c.x, y: c.y, w: 1, h: 1, turns: 0 });
     cell[c.y * w + c.x] = SERVICE;
     production += c.prod;
