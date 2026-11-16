@@ -62,6 +62,8 @@ export interface PassInput {
   rules: RuleConfig;
   /** Zwischenstände senden (nur für den Durchlauf, dessen Bild gezeigt wird). */
   snapshots: boolean;
+  /** Höchstzahl der Runden Versorgung ↔ Stufen (Standard 4). */
+  serviceRounds?: number;
 }
 
 export interface PassResult {
@@ -191,22 +193,29 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void): PassRes
   let lv = levels(city, 0);
   snap(city, lv.planned);
 
-  // 6. Versorgung an die Stufen anpassen (exakte Werte je Haus), Stufen erneut
+  // 6. Versorgung an die Stufen anpassen (exakte Werte je Haus), Stufen erneut –
+  //    abwechselnd, bis es weniger als 0,1 % bringt (höchstens `serviceRounds`).
   if (input.kinds.length && input.levelMode !== 'l3') {
-    emit({ kind: 'step', label: 'Versorgung an Stufen anpassen' });
-    const states = new Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
-    city.houses.forEach((hs, k) => {
-      const st = lv.planned.get(k);
-      if (st) states.set(`${hs.x},${hs.y}`, st);
-    });
-    const second = planServices(mask, dense, { ...serviceOptions, houseStates: states });
-    const city2 = { ...second.city, removedHouses: refilled.removedHouses };
-    emit({ kind: 'step', label: 'Hochhaus-Stufen erneut' });
-    const lv2 = levels(city2, 1);
-    if (lv2.residents > lv.residents) {
-      city = city2;
-      services = second.report;
-      lv = lv2;
+    const rounds = Math.max(1, input.serviceRounds ?? 4);
+    for (let round = 1; round <= rounds; round++) {
+      emit({ kind: 'step', label: 'Versorgung an Stufen anpassen', detail: rounds > 1 ? `Runde ${round}` : undefined });
+      const states = new Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
+      city.houses.forEach((hs, k) => {
+        const st = lv.planned.get(k);
+        if (st) states.set(`${hs.x},${hs.y}`, st);
+      });
+      const next = planServices(mask, dense, { ...serviceOptions, houseStates: states });
+      const city2 = { ...next.city, removedHouses: refilled.removedHouses };
+      emit({ kind: 'step', label: 'Hochhaus-Stufen erneut', detail: rounds > 1 ? `Runde ${round}` : undefined });
+      const lv2 = levels(city2, round);
+      const better = lv2.residents > lv.residents;
+      const gain = (lv2.residents - lv.residents) / Math.max(1, lv.residents);
+      if (better) {
+        city = city2;
+        services = next.report;
+        lv = lv2;
+      }
+      if (!better || gain < 0.001) break;
     }
   }
 

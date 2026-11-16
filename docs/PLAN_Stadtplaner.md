@@ -883,7 +883,7 @@ der Test-Pipeline über mehrere Seeds gegen den Stand davor gemessen.
   laufen 3 parallel, 10 Durchläufe dauern dann ≈ 4× einen Durchlauf.
 - Abnahme: gleiche Ergebnisse wie nacheinander, Zeit ≈ Durchläufe/Kerne.
 
-**M3 – Versorgung ↔ Stufen bis zum Stillstand (klein)**
+**M3 – Versorgung ↔ Stufen bis zum Stillstand (klein)** ✓ umgesetzt (`runPass`, `serviceRounds` Standard 4, Abbruch < 0,1 %). Messung je 5 Seeds × 6er/12er: Ø +0,20 % (8 von 10 Paaren besser), bester Lauf 791.426 → 793.568; Durchlauf ≈ 30 s länger.
 - Statt genau einer zweiten Runde: Versorgung mit exakten Hauswerten neu
   setzen → Stufen → … bis < 0,1 % Gewinn oder 4 Runden.
 - Abnahme: Ø Einwohner ≥ vorher über 10 Seeds.
