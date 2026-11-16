@@ -149,7 +149,7 @@ Insel wird bebaut (`src/fill.ts`):
    Hochrad-Werkhalle, Baumschule, Chemiefabrik) mit Anzahl wählen. Jedes steht
    genau zwischen zwei Handelskammern (Mitten 30 auseinander, Gebäudemitte 15
    von beiden) – quadratisch oder als Raute wie in den Clipping-Stempeln.
-   Handelskammern, Lagerhaus (Reichweite 20) und auf Wunsch Strom werden
+   Handelskammern, Lagerhaus (Weg höchstens 40 Kacheln) und auf Wunsch Strom werden
    ergänzt; gesucht wird die Formation mit den wenigsten verdrängten Häusern.
 
 Plan bearbeiten: Gebäude anklicken und mit der linken Maustaste ziehen, R

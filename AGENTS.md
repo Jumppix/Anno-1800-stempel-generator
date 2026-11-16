@@ -150,7 +150,7 @@ unnötig verändern.
 - Spielbarkeit des großen Ein-Stempel-Exports ist noch ein Praxistest.
 - Kein automatisierter End-to-End-/Browser-Test (nur `npm run check` für den
   Solver).
-- Stadtplaner: Produktion → Lagerhaus 60 Pflasterkacheln (Angabe des Nutzers für Hochrad-Werkhallen;
+- Stadtplaner: Produktion → Lagerhaus 40 Kacheln (Angabe des Nutzers für Hochrad-Werkhallen;
   für andere Fabriken ungeprüft).
 - Optimalität ist für große Inseln nicht bewiesen; Benchmark-Insel
   189 × 290: 41 HK / 25–26 Rathäuser (alter Solver: 33 HK).

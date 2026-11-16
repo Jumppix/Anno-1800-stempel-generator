@@ -26,8 +26,11 @@ import { CLIPPABLE, footprint, lookup } from './catalog';
 import { BLOCKED, BRIDGE, HOUSE, ROAD, SERVICE, WATER, type FillState } from './fill';
 
 export const TRADE_UNION_GUID = 1010516;
-/** Straßenreichweite Produktion → Lagerhaus: 60 auf Pflaster (Angabe des Nutzers, Hochrad-Werkhalle). */
-export const PRODUCTION_WAREHOUSE_RANGE = 60;
+/**
+ * Straßenreichweite Produktion → Lagerhaus: 40 Kacheln (Angabe des Nutzers für
+ * die Hochrad-Werkhalle, im Spiel geprüft; frühere Annahme 60 war zu hoch).
+ */
+export const PRODUCTION_WAREHOUSE_RANGE = 40;
 
 export interface ProductionRequest {
   guid: number;
