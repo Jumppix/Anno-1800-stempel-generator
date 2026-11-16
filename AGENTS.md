@@ -94,6 +94,11 @@ unnötig verändern.
 - Brücken (`addBridges`, Zelltyp `BRIDGE`, `GridPlan.bridges`) und
   Straßenstummel (`replaceRoadStubs`) in `src/fill.ts`.
   Abgetrennte Straßenstücke langer Bänder werden per `connectRoadPieces` angebunden.
+  Getrennte Landstücke bekommen in `searchFill` je ein eigenes Raster (`orientationMap`);
+  `realignLanes` belegt Häuserspalten exakt neu (Ende der Nachverdichtung).
+- `src/thin.ts`: `thinCrossRoads` – Querstraßen-Stücke nach der Versorgung ausdünnen
+  (Häuserwert gegen Abdeckung, Lagerwege, Ministerium, Netz); Hülle `thinCity` in `planner.ts`.
+  `PlannerUi.run` startet 1/3/5 Durchläufe (`passList`), bester Plan gewinnt.
 - `src/camera.ts`: Zoom/Verschieben (Mausrad, rechte Maustaste) für Anordnen,
   Ergebnis und Plan/Analyse; Ereignisse in `main.ts`, `CityUi.camera`.
 - `src/style.css`: Styling.

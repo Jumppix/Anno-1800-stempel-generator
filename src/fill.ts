@@ -63,6 +63,11 @@ export interface FillResult extends FillState {
   housesPerLine: number;
   /** Verschiebung der Längsstraßen je Band (0…6), leer = keine. */
   shifts: number[];
+  /**
+   * Ausrichtung je Kachel (1 = waagerecht), wenn getrennte Landstücke eigene
+   * Raster haben; sonst gilt `orientation` überall.
+   */
+  orientationMap?: Uint8Array;
   latticeHouses: number;
   extraHouses: number;
   extraRoads: number;
@@ -619,6 +624,88 @@ export function searchFill(
   options: { orientation: 'auto' | Orientation; housesPerLine: number; deadline?: number; bandShifts?: boolean },
   onProgress?: (best: FillResult, done: number, total: number) => void,
 ): FillResult {
+  // Getrennte Landstücke (Flussarme) bekommen je ein eigenes Raster mit eigener
+  // Ausrichtung und Lage – über Brücken werden sie später verbunden.
+  const land = landLabelsOf(mask);
+  const sizes = new Map<number, number>();
+  for (let i = 0; i < land.length; i++) if (land[i] >= 0) sizes.set(land[i], (sizes.get(land[i]) ?? 0) + 1);
+  const pieces = [...sizes].filter(([, count]) => count >= 9).sort((a, b) => b[1] - a[1]);
+  if (pieces.length <= 1) return searchFillSingle(mask, options, onProgress);
+  const { w, h } = mask;
+  const cell = new Uint8Array(w * h);
+  for (let i = 0; i < cell.length; i++) cell[i] = mask.data[i] ? FREE : WATER;
+  const orientationMap = new Uint8Array(w * h);
+  const houses: FillHouse[] = [];
+  let main: FillResult | null = null;
+  let latticeHouses = 0;
+  let extraRoads = 0;
+  for (const [label] of pieces) {
+    // Auf das Rechteck des Stücks zuschneiden (schneller), Rand 2 Kacheln.
+    let x0 = w;
+    let y0 = h;
+    let x1 = 0;
+    let y1 = 0;
+    for (let i = 0; i < land.length; i++) {
+      if (land[i] !== label) continue;
+      const x = i % w;
+      const y = (i - x) / w;
+      if (x < x0) x0 = x;
+      if (y < y0) y0 = y;
+      if (x > x1) x1 = x;
+      if (y > y1) y1 = y;
+    }
+    x0 = Math.max(0, x0 - 2);
+    y0 = Math.max(0, y0 - 2);
+    x1 = Math.min(w - 1, x1 + 2);
+    y1 = Math.min(h - 1, y1 + 2);
+    const cw = x1 - x0 + 1;
+    const ch = y1 - y0 + 1;
+    const data = new Uint8Array(cw * ch);
+    let count = 0;
+    for (let y = 0; y < ch; y++) {
+      for (let x = 0; x < cw; x++) {
+        if (land[(y + y0) * w + x + x0] === label) {
+          data[y * cw + x] = 1;
+          count++;
+        }
+      }
+    }
+    const r = searchFillSingle({ w: cw, h: ch, data, landCount: count }, options);
+    const horizontal = r.orientation === 'horizontal' ? 1 : 0;
+    for (let y = 0; y < ch; y++) {
+      for (let x = 0; x < cw; x++) {
+        if (!data[y * cw + x]) continue;
+        const i = (y + y0) * w + x + x0;
+        cell[i] = r.cell[y * cw + x];
+        orientationMap[i] = horizontal;
+      }
+    }
+    for (const hs of r.houses) houses.push({ ...hs, x: hs.x + x0, y: hs.y + y0 });
+    latticeHouses += r.latticeHouses;
+    extraRoads += r.extraRoads;
+    if (!main) main = { ...r, ox: r.ox + x0, oy: r.oy + y0 };
+  }
+  const first = main as FillResult;
+  const result: FillResult = {
+    ...first,
+    w,
+    h,
+    cell,
+    houses,
+    latticeHouses,
+    extraHouses: houses.length - latticeHouses,
+    extraRoads,
+    orientationMap,
+  };
+  onProgress?.(result, 1, 1);
+  return result;
+}
+
+function searchFillSingle(
+  mask: LandMask,
+  options: { orientation: 'auto' | Orientation; housesPerLine: number; deadline?: number; bandShifts?: boolean },
+  onProgress?: (best: FillResult, done: number, total: number) => void,
+): FillResult {
   const n = Math.max(1, Math.round(options.housesPerLine));
   const orientations: Orientation[] =
     options.orientation === 'auto' ? ['vertical', 'horizontal'] : [options.orientation];
@@ -919,4 +1006,106 @@ export function pruneBridges(s: FillState): number {
     removed++;
   }
   return removed;
+}
+
+/**
+ * „Ganze Reihen verschieben“: Je Häuserspalte (gleiche x bei senkrechten bzw.
+ * gleiche y bei waagerechten Reihen) die Abschnitte zwischen Hindernissen
+ * (Küste, Straße, Rathaus, fremde Häuser) exakt neu belegen – 1D-Optimierung
+ * (dynamische Programmierung) mit Straßenanschluss je Haus. Ersetzt nur, wenn
+ * dabei mehr Häuser entstehen. Liefert die Zahl gewonnener Häuser.
+ */
+export function realignLanes(s: FillState): number {
+  let gained = 0;
+  for (const vertical of [true, false]) gained += realignPass(s, vertical);
+  return gained;
+}
+
+function realignPass(s: FillState, vertical: boolean): number {
+  const { w, h, cell } = s;
+  // Kachel → Hausindex
+  const houseAt = new Int32Array(w * h).fill(-1);
+  s.houses.forEach((hs, k) => {
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) houseAt[(hs.y + dy) * w + hs.x + dx] = k;
+  });
+  // Achsen: a = Spaltenlage (x bei senkrecht), b = Lauf entlang der Spalte.
+  const A = vertical ? w : h;
+  const B = vertical ? h : w;
+  const idx = (a: number, b: number): number => (vertical ? b * w + a : a * w + b);
+  const keys = new Set<number>(s.houses.map((hs) => (vertical ? hs.x : hs.y)));
+  const remove = new Set<number>();
+  const add: Array<{ x: number; y: number }> = [];
+  for (const a of keys) {
+    if (a < 0 || a + 3 > A) continue;
+    const okRow = (b: number): boolean => {
+      for (let d = 0; d < 3; d++) {
+        const i = idx(a + d, b);
+        const v = cell[i];
+        if (v === FREE) continue;
+        if (v === HOUSE) {
+          const hs = s.houses[houseAt[i]];
+          if ((vertical ? hs.x : hs.y) === a) continue;
+        }
+        return false;
+      }
+      return true;
+    };
+    const touches = (b: number): boolean => {
+      // Haus an Lage a, Lauf b..b+2: Straße seitlich oder an den Enden.
+      for (let t = 0; t < 3; t++) {
+        if (a > 0 && cell[idx(a - 1, b + t)] === ROAD) return true;
+        if (a + 3 < A && cell[idx(a + 3, b + t)] === ROAD) return true;
+        if (b > 0 && cell[idx(a + t, b - 1)] === ROAD) return true;
+        if (b + 3 < B && cell[idx(a + t, b + 3)] === ROAD) return true;
+      }
+      return false;
+    };
+    let b = 0;
+    while (b < B) {
+      if (!okRow(b)) {
+        b++;
+        continue;
+      }
+      const start = b;
+      while (b < B && okRow(b)) b++;
+      const end = b; // [start, end)
+      const len = end - start;
+      if (len < 3) continue;
+      // Aktuelle Häuser dieser Spalte im Abschnitt
+      const current = new Set<number>();
+      for (let t = start; t < end; t++) {
+        const i = idx(a, t);
+        if (cell[i] === HOUSE) current.add(houseAt[i]);
+      }
+      // DP: best[t] = max. Häuser in [start, start+t)
+      const best = new Int32Array(len + 1);
+      const take = new Uint8Array(len + 1);
+      for (let t = 1; t <= len; t++) {
+        best[t] = best[t - 1];
+        if (t >= 3 && touches(start + t - 3) && best[t - 3] + 1 > best[t]) {
+          best[t] = best[t - 3] + 1;
+          take[t] = 1;
+        }
+      }
+      if (best[len] <= current.size) continue;
+      for (const k of current) remove.add(k);
+      let t = len;
+      while (t > 0) {
+        if (take[t]) {
+          const p = start + t - 3;
+          add.push(vertical ? { x: a, y: p } : { x: p, y: a });
+          t -= 3;
+        } else t--;
+      }
+    }
+  }
+  if (!remove.size && !add.length) return 0;
+  const before = s.houses.length;
+  for (const k of remove) {
+    const hs = s.houses[k];
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) cell[(hs.y + dy) * w + hs.x + dx] = FREE;
+  }
+  s.houses = s.houses.filter((_, k) => !remove.has(k));
+  for (const p of add) if (footprintFree(s, p.x, p.y)) placeHouse(s, p.x, p.y, -1);
+  return s.houses.length - before;
 }

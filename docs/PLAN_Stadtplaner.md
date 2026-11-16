@@ -775,7 +775,52 @@ Recherche (Wiki „Needs“, „Mail“, „Post Office“, „Post Box“, „N
 - „Zellen sperren“ aus dem ursprünglichen Entwurf entfällt: Verschieben +
   Neuberechnen deckt den Zweck ab, ohne die Planung neu zu starten.
 
-## 25. Noch offene Fragen
+## 25. Weitere Optimierung: Wo steckt noch Potenzial? (Messung Insel 2)
+
+Flächenbilanz nach Rathäusern und Nachverdichtung (6er-Linien):
+Häuser 74,4 %, Straßen 17,9 %, Rathäuser 1,5 %, frei 6,2 % (35er-Linien:
+75,4 / 15,3 / 1,5 / 7,8 %). Obergrenze für Zweierreihen ohne Querstraßen,
+Küste und Sondergebäude: Land × 6/7 / 9 ≈ 2.459 Häuser.
+- **Freie Kacheln:** 85 % liegen 1–2 Kacheln an der Küste (kein 3×3-Haus
+  möglich), nur ≈ 235 Kacheln im Inneren; freie 3×3-Plätze mit Straße: 0.
+- **Straßen:** 17,9 % gegenüber 14,3 % (1/7) im Ideal – fast nur Querstraßen.
+  Eine entfernte Querstraße gibt jeder Spalte 1 Kachel; erst 3 entfernte in
+  derselben Spalte ergeben 1 Haus mehr. Die Bandverschiebung (Längsstraßen je
+  Band versetzt) verhindert das oft, weil Spalten nicht über die Querstraße
+  hinweg fluchten. Lange Reihen sparen Querstraßen, kosten aber Abdeckung.
+- **Stadtteile drehen/teilen:** Hauptland geteilt (Nord/Süd, eigene
+  Ausrichtung) bringt nichts (≤ 1.739 gegenüber 1.740 Häusern); senkrecht und
+  waagerecht sind gleichauf. **Getrennte Landstücke** (Flussarme) mit eigenem
+  Raster: 2.163 → 2.178 Häuser (+15).
+- **Reihen verschieben** (exakte Neubelegung je Häuserspalte, 1D-DP):
+  +8 (6er) / +25 (35er) vor der Nachverdichtung, danach +0 / +14 – die
+  Nachverdichtung findet das meiste schon selbst.
+- **Querstraßen gezielt ausdünnen** (nach der Versorgung, bewertet mit
+  Häuserwert gegen verlorene Abdeckung, Lagerwege, Ministeriumsbereich,
+  Netz): 6er +8 Häuser (+0,1–0,4 % Einwohner), 12er +4 (+0,2 %), 35er +10
+  (+0,45 %), in < 5 s. Zwei- und Dreiergruppen in einer Spalte bringen wegen
+  der Bandverschiebung kaum mehr.
+- **Streuung:** Zwei Läufe mit gleichen Einstellungen unterscheiden sich um
+  ≈ ±0,3–0,5 % (Rathaus-Suche, Nachverdichtung, Stufen). Mehrere Durchläufe
+  mit Auswahl des besten nutzen das gezielt.
+- **WebGPU:** lohnt hier nicht. Die Verfahren sind verzweigte kombinatorische
+  Suchen (Rathaus-Packung, lokale Suche, Breitensuchen über Straßen), die
+  sich schlecht auf tausende GPU-Kerne verteilen; die teuren Teile laufen
+  schon parallel auf allen CPU-Kernen (Web Worker). Mehr Rechenzeit wird
+  stattdessen über Durchläufe genutzt.
+
+Umgesetzt: eigenes Raster je Landstück (`searchFill`, `orientationMap`,
+`crossRoadTiles` je Kachel), `realignLanes` am Ende der Nachverdichtung,
+`thinCrossRoads` (`src/thin.ts`) als Schritt „Querstraßen ausdünnen“ mit
+anschließender Stufen-Optimierung, „Durchläufe“ (1/3/5: Linienlänge und
+Zufall variiert, bester Plan gewinnt; Standard 3).
+Insel 2 im Browser (Standard, 3 Durchläufe, 207 s): 6er 643.554 · 12er
+644.348 · 6er Variante 2 644.002 → 644.348 Einwohner, 2.031 Häuser. Die
+einzelnen Gewinne (+15 Häuser Raster je Landstück, +7–10 Ausdünnen) liegen in
+der Größenordnung der Streuung zwischen zwei Läufen; der Plan ist nahe an
+dem, was Küste, Querstraßen-Abdeckung und Sondergebäude zulassen.
+
+## 26. Noch offene Fragen
 - Lagerhaus-Reichweite für Produktion (Annahme 20 Straßenkacheln).
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4

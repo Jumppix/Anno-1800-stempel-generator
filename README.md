@@ -168,6 +168,14 @@ analysieren, Beispielstadt, Katalog-Teststempel, Bedienung). Die Ebene der
 Plan-Ansicht wählt man oben rechts im Bild. Die Ladeanzeige (Schritt x/y,
 Balken, Zeit, Details) erscheint unter dem Button und groß über dem Bild.
 
+Gründlichkeit (unter „Erweitert“): **Durchläufe** 1/3/5 – die ganze Planung
+läuft mehrmals mit anderer Linienlänge bzw. anderem Zufall, der Plan mit den
+meisten Einwohnern gewinnt (Standard 3). **Querstraßen ausdünnen**: nach der
+Versorgung entbehrliche Querstraßen-Stücke entfernen und Reihen
+zusammenschieben, ohne Versorgung, Lagerwege oder Netz zu verschlechtern.
+Getrennte Inselteile bekommen je ein eigenes Raster. Messungen und Grenzen:
+`docs/PLAN_Stadtplaner.md`, Abschnitt 25.
+
 Beim Planen zuschauen (Standard an): Nach jedem Schritt (Bebauung,
 Rathäuser – während der Suche etwa alle 2 s –, Nachverdichtung, Versorgung,
 Stufen) zeigt die Plan-Ansicht den Zwischenstand.

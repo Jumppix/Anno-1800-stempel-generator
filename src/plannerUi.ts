@@ -28,6 +28,7 @@ import type { LevelMode } from './levels';
 import { cityWideWebBonus, localDepartmentRange, welfareBonus, type RuleConfig } from './rules';
 import type { PostReport } from './post';
 import type { ServiceReport } from './services';
+import type { ThinReport } from './thin';
 
 const SERVICE_KINDS_UI: BuildingKind[] = [
   'departmentStore',
@@ -42,6 +43,14 @@ const SERVICE_KINDS_UI: BuildingKind[] = [
   'varietyTheatre',
   'membersClub',
 ];
+
+/** Fertiger Plan mit Insel und geplanten Hochhaus-Stufen. */
+interface PlanResult {
+  city: CityPlan;
+  mask: LandMask;
+  streetGuid: number;
+  planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
+}
 
 export interface IslandSource {
   mask: LandMask;
@@ -103,8 +112,11 @@ class Progress {
   private detailText = '';
   private readonly boxes = [el<HTMLElement>('#plan-progress'), el<HTMLElement>('#stage-progress')];
 
-  start(steps: Array<{ label: string; est: number }>): void {
+  private prefix = '';
+
+  start(steps: Array<{ label: string; est: number }>, prefix = ''): void {
     this.steps = steps;
+    this.prefix = prefix;
     this.cur = -1;
     this.started = performance.now();
     this.detailText = '';
@@ -144,7 +156,7 @@ class Progress {
     const secs = Math.round((performance.now() - this.started) / 1000);
     for (const b of this.boxes) {
       const q = <T extends HTMLElement>(sel: string): T => b.querySelector<T>(sel) as T;
-      q('.progress-step').textContent = `Schritt ${Math.max(1, this.cur + 1)}/${this.steps.length}: ${step.label} …`;
+      q('.progress-step').textContent = `${this.prefix}Schritt ${Math.max(1, this.cur + 1)}/${this.steps.length}: ${step.label} …`;
       q('.progress-time').textContent = `${Math.round(frac * 100)} % · ${secs} s`;
       q<HTMLElement>('.progress-bar i').style.width = `${(frac * 100).toFixed(1)}%`;
       q('.progress-detail').textContent = this.detailText;
@@ -169,12 +181,7 @@ export class PlannerUi {
   private readonly stampList = el<HTMLElement>('#plan-stamps');
 
   private runner: SolveRunner;
-  private result: {
-    city: CityPlan;
-    mask: LandMask;
-    streetGuid: number;
-    planned?: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
-  } | null = null;
+  private result: PlanResult | null = null;
   private readonly levelMode = el<HTMLSelectElement>('#plan-levels');
   private stamps: Uint8Array[] = [];
   private running = false;
@@ -361,6 +368,24 @@ export class PlannerUi {
       : 'Keine Insel geladen – oben unter „Inselform aus Stempeln“ die Feldweg-Stempel laden und im Tab „Anordnen“ ausrichten.';
   }
 
+  /**
+   * Durchläufe: die ganze Planung mehrmals mit anderer Linienlänge bzw. anderem
+   * Zufall – der Plan mit den meisten Einwohnern gewinnt.
+   */
+  private passList(): Array<{ lines: number; seed: number; label: string }> {
+    const lines = Number(this.perLine.value) || 6;
+    const alt = lines === 12 ? 6 : 12;
+    const all = [
+      { lines, seed: 0 },
+      { lines: alt, seed: 0 },
+      { lines, seed: 1 },
+      { lines: lines === 8 ? 16 : 8, seed: 0 },
+      { lines: alt, seed: 1 },
+    ];
+    const n = Math.max(1, Math.min(all.length, Number(el<HTMLSelectElement>('#plan-passes').value) || 1));
+    return all.slice(0, n).map((p) => ({ ...p, label: `${p.lines}er${p.seed ? ` (Variante ${p.seed + 1})` : ''}` }));
+  }
+
   private async run(): Promise<void> {
     const src = this.island();
     if (!src || this.running) return;
@@ -370,9 +395,50 @@ export class PlannerUi {
     this.exportBox.hidden = true;
     this.cityUi.setEditor(null);
     this.history = [];
+    this.status.innerHTML = '';
+    const started = performance.now();
+    const passes = this.passList();
+    let best: { residents: number; items: string[]; result: PlanResult } | null = null;
+    const tried: string[] = [];
+    try {
+      for (let k = 0; k < passes.length; k++) {
+        const prefix = passes.length > 1 ? `Durchlauf ${k + 1}/${passes.length} (${passes[k].label}) · ` : '';
+        const r = await this.runOnce(src, passes[k].lines, passes[k].seed, prefix);
+        tried.push(`${passes[k].label} ${num(r.residents)}`);
+        if (!best || r.residents > best.residents) best = r;
+      }
+    } finally {
+      this.progress.finish();
+      this.running = false;
+    }
+    if (best) {
+      this.result = best.result;
+      this.buildStamps();
+      const items = [...best.items];
+      if (passes.length > 1) items.push(`Durchläufe: ${tried.join(' · ')} – bester gewählt`);
+      items.push(`Gesamt ${((performance.now() - started) / 1000).toFixed(0)} s`);
+      this.status.innerHTML = `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+    }
+    this.refreshIsland();
+  }
+
+  /** Regionalministerium (Reichweite, Wohlfahrt, Stadtweites Netz) aus den Regeln. */
+  private ministryOption(): { range: number; welfare: number; web: number } | undefined {
+    const rules = this.cityUi.currentRules();
+    return el<HTMLInputElement>('#plan-ministry').checked && rules.ministry !== 'none'
+      ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules) }
+      : undefined;
+  }
+
+  /** Ein kompletter Planungsdurchlauf; liefert Einwohner, Statuszeilen und Plan. */
+  private async runOnce(
+    src: IslandSource,
+    linesPerGroup: number,
+    seed: number,
+    prefix: string,
+  ): Promise<{ residents: number; items: string[]; result: PlanResult }> {
     const started = performance.now();
     const orientation = this.orientation.value as 'auto' | Orientation;
-    this.status.innerHTML = '';
     {
       // Geplante Schritte mit geschätzter Dauer (für den Balken).
       const kindsNow = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
@@ -386,13 +452,16 @@ export class PlannerUi {
       if (withServices) steps.push({ label: 'Produktion, Lufthafen & Versorgung', est: 9000 });
       steps.push({ label: 'Hochhaus-Stufen', est: lvMs });
       if (second) steps.push({ label: 'Versorgung an Stufen anpassen', est: 9000 }, { label: 'Hochhaus-Stufen erneut', est: lvMs });
+      if (withServices && el<HTMLInputElement>('#plan-thin').checked) {
+        steps.push({ label: 'Querstraßen ausdünnen', est: 5000 }, { label: 'Hochhaus-Stufen nach Ausdünnen', est: lvMs });
+      }
       if (el<HTMLInputElement>('#plan-post').checked) steps.push({ label: 'Briefkästen', est: 3000 });
       steps.push({ label: 'Fertigstellen', est: 1500 });
-      this.progress.start(steps);
+      this.progress.start(steps, prefix);
       this.progress.step('Bebauung (Raster, Gittersuche)', 'Häuserraster über die ganze Insel, beste Gitterlage …');
     }
     await new Promise((r) => setTimeout(r, 30));
-    const fill = await this.fill(src.mask, orientation, Number(this.perLine.value) || 4);
+    const fill = await this.fill(src.mask, orientation, linesPerGroup);
     const plan = planFromFill(fill);
     this.progress.step('Rathäuser optimieren', `Bebauung: ${num(plan.houses.length)} Häuser`);
     this.preview(src.mask, finishPlan(plan, [], 0), 'Zwischenstand');
@@ -427,7 +496,7 @@ export class PlannerUi {
     // so verlängert kein späteres Verschieben die Wege zu Lagerhäusern.
     const compactMs = Number(this.compactBudget.value) || 0;
     if (compactMs > 0) this.progress.step('Nachverdichtung', 'Häuser und Rathäuser verschieben, Lücken füllen');
-    const compacted = compactMs > 0 ? await this.compact(src.mask, refilled, compactMs, started) : null;
+    const compacted = compactMs > 0 ? await this.compact(src.mask, refilled, compactMs, started, seed) : null;
     const dense = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : refilled;
     if (compacted) this.preview(src.mask, dense, 'Zwischenstand');
     const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
@@ -444,7 +513,7 @@ export class PlannerUi {
     if (serviced) this.preview(src.mask, city, 'Zwischenstand');
     // Hochhaus-Stufen (3-3-5 / 4-5) auf dem fertigen Plan optimieren.
     this.progress.step('Hochhaus-Stufen', 'Bauweise 3-3-5 / 4-5, Panorama je Haus');
-    let levels = await this.levels(src.mask, city, levelMode, levelMs);
+    let levels = await this.levels(src.mask, city, levelMode, levelMs, seed);
     this.preview(src.mask, city, 'Zwischenstand', levels.planned);
     // Zweiter Durchgang: Versorgung passend zu den Stufen neu setzen (z. B. keine
     // Universität ohne Ingenieure, Drogerie für Investoren 5), dann Stufen erneut.
@@ -459,12 +528,26 @@ export class PlannerUi {
       const city2 = { ...second.city, removedHouses: refilled.removedHouses };
       this.preview(src.mask, city2, 'Zwischenstand');
       this.progress.step('Hochhaus-Stufen erneut');
-      const levels2 = await this.levels(src.mask, city2, levelMode, levelMs);
+      const levels2 = await this.levels(src.mask, city2, levelMode, levelMs, seed);
       const total = (l: typeof levels): number => l.residents;
       if (total(levels2) > total(levels)) {
         serviced = second;
         city = city2;
         levels = levels2;
+      }
+    }
+    // Querstraßen ausdünnen: entbehrliche Querstraßen-Stücke entfernen, Reihen
+    // zusammenschieben (thin.ts); Versorgung, Lagerwege und Netz bleiben erhalten.
+    let thinned: ThinReport | null = null;
+    if (serviced && el<HTMLInputElement>('#plan-thin').checked) {
+      this.progress.step('Querstraßen ausdünnen', 'Entbehrliche Querstraßen entfernen, Reihen zusammenschieben');
+      const t = await this.thin(src.mask, city, this.ministryOption());
+      thinned = t.report;
+      if (t.report.gained > 0) {
+        city = { ...t.city, removedHouses: city.removedHouses };
+        this.preview(src.mask, city, 'Zwischenstand');
+        this.progress.step('Hochhaus-Stufen nach Ausdünnen', `+${t.report.gained} Häuser`);
+        levels = await this.levels(src.mask, city, levelMode, levelMs, seed);
       }
     }
     // Post: Briefkästen in Restkacheln, bis die Produktion den Bedarf deckt.
@@ -580,11 +663,32 @@ export class PlannerUi {
         }`,
       );
     }
-    items.push(`Fertig nach ${secs} s${compacted ? ` · Nachverdichtung +${compacted.gained} Häuser` : ''}`);
-    this.progress.finish();
-    this.status.innerHTML = `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
-    this.running = false;
-    this.refreshIsland();
+    items.push(
+      `Durchlauf ${linesPerGroup}er-Linien nach ${secs} s${compacted ? ` · Nachverdichtung +${compacted.gained} Häuser` : ''}${
+        thinned ? ` · Querstraßen ausgedünnt: ${thinned.segments} Stücke, +${thinned.gained} Häuser` : ''
+      }`,
+    );
+    return { residents: totals?.residents ?? 0, items, result: this.result as PlanResult };
+  }
+
+  /** Querstraßen ausdünnen im Hintergrund (thin.ts). */
+  private thin(
+    mask: LandMask,
+    city: CityPlan,
+    ministry: { range: number; welfare: number; web: number } | undefined,
+  ): Promise<{ city: CityPlan; report: ThinReport }> {
+    const id = ++this.jobId;
+    const worker = this.worker(0);
+    return new Promise((resolve) => {
+      worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
+        const msg = event.data;
+        if (msg.id !== id) return;
+        if (msg.kind === 'progress') this.progress.detail(`bisher +${msg.gained} Häuser`);
+        else if (msg.kind === 'thin') resolve({ city: msg.city, report: msg.report });
+      };
+      const job: PlannerJob = { kind: 'thin', id, mask, city, budgetMs: 20000, ministry };
+      worker.postMessage(job);
+    });
   }
 
   private readonly watch = el<HTMLInputElement>('#plan-watch');
@@ -647,6 +751,7 @@ export class PlannerUi {
     city: CityPlan,
     mode: LevelMode,
     budgetMs: number,
+    seed = 0,
   ): Promise<{
     planned: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
     residents: number;
@@ -670,7 +775,7 @@ export class PlannerUi {
         resolve({ ...msg, planned });
       };
       const selfWorkforce = el<HTMLInputElement>('#plan-engineers').checked;
-      const job: PlannerJob = { kind: 'levels', id, mask, city, rules: this.cityUi.currentRules(), mode, budgetMs, seed: 11, selfWorkforce };
+      const job: PlannerJob = { kind: 'levels', id, mask, city, rules: this.cityUi.currentRules(), mode, budgetMs, seed: 11 + seed * 977, selfWorkforce };
       worker.postMessage(job);
     });
   }
@@ -730,6 +835,7 @@ export class PlannerUi {
     city: CityPlan,
     budgetMs: number,
     started: number,
+    seed = 0,
   ): Promise<{ city: CityPlan; gained: number; moved: number }> {
     const cores = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
     const id = ++this.jobId;
@@ -757,7 +863,7 @@ export class PlannerUi {
             }
           };
           // Zwischenstände nur vom ersten Kern (die Analyse läuft im Hauptthread).
-          const job: PlannerJob = { kind: 'compact', id, mask, city, budgetMs, seed: 17 + i * 7919, snapshots: i === 0 && this.watch.checked };
+          const job: PlannerJob = { kind: 'compact', id, mask, city, budgetMs, seed: 17 + i * 7919 + seed * 104729, snapshots: i === 0 && this.watch.checked };
           worker.postMessage(job);
         });
       }),

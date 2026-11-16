@@ -11,10 +11,11 @@
 
 import { outerBoundary } from './coast';
 import { FARMER_HOUSE, lookup, STREET_GUIDS } from './catalog';
-import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, pruneBridges, replaceRoadStubs, ROAD, SERVICE, touchesRoad, WATER, type FillResult, type FillState } from './fill';
+import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, pruneBridges, realignLanes, replaceRoadStubs, ROAD, SERVICE, touchesRoad, WATER, type FillResult, type FillState } from './fill';
 import { placePostBoxes, type PostReport } from './post';
 import { compact, type CompactOptions, type CompactResult } from './compact';
 import { placeServices, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
+import { thinCrossRoads, type ThinOptions, type ThinReport } from './thin';
 import type { LandMask, OverlapPenalty } from './solver';
 import type { StampBuilding, StampStreet } from './stamp';
 
@@ -52,6 +53,8 @@ export interface GridPlan {
   networks: number;
   /** Brückenkacheln (Straße über Wasser), nicht Teil von `roads`. */
   bridges?: number[];
+  /** Ausrichtung je Kachel (1 = waagerecht), wenn Landstücke eigene Raster haben. */
+  orientationMap?: Uint8Array;
 }
 
 /** Abzug je verdrängtem Haus in „abgedeckten Häusern“. */
@@ -208,10 +211,19 @@ export function crossRoadTiles(plan: GridPlan): Uint8Array {
     }
   }
   const out = new Uint8Array(roads.length);
-  const vertical = plan.orientation === 'vertical';
+  // Ausrichtung je Kachel (getrennte Landstücke können eigene Raster haben).
+  const map = plan.orientationMap;
+  const isVertical = (i: number): boolean => (map ? map[i] === 0 : plan.orientation === 'vertical');
+  for (const vertical of [true, false]) {
+    if (!map && vertical !== (plan.orientation === 'vertical')) continue;
+    crossRoadPass(vertical);
+  }
+  return out;
+
+  function crossRoadPass(vertical: boolean): void {
   const cand = new Uint8Array(roads.length);
   for (let i = 0; i < roads.length; i++) {
-    if (!roads[i]) continue;
+    if (!roads[i] || isVertical(i) !== vertical) continue;
     const x = i % w;
     const y = (i - x) / w;
     const a = vertical ? (y > 0 ? roads[i - w] : 0) : x > 0 ? roads[i - 1] : 0;
@@ -246,7 +258,7 @@ export function crossRoadTiles(plan: GridPlan): Uint8Array {
       k = end;
     }
   }
-  return out;
+  }
 }
 
 /** Trennt das Entfernen von `tiles` die angrenzenden Straßenkacheln voneinander? */
@@ -514,6 +526,7 @@ export function planFromFill(r: FillResult): GridPlan {
     roadCount,
     networks: countNetworks(roads, r.w, bridges),
     bridges,
+    orientationMap: r.orientationMap,
   };
 }
 
@@ -607,6 +620,11 @@ export function compactCity(
       }
     },
   });
+  // Häuserspalten zwischen Hindernissen exakt neu belegen („Reihen verschieben“).
+  const before = s.houses.length;
+  realignLanes(s);
+  greedyFill(s);
+  result.gained += s.houses.length - before;
   return { city: stateToCity(s, city, townHalls), result };
 }
 
@@ -844,4 +862,30 @@ export function editCity(
     removedHouses: removed,
     addedHouses: added,
   };
+}
+
+/** Häuserspalten exakt neu belegen (fill.ts `realignLanes`), danach Lücken füllen. */
+export function realignCity(mask: LandMask, city: CityPlan): { city: CityPlan; gained: number } {
+  const s = cityToState(mask, city);
+  const before = s.houses.length;
+  realignLanes(s);
+  greedyFill(s);
+  return { city: { ...stateToCity(s, city, [...city.townHalls]), services: city.services }, gained: s.houses.length - before };
+}
+
+/**
+ * Querstraßen ausdünnen und Reihen zusammenschieben (thin.ts), nachdem die
+ * Versorgung steht. Danach Lücken füllen.
+ */
+export function thinCity(
+  mask: LandMask,
+  city: CityPlan,
+  options: Omit<ThinOptions, 'townHalls'>,
+): { city: CityPlan; report: ThinReport } {
+  const s = cityToState(mask, city);
+  const report = thinCrossRoads(s, city.services ?? [], { ...options, townHalls: city.townHalls });
+  const before = s.houses.length;
+  greedyFill(s);
+  report.gained += s.houses.length - before;
+  return { city: { ...stateToCity(s, city, [...city.townHalls]), services: city.services }, report };
 }

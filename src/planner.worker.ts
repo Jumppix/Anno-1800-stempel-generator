@@ -1,7 +1,8 @@
 // Rechnet die Bebauung (Gittersuche mit Bandverschiebung) und die
 // Nachverdichtung im Hintergrund, damit die Oberfläche bedienbar bleibt.
 import { addBridges, searchFill, type FillResult, type Orientation } from './fill';
-import { compactCity, planPost, planServices, planToStampItems, type CityPlan } from './planner';
+import { compactCity, planPost, planServices, planToStampItems, thinCity, type CityPlan } from './planner';
+import type { ThinReport } from './thin';
 import type { PostReport } from './post';
 import { analyzeCity } from './analysis';
 import { cityFromStamp } from './city';
@@ -37,9 +38,18 @@ export type PlannerJob =
       city: CityPlan;
       rules: RuleConfig;
       planned: Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>;
+    }
+  | {
+      kind: 'thin';
+      id: number;
+      mask: LandMask;
+      city: CityPlan;
+      budgetMs: number;
+      ministry?: { range: number; welfare: number; web: number };
     };
 
 export type PlannerMessage =
+  | { kind: 'thin'; id: number; city: CityPlan; report: ThinReport }
   | { kind: 'fill'; id: number; result: FillResult }
   | { kind: 'progress'; id: number; gained: number; city?: CityPlan }
   | { kind: 'compact'; id: number; city: CityPlan; gained: number; moved: number }
@@ -70,6 +80,16 @@ scope.onmessage = (event) => {
     const result = searchFill(job.mask, { orientation: job.orientation, housesPerLine: job.housesPerLine });
     addBridges(result, job.bridgeLen);
     scope.postMessage({ kind: 'fill', id: job.id, result });
+    return;
+  }
+  if (job.kind === 'thin') {
+    const r = thinCity(job.mask, job.city, {
+      deadline: performance.now() + job.budgetMs,
+      ministry: job.ministry,
+      houseValue: 300,
+      onProgress: (_removed, gained) => scope.postMessage({ kind: 'progress', id: job.id, gained }),
+    });
+    scope.postMessage({ kind: 'thin', id: job.id, city: r.city, report: r.report });
     return;
   }
   if (job.kind === 'post') {

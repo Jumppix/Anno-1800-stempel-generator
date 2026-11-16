@@ -149,7 +149,7 @@ const lastCovered = Math.max(
 expect('Straßenreichweite: letztes versorgtes Haus bei x ≤ 67', lastCovered <= 67 && lastCovered >= 61, `x=${lastCovered}`);
 
 // 5. Stadtplaner Phase 2: vollständige Bebauung + Rathäuser auf der Benchmark-Insel.
-const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity, planServices, editCity } =
+const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity, planServices, editCity, thinCity } =
   await server.ssrLoadModule('/src/planner.ts');
 const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
 {
@@ -215,6 +215,17 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
     expect('Optionale Gebäude: Feuerwachen erreichen ≥ 95 % der Häuser, Netz unverändert',
       fire >= 0.95 && opt.city.plan.networks === dense.plan.networks,
       `${opt.report.placed.fireStation} Feuerwachen, ${(fire * 100).toFixed(1)} %`);
+  }
+  {
+    // Querstraßen ausdünnen: nicht weniger Häuser, Netz zusammenhängend, keine Überlappung/Warnung.
+    const th = thinCity(mask, city, { deadline: performance.now() + 10000, houseValue: 300 });
+    const itT = planToStampItems(mask, th.city, { coast: false, coastGuid: 1000178 });
+    const cT = cityFromStamp(decodeStampFull(buildGenericStamp(itT.buildings, 'ow', itT.streets)));
+    const aT = analyzeCity(cT, DEFAULT_RULES);
+    expect('Querstraßen ausdünnen: Häuser ≥ vorher, Netz unverändert, keine Überlappung/Warnung',
+      th.city.houses.length >= city.houses.length && th.city.plan.networks === city.plan.networks && cT.conflicts === 0 &&
+        aT.warnings.length === 0,
+      `${th.report.segments} Stücke, ${city.houses.length} → ${th.city.houses.length} Häuser; ${aT.warnings.join('; ')}`);
   }
   {
     // Phase 6: Plan bearbeiten – Kaufhaus verschieben/drehen, ungültige Züge ablehnen.
