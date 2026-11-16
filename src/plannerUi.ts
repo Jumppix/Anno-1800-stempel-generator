@@ -470,6 +470,7 @@ export class PlannerUi {
       post: el<HTMLInputElement>('#plan-post').checked,
       insert: el<HTMLInputElement>('#plan-insert').checked,
       thin: el<HTMLInputElement>('#plan-thin').checked,
+      exact: el<HTMLInputElement>('#plan-exact').checked,
       rules,
       snapshots,
     };
@@ -632,6 +633,13 @@ export class PlannerUi {
               : ''
         }`,
       );
+      if (s.mip?.tried) {
+        items.push(
+          `Exakter Löser: ${s.mip.tried} Modelle, ${s.mip.same}× gleiche Auswahl wie gierig, ${s.mip.improved}× verbessert${
+            s.mip.failed ? `, ${s.mip.failed}× ohne Ergebnis` : ''
+          }`,
+        );
+      }
     }
     if (r.post) {
       const post = r.post;

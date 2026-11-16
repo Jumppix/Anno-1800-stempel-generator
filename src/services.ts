@@ -129,6 +129,17 @@ export interface ServiceOptions {
    * Handelskammern, vor allen anderen Gebäuden gesetzt (starre Formation).
    */
   production?: ProductionOptions;
+  /**
+   * Exakter Löser (HiGHS, WebAssembly) für die Ladenplatzierung: ganzzahliges
+   * Überdeckungsproblem über die besten Kandidaten nach Gierig + lokaler Suche.
+   * Fehlt er, bleibt es bei Gierig + lokaler Suche.
+   */
+  mip?: MipSolver;
+}
+
+/** Minimale Schnittstelle von `highs` (LP-Text im CPLEX-Format). */
+export interface MipSolver {
+  solve(lp: string, opts?: Record<string, unknown>): { Status: string; Columns?: Record<string, { Primal?: number }> };
 }
 
 export interface ServiceReport {
@@ -142,7 +153,17 @@ export interface ServiceReport {
   /** Anteil der verbleibenden Häuser, die je Art versorgt sind. */
   coverage: Partial<Record<BuildingKind, number>>;
   production?: ProductionReport;
+  /** Exakter Löser: Aufrufe, Verbesserungen und Gewinn (Einwohner-Bewertung). */
+  mip: { tried: number; improved: number; same: number; failed: number; gain: number };
 }
+
+/**
+ * Exakter Löser: so viele Kandidaten je Art (nach Einzelwert) und so viele
+ * Sekunden je Modell. Mit allen ~4500 Kandidaten findet HiGHS in 20 s nicht
+ * einmal die gierige Lösung; 220 Kandidaten bestätigen sie fast immer.
+ */
+const MIP_POOL = 500;
+const MIP_SECONDS = 6;
 
 interface Candidate {
   x: number;
@@ -171,7 +192,7 @@ export function placeServices(
   const { w, h, cell } = s;
   const HV = options.houseValue ?? 225;
   const RV = options.townHallValue ?? 31;
-  const report: ServiceReport = { placed: {}, airport: { placed: false, distance: 0, houses: 0 }, ministry: { placed: false, houses: 0 }, warehouses: 0, removedHouses: 0, coverage: {} };
+  const report: ServiceReport = { placed: {}, airport: { placed: false, distance: 0, houses: 0 }, ministry: { placed: false, houses: 0 }, warehouses: 0, removedHouses: 0, coverage: {}, mip: { tried: 0, improved: 0, same: 0, failed: 0, gain: 0 } };
   const services: PlacedService[] = [];
 
   // Hauszuordnung je Kachel, Rathausradius je Haus, Anschluss-Straßen je Haus.
@@ -831,37 +852,227 @@ export function placeServices(
       isChosen[ci] = 1;
     }
     // 2. Lokale Suche: überflüssige entfernen, Gebäude verlegen, wieder ergänzen.
-    for (let round = 0; round < 6; round++) {
-      let improved = false;
-      for (const ci of [...chosen]) {
-        if (removeGain(ci) > 1e-6) {
+    const localSearch = (): void => {
+      for (let round = 0; round < 6; round++) {
+        let improved = false;
+        for (const ci of [...chosen]) {
+          if (removeGain(ci) > 1e-6) {
+            drop(ci);
+            isChosen[ci] = 0;
+            improved = true;
+          }
+        }
+        for (const ci of [...chosen]) {
+          const lose = removeGain(ci);
           drop(ci);
           isChosen[ci] = 0;
-          improved = true;
+          const { ci: cj, gain } = bestAddition();
+          if (cj >= 0 && cj !== ci && lose + gain > 1e-6) {
+            take(cj);
+            isChosen[cj] = 1;
+            improved = true;
+          } else {
+            take(ci);
+            isChosen[ci] = 1;
+          }
         }
-      }
-      for (const ci of [...chosen]) {
-        const lose = removeGain(ci);
-        drop(ci);
-        isChosen[ci] = 0;
-        const { ci: cj, gain } = bestAddition();
-        if (cj >= 0 && cj !== ci && lose + gain > 1e-6) {
-          take(cj);
-          isChosen[cj] = 1;
-          improved = true;
-        } else {
+        for (;;) {
+          const { ci } = bestAddition();
+          if (ci < 0) break;
           take(ci);
           isChosen[ci] = 1;
+          improved = true;
+        }
+        if (!improved) break;
+      }
+    };
+    localSearch();
+
+    // 3. Exakter Löser (HiGHS): ganzzahliges Überdeckungsproblem über die
+    //    besten Kandidaten; danach lokale Suche. Die bessere Lösung bleibt.
+    if (options.mip && !isUniversity) {
+      /** Wert der aktuellen Auswahl dieser Art (wie addGain/removeGain). */
+      const objective = (): number => {
+        const dispThis = new Map<number, number>();
+        for (const ci of chosen) for (const k of cands[ci].houses) dispThis.set(k, (dispThis.get(k) ?? 0) + 1);
+        let v = -spec.fixedCost * chosen.length;
+        for (let k = 0; k < s.houses.length; k++) {
+          if (isAlive(k)) v += valueOf(k) * best[k];
+          else if ((dispThis.get(k) ?? 0) === removedBy[k]) v -= houseCost(k);
+        }
+        return v;
+      };
+      const greedySet = [...chosen];
+      const objG = objective();
+      const picked = solveCoverMip(greedySet);
+      report.mip.tried++;
+      if (!picked) report.mip.failed++;
+      else if (picked.length === greedySet.length && picked.every((ci) => greedySet.includes(ci))) report.mip.same++;
+      if (picked && (picked.length !== greedySet.length || picked.some((ci) => !greedySet.includes(ci)))) {
+        for (const ci of [...chosen]) {
+          drop(ci);
+          isChosen[ci] = 0;
+        }
+        for (const ci of picked) {
+          if (stillValid(cands[ci])) {
+            take(ci);
+            isChosen[ci] = 1;
+          }
+        }
+        localSearch();
+        const objM = objective();
+        if (objM < objG - 1e-6) {
+          for (const ci of [...chosen]) {
+            drop(ci);
+            isChosen[ci] = 0;
+          }
+          for (const ci of greedySet) {
+            take(ci);
+            isChosen[ci] = 1;
+          }
+        } else if (objM > objG + 1e-6) {
+          report.mip.improved++;
+          report.mip.gain += objM - objG;
         }
       }
-      for (;;) {
-        const { ci } = bestAddition();
-        if (ci < 0) break;
-        take(ci);
-        isChosen[ci] = 1;
-        improved = true;
+    }
+
+    /** Ganzzahliges Modell: Auswahl der Kandidaten mit maximalem Wert. */
+    function solveCoverMip(current: number[]): number[] | null {
+      const mip = options.mip;
+      if (!mip) return null;
+      // Häuser, die nur durch diese Art wegfallen, gelten als vorhanden.
+      const dispThis = new Map<number, number>();
+      for (const ci of current) for (const k of cands[ci].houses) dispThis.set(k, (dispThis.get(k) ?? 0) + 1);
+      const aliveOther = (k: number): boolean => removedBy[k] - (dispThis.get(k) ?? 0) === 0;
+      // Flächen anderer Gebäude (nicht dieser Art) sind tabu.
+      const ownTile = new Set<number>();
+      for (const ci of current) {
+        const c = cands[ci];
+        for (let dy = 0; dy < c.h; dy++) for (let dx = 0; dx < c.w; dx++) ownTile.add((c.y + dy) * w + c.x + dx);
       }
-      if (!improved) break;
+      const free = (c: Candidate): boolean => {
+        for (let dy = 0; dy < c.h; dy++) {
+          for (let dx = 0; dx < c.w; dx++) {
+            const i = (c.y + dy) * w + c.x + dx;
+            if (cell[i] === SERVICE && !ownTile.has(i)) return false;
+          }
+        }
+        return true;
+      };
+      // Einzelwert je Kandidat, die besten ~220 (plus aktuelle Auswahl).
+      const score = cands.map((c, ci) => {
+        if (!free(c)) return -Infinity;
+        let v = -spec.fixedCost;
+        const own = new Set(c.houses);
+        const ks = coverK[ci];
+        for (let n = 0; n < ks.length; n++) {
+          const k = ks[n];
+          if (!own.has(k) && aliveOther(k) && baseline[k] < 1) v += valueOf(k) * (1 - baseline[k]);
+        }
+        for (const k of c.houses) if (aliveOther(k)) v -= houseCost(k) + valueOf(k) * baseline[k];
+        return v;
+      });
+      const pool = cands
+        .map((_, ci) => ci)
+        .filter((ci) => score[ci] > -Infinity)
+        .sort((p, q) => score[q] - score[p])
+        .slice(0, MIP_POOL);
+      for (const ci of current) if (!pool.includes(ci)) pool.push(ci);
+      if (!pool.length) return null;
+      // Häuser: Gewinn bei Versorgung, Kosten bei Verdrängung.
+      const coveredBy = new Map<number, number[]>();
+      const displacedBy = new Map<number, number[]>();
+      for (const ci of pool) {
+        const own = new Set(cands[ci].houses);
+        const ks = coverK[ci];
+        for (let n = 0; n < ks.length; n++) {
+          const k = ks[n];
+          if (own.has(k) || !aliveOther(k) || baseline[k] >= 1) continue;
+          const list = coveredBy.get(k);
+          if (list) list.push(ci);
+          else coveredBy.set(k, [ci]);
+        }
+        for (const k of cands[ci].houses) {
+          if (!aliveOther(k)) continue;
+          const list = displacedBy.get(k);
+          if (list) list.push(ci);
+          else displacedBy.set(k, [ci]);
+        }
+      }
+      const lines: string[] = [];
+      const obj: string[] = [];
+      const rows: string[] = [];
+      const fmt = (v: number): string => (Math.round(v * 1000) / 1000).toString();
+      for (const ci of pool) obj.push(`- ${fmt(spec.fixedCost)} x${ci}`);
+      // Häuser ohne Verdrängungsrisiko mit gleicher Abdeckung zusammenfassen.
+      const groups = new Map<string, { cands: number[]; weight: number }>();
+      let yi = 0;
+      for (const [k, list] of coveredBy) {
+        const weight = valueOf(k) * (1 - baseline[k]);
+        if (weight <= 0) continue;
+        if (displacedBy.has(k)) {
+          const y = `y${yi++}`;
+          obj.push(`+ ${fmt(weight)} ${y}`);
+          rows.push(`c${rows.length}: ${y} ${list.map((ci) => `- x${ci}`).join(' ')} <= 0`);
+          for (const ci of displacedBy.get(k) as number[]) rows.push(`c${rows.length}: ${y} + x${ci} <= 1`);
+          continue;
+        }
+        const key = list.slice().sort((a, b) => a - b).join(',');
+        const g = groups.get(key);
+        if (g) g.weight += weight;
+        else groups.set(key, { cands: list, weight });
+      }
+      for (const g of groups.values()) {
+        const y = `y${yi++}`;
+        obj.push(`+ ${fmt(g.weight)} ${y}`);
+        rows.push(`c${rows.length}: ${y} ${g.cands.map((ci) => `- x${ci}`).join(' ')} <= 0`);
+      }
+      let zi = 0;
+      for (const [k, list] of displacedBy) {
+        const z = `z${zi++}`;
+        obj.push(`- ${fmt(houseCost(k) + valueOf(k) * baseline[k])} ${z}`);
+        for (const ci of list) rows.push(`c${rows.length}: ${z} - x${ci} >= 0`);
+      }
+      // Keine Flächenüberlappung: je Kachel höchstens ein Kandidat.
+      const byTile = new Map<number, number[]>();
+      for (const ci of pool) {
+        const c = cands[ci];
+        for (let dy = 0; dy < c.h; dy++) {
+          for (let dx = 0; dx < c.w; dx++) {
+            const i = (c.y + dy) * w + c.x + dx;
+            const list = byTile.get(i);
+            if (list) list.push(ci);
+            else byTile.set(i, [ci]);
+          }
+        }
+      }
+      const seenSets = new Set<string>();
+      for (const list of byTile.values()) {
+        if (list.length < 2) continue;
+        const key = list.join(',');
+        if (seenSets.has(key)) continue;
+        seenSets.add(key);
+        rows.push(`c${rows.length}: ${list.map((ci) => `x${ci}`).join(' + ')} <= 1`);
+      }
+      lines.push('Maximize');
+      for (let i = 0; i < obj.length; i += 12) lines.push(` ${i === 0 ? 'obj: ' : ''}${obj.slice(i, i + 12).join(' ')}`);
+      lines.push('Subject To');
+      for (const r of rows) lines.push(` ${r}`);
+      lines.push('Bounds');
+      for (let i = 0; i < yi; i++) lines.push(` 0 <= y${i} <= 1`);
+      for (let i = 0; i < zi; i++) lines.push(` 0 <= z${i} <= 1`);
+      lines.push('Binary');
+      for (let i = 0; i < pool.length; i += 20) lines.push(` ${pool.slice(i, i + 20).map((ci) => `x${ci}`).join(' ')}`);
+      lines.push('End');
+      try {
+        const res = mip.solve(lines.join('\n'), { output_flag: false, time_limit: MIP_SECONDS, mip_rel_gap: 0.002 });
+        const cols = res.Columns ?? {};
+        const out = pool.filter((ci) => (cols[`x${ci}`]?.Primal ?? 0) > 0.5);
+        return res.Status === 'Optimal' || res.Status === 'Time limit reached' ? out : null;
+      } catch {
+        return null;
+      }
     }
   };
   for (const spec of specs) runSpec(spec);

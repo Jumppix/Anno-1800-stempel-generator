@@ -8,4 +8,7 @@ const base = process.env.GITHUB_ACTIONS === 'true' && repo ? `/${repo}/` : '/';
 
 export default defineConfig({
   base,
+  // Module-Worker (alle Worker werden mit type: 'module' gestartet); nötig,
+  // damit der Pipeline-Worker HiGHS nur bei Bedarf nachladen kann.
+  worker: { format: 'es' },
 });

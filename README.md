@@ -176,6 +176,10 @@ Versorgung Querstraßen dort einfügen, wo sie Läden/Strom mehr Häuser
 erreichen lassen, als sie kosten (+0,7 % auf Insel 2). **Querstraßen ausdünnen**: nach der
 Versorgung entbehrliche Querstraßen-Stücke entfernen und Reihen
 zusammenschieben, ohne Versorgung, Lagerwege oder Netz zu verschlechtern.
+**Läden zusätzlich exakt prüfen** (Standard aus): nach der gierigen Wahl ein
+ganzzahliges Modell mit dem Löser HiGHS (WebAssembly, wird nur dann geladen);
+die bessere Lösung bleibt. Gemessen fast immer dieselbe Auswahl, Durchlauf
+deutlich länger (Abschnitt 27, M4).
 Getrennte Inselteile bekommen je ein eigenes Raster. Messungen und Grenzen:
 `docs/PLAN_Stadtplaner.md`, Abschnitt 25.
 

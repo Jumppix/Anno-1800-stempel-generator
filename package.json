@@ -10,7 +10,8 @@
     "check": "node scripts/check-solver.mjs"
   },
   "dependencies": {
-    "fflate": "^0.8.2"
+    "fflate": "^0.8.2",
+    "highs": "1.15.3"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

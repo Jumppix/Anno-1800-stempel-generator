@@ -28,7 +28,7 @@ import {
 import type { PostReport } from './post';
 import type { ProductionOptions } from './production';
 import { mailResidentsFor, mailTypes, type RuleConfig } from './rules';
-import type { ServiceReport } from './services';
+import type { MipSolver, ServiceReport } from './services';
 import { solve, type LandMask } from './solver';
 import { buildGenericStamp } from './stamp';
 import { decodeStampFull } from './stampReader';
@@ -64,6 +64,8 @@ export interface PassInput {
   snapshots: boolean;
   /** Höchstzahl der Runden Versorgung ↔ Stufen (Standard 4). */
   serviceRounds?: number;
+  /** Exakten Löser (HiGHS) für die Ladenplatzierung nutzen (Standard aus). */
+  exact?: boolean;
 }
 
 export interface PassResult {
@@ -108,7 +110,11 @@ function remap(before: CityPlan, after: CityPlan, planned: Planned): Planned {
   return out;
 }
 
-export function runPass(input: PassInput, emit: (e: PassEvent) => void): PassResult {
+/**
+ * `mip`: exakter Löser für die Ladenplatzierung (HiGHS im Worker geladen);
+ * ohne ihn Gierig + lokale Suche.
+ */
+export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: MipSolver): PassResult {
   const t0 = performance.now();
   const { mask, rules } = input;
   const snap = (city: CityPlan, planned?: Planned): void => {
@@ -168,6 +174,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void): PassRes
     ministry: input.ministry,
     airport: input.airport,
     production: input.production,
+    mip,
   };
   let services: ServiceReport | null = null;
   let city: CityPlan = dense;

@@ -87,6 +87,8 @@ unnötig verändern.
 - `src/production.ts`: geclippte Produktion (Phase 5) – Liste `CLIPPABLE` in `catalog.ts`,
   `findFormations` (HK-Gitter mit Kanten genau 30: quadratisch, Raute, optional schräges Quadrat;
   Gebäude auf Kantenmitte), Einbau/Strom/Lagerhaus in `services.ts` (`options.production`).
+  Optional exakter Löser für die Läden: `options.mip` (HiGHS, `highs`, im `pipeline.worker.ts`
+  nur bei `PassInput.exact` per dynamischem Import geladen; Worker im ES-Format, `vite.config.js`).
 - Plan bearbeiten (Phase 6): `editCity`/`editTargetAt` in `src/planner.ts`, Ziehen/Tasten in
   `CityUi` (`PlanEditor`, `setEditor`), Verlauf/Neuberechnen in `PlannerUi`.
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;

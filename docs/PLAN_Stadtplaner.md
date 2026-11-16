@@ -888,7 +888,7 @@ der Test-Pipeline über mehrere Seeds gegen den Stand davor gemessen.
   setzen → Stufen → … bis < 0,1 % Gewinn oder 4 Runden.
 - Abnahme: Ø Einwohner ≥ vorher über 10 Seeds.
 
-**M4 – Exakter Löser für die Läden (mittel–groß)**
+**M4 – Exakter Löser für die Läden (mittel–groß)** ✓ umgesetzt, Ergebnis: kein messbarer Gewinn – daher optional (Erweitert → „Läden zusätzlich exakt prüfen“, Standard aus). `services.ts` `runSpec`: nach Gierig + lokaler Suche ganzzahliges Modell im CPLEX-LP-Format für HiGHS (`highs` 1.15.3, nur bei Bedarf im Pipeline-Worker geladen, WebAssembly 3,5 MB): `x` je Kandidat (die 500 besten nach Einzelwert + aktuelle Auswahl), `y` je Hausgruppe gleicher Abdeckung (Häuser mit Verdrängungsrisiko einzeln, `y + x ≤ 1`), `z` je verdrängtem Haus, je Kachel höchstens ein Kandidat; Zeitlimit 6 s. Danach lokale Suche; die bessere Lösung bleibt. Messung Insel 2 (6er, Seeds 1–3, volle Pipeline): ohne 787.097 / 786.707 / 785.476, mit 786.620 / 786.201 / 785.889 (Ø −0,02 %, Rauschen), Durchlauf 60–120 s länger. Wo HiGHS fertig wird, ist die Auswahl fast immer genau die gierige (220er-Pool: 7 von 8 Modellen gleich); ein Treffer +339/+467 Bewertungspunkte (≈ 0,05 %) über die Startlösung. Mit allen ~4500 Kandidaten findet HiGHS in 20 s nicht einmal die gierige Lösung. Folgerung: Die Ladenplatzierung ist ausgereizt; weiterer Gewinn liegt in Bebauung/Nachverdichtung (M5).
 - Platzierung von Kaufhaus/Einrichtungshaus/Drogerie/Universität/Kraftwerk als
   ganzzahliges Optimierungsproblem mit HiGHS (WebAssembly, MIT-Lizenz, neue
   Abhängigkeit `highs`): binäre Wahl je Kandidatenplatz, Abdeckung je Haus,
