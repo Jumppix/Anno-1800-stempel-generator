@@ -8,7 +8,7 @@ import type { PostReport } from './post';
 import { analyzeCity } from './analysis';
 import { cityFromStamp } from './city';
 import { optimizeLevels, type LevelMode } from './levels';
-import { MAIL_NEEDS, mailTypes, type RuleConfig } from './rules';
+import { mailResidentsFor, mailTypes, type RuleConfig } from './rules';
 import { buildGenericStamp } from './stamp';
 import { decodeStampFull } from './stampReader';
 import type { BuildingKind } from './catalog';
@@ -31,6 +31,8 @@ export type PlannerJob =
       seed: number;
       /** Ingenieure für die eigene Arbeitskraft einplanen (Kraftwerke). */
       selfWorkforce: boolean;
+      /** Post wird geplant: Post-Einwohner je Stufe in die Bewertung. */
+      withMail?: boolean;
     }
   | {
       kind: 'post';
@@ -111,7 +113,7 @@ scope.onmessage = (event) => {
     let full = 0;
     for (const r of analysis.residences) {
       if (r.tier === 'artisan' || !r.hasRoad) continue;
-      for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) full += m.residents;
+      full += mailResidentsFor(r.tier, r.level, types);
     }
     const need = analysis.totals.mail.need;
     const r = planPost(job.mask, job.city, residentsAt, need, need > 0 ? full / need : 0);
@@ -126,7 +128,10 @@ scope.onmessage = (event) => {
     // Gaskraftwerk: 250 Ingenieure Arbeitskraft (Wiki); Einwohner = Arbeitskraft.
     const plants = (job.city.services ?? []).filter((sv) => sv.kind === 'powerPlant').length;
     const minEngineers = job.selfWorkforce ? plants * 250 : 0;
-    const r = optimizeLevels(analysis.residences, job.rules, job.mode, job.budgetMs, job.seed, { minEngineers });
+    const r = optimizeLevels(analysis.residences, job.rules, job.mode, job.budgetMs, job.seed, {
+      minEngineers,
+      mailTypes: job.withMail ? mailTypes(job.rules.mail) : undefined,
+    });
     scope.postMessage({
       kind: 'levels',
       id: job.id,

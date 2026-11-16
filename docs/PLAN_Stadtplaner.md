@@ -911,7 +911,33 @@ der Test-Pipeline über mehrere Seeds gegen den Stand davor gemessen.
 Reihenfolge: M1 → M2 (beschleunigt alle weiteren Messungen) → M3 → M4 → M5;
 M6, sobald Spielwerte vorliegen.
 
-## 28. Noch offene Fragen
+## 28. Waren-Bedürfnisse und Lebensstil (Wiki „Needs“/„Skyscrapers“, Nov. 2026)
+
+- **Grundbedürfnisse** (Kaffee, Brillen, Glühbirnen, Pelzmäntel bei
+  Ingenieuren, Sekt, Zigarren …) stecken im Grundwert der Hochhaus-Tabelle
+  („alle Bedürfnisse erfüllt“). Fehlt eine Ware: ihre Einwohner fallen weg,
+  bei Panorama-Waren (Ingenieure: Brillen, Kaffee, Strom, Glühbirnen;
+  Investoren: Sekt, Zigarren, Schokolade, Dampfwagen, Strom) zusätzlich
+  5 × Panorama-Stärke; zugehörige Zofe-/Saint-Boni entfallen.
+- **Lebensstil-Bedürfnisse** (Post, Seife, Schokolade, Shampoo, Mezcal,
+  Eiscreme, Medizin bzw. Pelze, Bärenfell, Wandteppiche, Parfüm, Fächer,
+  Filmrollen) bringen zusätzliche Einwohner, im Spiel einzeln einzuschalten.
+  Bei Hochhäusern **+5 je Stufe** (Wiki: „number of residents gained from
+  lifestyle needs increases with every skyscraper level“). Sie zählen nicht
+  zum Verbrauch.
+- Umgesetzt: `GOOD_NEEDS`, `missingGoods`/`lifestyleGoods` in `RuleConfig`,
+  `skyscraperResidents` (Abzüge, Lebensstil), Post-Bonus je Stufe
+  (`mailResidentsFor`, auch in der Stufen-Optimierung, wenn Post geplant wird),
+  Post-Verbrauch ohne Lebensstil-Einwohner. Auswahl im Reiter „Weitere
+  Funktionen“ → „Waren-Bedürfnisse“ (Standard: alle Grundwaren vorhanden,
+  Lebensstil aus), im Browser gespeichert.
+- Wirkung: Post bringt jetzt deutlich mehr (Investor 5: 33 + 37 + 50 = 120
+  statt 45), dadurch lohnen hohe Stufen mehr. **Im Spiel prüfen:** Post-Bonus
+  eines Investor-Hochhauses Stufe 5 (lokal 33?).
+- Wiki-Widerspruch: Beispiel „Pelze 5 + 5 je Stufe“ vs. Tabelle „Pelze 3“ –
+  verwendet wird die Tabelle (3 + 5 je Stufe).
+
+## 29. Noch offene Fragen
 - Lagerhaus-Reichweite für Produktion (Annahme 20 Straßenkacheln).
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4

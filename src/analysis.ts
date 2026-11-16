@@ -15,6 +15,7 @@ import {
   type SkyLevel,
   type SkyTier,
   MAIL_NEEDS,
+  mailResidentsFor,
   mailProduction,
   mailTypes,
   universityFactor,
@@ -62,6 +63,8 @@ export interface ResidenceInfo {
   itemBonus: number;
   /** Davon durch Post (Lebensstil-Bedürfnis, inselweit). */
   mailBonus: number;
+  /** Einwohner aus Lebensstil-Waren (ohne Post). */
+  lifestyle: number;
   /** Fehlende Einwohner-Bedürfnisse (Namen der Gebäudearten). */
   missing: BuildingKind[];
 }
@@ -164,6 +167,7 @@ export function analyzeCity(
       residents: 0,
       itemBonus: 0,
       mailBonus: 0,
+      lifestyle: 0,
       missing: [],
     }));
 
@@ -290,6 +294,7 @@ export function analyzeCity(
     );
     r.residents = res.residents;
     r.itemBonus = res.itemBonus;
+    r.lifestyle = res.lifestyle;
     r.missing = res.missing;
     r.missingGoods = res.missingGoods;
   }
@@ -307,7 +312,8 @@ export function analyzeCity(
     }
     for (const r of residences) {
       if (r.tier === 'artisan' || !r.hasRoad) continue;
-      for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) mailNeed += m.rate * r.residents;
+      // Lebensstil-Einwohner zählen nicht zum Verbrauch (Wiki „Needs“).
+      for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) mailNeed += m.rate * (r.residents - r.lifestyle);
     }
     // Zeitungs-Propaganda senkt den Verbrauch (auch der Post).
     mailNeed *= Math.max(0, 1 - Math.min(90, Math.max(0, rules.consumptionReduction ?? 0)) / 100);
@@ -317,8 +323,8 @@ export function analyzeCity(
   if (mailShare > 0) {
     for (const r of residences) {
       if (r.tier === 'artisan' || !r.hasRoad) continue;
-      let bonus = 0;
-      for (const m of MAIL_NEEDS[r.tier]) if (types.includes(m.type)) bonus += m.residents;
+      // Post ist ein Lebensstil-Bedürfnis: bei Hochhäusern + 5 je Stufe.
+      const bonus = mailResidentsFor(r.tier, r.level, types);
       r.mailBonus = Math.round(bonus * mailShare);
       r.residents += r.mailBonus;
       mailResidents += r.mailBonus;

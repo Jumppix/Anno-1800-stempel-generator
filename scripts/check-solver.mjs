@@ -323,6 +323,19 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   const lvEng = optimizeLevels(planA.residences, DEFAULT_RULES, '45', Math.min(budget * 2, 6000), 5, { minEngineers: 1500 });
   expect('Stufen: Mindestzahl Ingenieure (eigene Arbeitskraft) erfüllt', lvEng.engineers >= 1500, `${lvEng.engineers} / 1500`);
 
+  // Waren-Bedürfnisse (Wiki „Needs“): fehlende Dampfwagen bei Investor 5, Panorama intensiv:
+  // −4 Einwohner −5×5 Panorama −2 Saint D'Artois = −31; Pelze (Lebensstil) Stufe 5: +3 +5×5 = +28.
+  {
+    const { skyscraperResidents: sky } = await server.ssrLoadModule('/src/rules.ts');
+    const sup = { services: { departmentStore: true, furnitureStore: true, drugStore: true, powerPlant: true }, universityFactor: 1, townHall: true, hasRoad: true };
+    const base = { townHallItems: true, deliveryGoods: false };
+    const full = sky('investor', 5, 5, sup, base).residents;
+    const noSteam = sky('investor', 5, 5, sup, { ...base, missingGoods: ['i-steam'] }).residents;
+    const furs = sky('investor', 5, 5, sup, { ...base, lifestyleGoods: ['i-furs'] }).residents;
+    expect('Waren: fehlende Dampfwagen −31, Pelze auf Stufe 5 +28', full - noSteam === 31 && furs - full === 28,
+      `voll ${full}, ohne Dampfwagen ${noSteam}, mit Pelzen ${furs}`);
+  }
+
   // 7. Brücken verbinden die Flussarme der Benchmark-Insel zu einem Straßennetz.
   const { addBridges, replaceRoadStubs } = await server.ssrLoadModule('/src/fill.ts');
   const bridged = searchFill(mask, { orientation: 'auto', housesPerLine: 6 });

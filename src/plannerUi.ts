@@ -785,7 +785,9 @@ export class PlannerUi {
         resolve({ ...msg, planned });
       };
       const selfWorkforce = el<HTMLInputElement>('#plan-engineers').checked;
-      const job: PlannerJob = { kind: 'levels', id, mask, city, rules: this.cityUi.currentRules(), mode, budgetMs, seed: 11 + seed * 977, selfWorkforce };
+      const rules = this.cityUi.currentRules();
+      const withMail = el<HTMLInputElement>('#plan-post').checked && rules.mail !== 'none';
+      const job: PlannerJob = { kind: 'levels', id, mask, city, rules, mode, budgetMs, seed: 11 + seed * 977, selfWorkforce, withMail };
       worker.postMessage(job);
     });
   }

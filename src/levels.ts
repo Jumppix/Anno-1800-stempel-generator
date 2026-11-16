@@ -13,6 +13,7 @@ import {
   PANORAMA_RADIUS,
   panoramaDelta,
   skyscraperResidents,
+  mailResidentsFor,
   type RuleConfig,
   type SkyLevel,
   type SkyTier,
@@ -76,7 +77,11 @@ export function optimizeLevels(
   mode: LevelMode,
   budgetMs: number,
   seed = 1,
-  options: { minEngineers?: number } = {},
+  options: {
+    minEngineers?: number;
+    /** Post-Arten, die versorgt werden (Post-Einwohner wachsen je Stufe, volle Versorgung angenommen). */
+    mailTypes?: ReadonlyArray<'local' | 'regional' | 'overseas'>;
+  } = {},
 ): LevelResult {
   // Mindestzahl Ingenieure (Arbeitskraft z. B. für Kraftwerke): Strafe je
   // fehlendem Ingenieur, Ingenieure sind dann in jeder Bauweise erlaubt.
@@ -131,7 +136,9 @@ export function optimizeLevels(
     };
     STATES.forEach((st, s) => {
       for (let p = 0; p <= 5; p++) {
-        table[(i * 4 + s) * 6 + p] = skyscraperResidents(st.tier, st.level, p, supply, rules).residents;
+        table[(i * 4 + s) * 6 + p] =
+          skyscraperResidents(st.tier, st.level, p, supply, rules).residents +
+          (options.mailTypes?.length && r.hasRoad ? mailResidentsFor(st.tier, st.level, options.mailTypes) : 0);
       }
     });
   });

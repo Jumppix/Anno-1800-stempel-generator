@@ -84,6 +84,93 @@ export interface RuleConfig {
    * (Wiki „Needs“: Verbrauch = Basis · (1 + Zeitung) · (1 + Items)).
    */
   consumptionReduction: number;
+  /**
+   * Waren-Grundbedürfnisse, die auf der Insel NICHT verfügbar sind (IDs aus
+   * `GOOD_NEEDS`). Standard leer = alle Waren vorhanden.
+   */
+  missingGoods?: string[];
+  /** Eingeschaltete Lebensstil-Waren (IDs aus `GOOD_NEEDS`, ohne Post). Standard leer. */
+  lifestyleGoods?: string[];
+}
+
+/**
+ * Waren-Bedürfnisse der Hochhäuser (Wiki „Needs“, Abruf Nov. 2026). Gebäude-
+ * Bedürfnisse (Kaufhaus, Einrichtungshaus, Drogerie, Universität, Strom)
+ * stehen in `serviceNeeds`. Grundbedürfnisse stecken im Grundwert der
+ * Hochhaus-Tabelle; fehlt eine Ware, fallen ihre Einwohner weg, bei
+ * Panorama-Waren zusätzlich 5 × Panorama-Stärke. Lebensstil-Waren bringen
+ * zusätzliche Einwohner, bei Hochhäusern + 5 je Stufe (Wiki: „number of
+ * residents gained from lifestyle needs increases with every skyscraper level“).
+ */
+export interface GoodNeed {
+  id: string;
+  label: string;
+  tier: SkyTier;
+  type: 'basic' | 'lifestyle';
+  residents: number;
+  /** Panorama-Ware (+5 je Panorama-Stärke). */
+  panorama?: boolean;
+  /** Erst ab dieser Hochhaus-Stufe gebraucht. */
+  minLevel?: number;
+  /** Erweiterung (nur zur Anzeige). */
+  dlc?: string;
+}
+
+const G = (g: GoodNeed): GoodNeed => g;
+export const GOOD_NEEDS: readonly GoodNeed[] = [
+  // Ingenieure – Grundbedürfnisse
+  G({ id: 'e-canned', label: 'Fleischkonserven', tier: 'engineer', type: 'basic', residents: 12 }),
+  G({ id: 'e-sewing', label: 'Nähmaschinen', tier: 'engineer', type: 'basic', residents: 6 }),
+  G({ id: 'e-furcoats', label: 'Pelzmäntel', tier: 'engineer', type: 'basic', residents: 6 }),
+  G({ id: 'e-glasses', label: 'Brillen', tier: 'engineer', type: 'basic', residents: 4, panorama: true }),
+  G({ id: 'e-coffee', label: 'Kaffee', tier: 'engineer', type: 'basic', residents: 2, panorama: true }),
+  G({ id: 'e-bulbs', label: 'Glühbirnen', tier: 'engineer', type: 'basic', residents: 2, panorama: true }),
+  G({ id: 'e-gum', label: 'Kaugummi', tier: 'engineer', type: 'basic', residents: 10, minLevel: 2 }),
+  G({ id: 'e-typewriters', label: 'Schreibmaschinen', tier: 'engineer', type: 'basic', residents: 10, minLevel: 3 }),
+  G({ id: 'e-violins', label: 'Violinen', tier: 'engineer', type: 'basic', residents: 5, minLevel: 3 }),
+  // Ingenieure – Lebensstil (Post separat)
+  G({ id: 'e-soap', label: 'Seife', tier: 'engineer', type: 'lifestyle', residents: 2 }),
+  G({ id: 'e-chocolate', label: 'Schokolade', tier: 'engineer', type: 'lifestyle', residents: 2 }),
+  G({ id: 'e-shampoo', label: 'Shampoo', tier: 'engineer', type: 'lifestyle', residents: 5, dlc: 'Tourist Season' }),
+  G({ id: 'e-mezcal', label: 'Mezcal', tier: 'engineer', type: 'lifestyle', residents: 3, dlc: 'New World Rising' }),
+  G({ id: 'e-icecream', label: 'Eiscreme', tier: 'engineer', type: 'lifestyle', residents: 6, dlc: 'New World Rising' }),
+  G({ id: 'e-medicine', label: 'Medizin', tier: 'engineer', type: 'lifestyle', residents: 7, dlc: 'New World Rising' }),
+  // Investoren – Grundbedürfnisse
+  G({ id: 'i-glasses', label: 'Brillen', tier: 'investor', type: 'basic', residents: 16 }),
+  G({ id: 'i-coffee', label: 'Kaffee', tier: 'investor', type: 'basic', residents: 8 }),
+  G({ id: 'i-bulbs', label: 'Glühbirnen', tier: 'investor', type: 'basic', residents: 8 }),
+  G({ id: 'i-champagne', label: 'Sekt', tier: 'investor', type: 'basic', residents: 2, panorama: true }),
+  G({ id: 'i-cigars', label: 'Zigarren', tier: 'investor', type: 'basic', residents: 2, panorama: true }),
+  G({ id: 'i-chocolate', label: 'Schokolade', tier: 'investor', type: 'basic', residents: 2, panorama: true }),
+  G({ id: 'i-steam', label: 'Dampfwagen', tier: 'investor', type: 'basic', residents: 4, panorama: true }),
+  G({ id: 'i-gum', label: 'Kaugummi', tier: 'investor', type: 'basic', residents: 10, minLevel: 2 }),
+  G({ id: 'i-biscuits', label: 'Kekse', tier: 'investor', type: 'basic', residents: 15, minLevel: 2 }),
+  G({ id: 'i-cognac', label: 'Cognac', tier: 'investor', type: 'basic', residents: 15, minLevel: 3 }),
+  G({ id: 'i-typewriters', label: 'Schreibmaschinen', tier: 'investor', type: 'basic', residents: 10, minLevel: 4 }),
+  G({ id: 'i-billiard', label: 'Billardtische', tier: 'investor', type: 'basic', residents: 15, minLevel: 4 }),
+  G({ id: 'i-violins', label: 'Violinen', tier: 'investor', type: 'basic', residents: 5, minLevel: 5 }),
+  G({ id: 'i-toys', label: 'Spielzeug', tier: 'investor', type: 'basic', residents: 15, minLevel: 5 }),
+  // Investoren – Lebensstil (Post separat)
+  G({ id: 'i-furs', label: 'Pelze', tier: 'investor', type: 'lifestyle', residents: 3 }),
+  G({ id: 'i-bearfur', label: 'Bärenfell', tier: 'investor', type: 'lifestyle', residents: 6, dlc: 'The Passage' }),
+  G({ id: 'i-tapestries', label: 'Wandteppiche', tier: 'investor', type: 'lifestyle', residents: 4, dlc: 'Land of Lions' }),
+  G({ id: 'i-perfumes', label: 'Parfüm', tier: 'investor', type: 'lifestyle', residents: 7, dlc: 'New World Rising' }),
+  G({ id: 'i-fans', label: 'Fächer', tier: 'investor', type: 'lifestyle', residents: 10, dlc: 'New World Rising' }),
+  G({ id: 'i-film', label: 'Filmrollen', tier: 'investor', type: 'lifestyle', residents: 5, dlc: 'New World Rising' }),
+];
+
+/** Zuschlag je Hochhaus-Stufe auf jedes Lebensstil-Bedürfnis (auch Post). */
+export const LIFESTYLE_PER_LEVEL = 5;
+
+/** Ware dieser Schicht mit diesem Namen (für Item-Boni). */
+const goodByLabel = (tier: SkyTier, label: string): GoodNeed | undefined =>
+  GOOD_NEEDS.find((g) => g.tier === tier && g.label === label);
+
+/** Post-Einwohner eines Hochhauses bei voller Versorgung (je Art + 5 je Stufe). */
+export function mailResidentsFor(tier: SkyTier, level: number, types: ReadonlyArray<'local' | 'regional' | 'overseas'>): number {
+  let n = 0;
+  for (const m of MAIL_NEEDS[tier]) if (types.includes(m.type)) n += m.residents + LIFESTYLE_PER_LEVEL * level;
+  return n;
 }
 
 /** Manuelle Festlegung (per Klick in der Analyse). */
@@ -423,8 +510,8 @@ export function skyscraperResidents(
   level: SkyLevel,
   panorama: number,
   supply: HouseSupply,
-  rules: Pick<RuleConfig, 'townHallItems' | 'deliveryGoods'>,
-): { residents: number; itemBonus: number; missing: BuildingKind[]; missingGoods: string[] } {
+  rules: Pick<RuleConfig, 'townHallItems' | 'deliveryGoods' | 'missingGoods' | 'lifestyleGoods'>,
+): { residents: number; itemBonus: number; lifestyle: number; missing: BuildingKind[]; missingGoods: string[] } {
   const table = SKYSCRAPER_RESIDENTS[tier][level] ?? SKYSCRAPER_RESIDENTS[tier][3] ?? [0, 0, 0, 0, 0, 0];
   let n = table[Math.max(0, Math.min(5, panorama))];
   const missing: BuildingKind[] = [];
@@ -443,12 +530,29 @@ export function skyscraperResidents(
   }
   const items = rules.townHallItems && supply.townHall;
   const delivered = (via: BuildingKind): boolean => !rules.deliveryGoods || (items && !!supply.services[via]);
+  const deliveryLabels = new Set<string>();
   if (rules.deliveryGoods) {
     for (const g of deliveryGoods(tier, level)) {
+      deliveryLabels.add(g.label);
       if (!delivered(g.via)) {
         n -= g.residents;
         missingGoods.push(g.label);
       }
+    }
+  }
+  // Fehlende Waren-Grundbedürfnisse (Einstellung „Waren“): ihre Einwohner und
+  // bei Panorama-Waren 5 je Panorama-Stärke fallen weg.
+  const absent = new Set(rules.missingGoods ?? []);
+  const hasGood = (label: string): boolean => {
+    const g = goodByLabel(tier, label);
+    return !g || !absent.has(g.id);
+  };
+  if (absent.size) {
+    for (const g of GOOD_NEEDS) {
+      if (g.tier !== tier || g.type !== 'basic' || (g.minLevel ?? 0) > level || !absent.has(g.id)) continue;
+      if (deliveryLabels.has(g.label)) continue;
+      n -= g.residents + (g.panorama ? 5 * p : 0);
+      missingGoods.push(g.label);
     }
   }
   let bonus = 0;
@@ -456,12 +560,20 @@ export function skyscraperResidents(
     for (const b of itemBonuses(tier, level)) {
       if (b.kind === 'university') bonus += b.residents * supply.universityFactor;
       else if (b.kind) bonus += supply.services[b.kind] ? b.residents : 0;
-      else if (b.via) bonus += delivered(b.via) ? b.residents : 0;
-      else bonus += b.residents;
+      else if (b.via) bonus += delivered(b.via) && hasGood(b.label) ? b.residents : 0;
+      else bonus += hasGood(b.label) ? b.residents : 0;
+    }
+  }
+  // Lebensstil-Waren: zusätzliche Einwohner, + 5 je Hochhaus-Stufe.
+  let lifestyle = 0;
+  const enabled = new Set(rules.lifestyleGoods ?? []);
+  if (enabled.size) {
+    for (const g of GOOD_NEEDS) {
+      if (g.tier === tier && g.type === 'lifestyle' && enabled.has(g.id)) lifestyle += g.residents + LIFESTYLE_PER_LEVEL * level;
     }
   }
   n = Math.round(n);
   bonus = Math.round(bonus);
-  if (!supply.hasRoad) return { residents: 0, itemBonus: 0, missing, missingGoods };
-  return { residents: Math.max(0, n) + bonus, itemBonus: bonus, missing, missingGoods };
+  if (!supply.hasRoad) return { residents: 0, itemBonus: 0, lifestyle: 0, missing, missingGoods };
+  return { residents: Math.max(0, n) + bonus + lifestyle, itemBonus: bonus, lifestyle, missing, missingGoods };
 }

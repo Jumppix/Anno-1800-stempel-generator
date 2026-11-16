@@ -7,11 +7,13 @@ import { adjacentRoads, cityFromStamp, RoadSearch, type City, type CityBuilding 
 import {
   cityWideWebBonus,
   DEFAULT_RULES,
+  GOOD_NEEDS,
   localDepartmentRange,
   palaceRange,
   PANORAMA_NAMES,
   POLICIES,
   welfareBonus,
+  type GoodNeed,
   type Ministry,
   type Policy,
   type RuleConfig,
@@ -138,6 +140,7 @@ export class CityUi {
     this.ministry.value = this.rules.ministry;
     this.fillPolicies();
     this.fillLayers();
+    this.setupGoods();
 
     this.fileInput.addEventListener('change', () => {
       const file = this.fileInput.files?.[0];
@@ -215,6 +218,55 @@ export class CityUi {
     this.layerSelect.innerHTML = [...base, ...services]
       .map(([v, label]) => `<option value="${v}">${label}</option>`)
       .join('');
+  }
+
+  // --- Waren-Bedürfnisse (Reiter „Weitere Funktionen“), im Browser gespeichert.
+  private static readonly GOODS_KEY = 'anno-planner-goods';
+
+  private setupGoods(): void {
+    let saved: { missing?: string[]; lifestyle?: string[] } = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(CityUi.GOODS_KEY) ?? '{}') as typeof saved;
+    } catch {
+      saved = {};
+    }
+    const missing = new Set(saved.missing ?? []);
+    const lifestyle = new Set(saved.lifestyle ?? []);
+    this.rules = { ...this.rules, missingGoods: [...missing], lifestyleGoods: [...lifestyle] };
+    const panel = el<HTMLElement>('#goods-panel');
+    const row = (g: GoodNeed): string => {
+      const checked = g.type === 'basic' ? !missing.has(g.id) : lifestyle.has(g.id);
+      const extra = [
+        g.type === 'basic' ? `${g.residents}` : `+${g.residents}, +5 je Stufe`,
+        g.panorama ? 'Panorama' : '',
+        g.minLevel ? `ab Stufe ${g.minLevel}` : '',
+        g.dlc ?? '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      return `<label class="check-row"><input type="checkbox" data-good="${g.id}" data-type="${g.type}" ${checked ? 'checked' : ''} />${escapeHtml(g.label)} <span class="muted">(${escapeHtml(extra)})</span></label>`;
+    };
+    const group = (tier: 'engineer' | 'investor', title: string): string => {
+      const basic = GOOD_NEEDS.filter((g) => g.tier === tier && g.type === 'basic');
+      const life = GOOD_NEEDS.filter((g) => g.tier === tier && g.type === 'lifestyle');
+      return `<details class="group"><summary>${title}</summary>
+        <div class="sub-title">Grundbedürfnisse – vorhanden</div>${basic.map(row).join('')}
+        <div class="sub-title">Lebensstil – eingeschaltet</div>${life.map(row).join('')}
+      </details>`;
+    };
+    panel.innerHTML = group('engineer', 'Ingenieure') + group('investor', 'Investoren');
+    panel.addEventListener('change', () => {
+      const boxes = [...panel.querySelectorAll<HTMLInputElement>('input[data-good]')];
+      const nextMissing = boxes.filter((b) => b.dataset.type === 'basic' && !b.checked).map((b) => b.dataset.good as string);
+      const nextLife = boxes.filter((b) => b.dataset.type === 'lifestyle' && b.checked).map((b) => b.dataset.good as string);
+      try {
+        localStorage.setItem(CityUi.GOODS_KEY, JSON.stringify({ missing: nextMissing, lifestyle: nextLife }));
+      } catch {
+        /* nur für diese Sitzung */
+      }
+      this.rules = { ...this.rules, missingGoods: nextMissing, lifestyleGoods: nextLife };
+      this.reanalyze();
+    });
   }
 
   private readRules(): void {
@@ -953,6 +1005,7 @@ export class CityUi {
         lines.push(`Fehlt: ${names.join(', ')}`);
       }
       if (r.missingGoods.length) lines.push(`Ohne Lieferdienst-Ware: ${r.missingGoods.join(', ')}`);
+      if (r.lifestyle) lines.push(`Lebensstil-Waren: +${r.lifestyle} Einwohner`);
       if (r.mailBonus) lines.push(`Post: +${r.mailBonus} Einwohner (inselweit)`);
       lines.push(`Rathaus: ${r.townHall !== null ? 'ja' : 'nein'} · Post: ${r.post !== null ? 'ja' : 'nein'}`);
     }
