@@ -865,7 +865,7 @@ verschwendeter Platz und wenig belegte versorgte Fläche; 10 Durchläufe,
 möglichst gleichzeitig; Punkte 2, 4, 5 umsetzen. Jeder Meilenstein wird mit
 der Test-Pipeline über mehrere Seeds gegen den Stand davor gemessen.
 
-**M1 – Schnelle Korrekturen (klein)**
+**M1 – Schnelle Korrekturen (klein)** ✓ umgesetzt: Reichweite 60; Lufthafen-Kosten = verdrängte Häuser (mit Rathaus-Zuschlag) + 5 je Kachel im Rathausradius + 3 je überbaute Straßenkachel, Abstand 0,5 je Kachel. Insel 2: 17–19 Häuser verdrängt (wie vorher, 180 Kacheln ≈ 20 Häuser), Lufthafen jetzt außerhalb der Rathausradien, 200–220 statt 260–290 Kacheln von der Anlegestelle.
 - Produktion → Lagerhaus: Reichweite 60 statt 20 (`PRODUCTION_WAREHOUSE_RANGE`).
 - Lufthafen: Bewertung = verdrängte Häuser (mit Rathaus-Item- und
   Versorgungswert) + belegte versorgte Fläche; Abstand zur Anlegestelle nur

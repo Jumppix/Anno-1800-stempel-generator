@@ -26,8 +26,8 @@ import { CLIPPABLE, footprint, lookup } from './catalog';
 import { BLOCKED, BRIDGE, HOUSE, ROAD, SERVICE, WATER, type FillState } from './fill';
 
 export const TRADE_UNION_GUID = 1010516;
-/** Straßenreichweite Produktion → Lagerhaus (Annahme, im Spiel prüfen). */
-export const PRODUCTION_WAREHOUSE_RANGE = 20;
+/** Straßenreichweite Produktion → Lagerhaus: 60 auf Pflaster (Angabe des Nutzers, Hochrad-Werkhalle). */
+export const PRODUCTION_WAREHOUSE_RANGE = 60;
 
 export interface ProductionRequest {
   guid: number;

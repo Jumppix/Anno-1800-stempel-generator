@@ -524,6 +524,21 @@ export function placeServices(
       }
     }
     const harbor = options.airport.harbor;
+    // Kacheln im Rathausradius („versorgter Platz“): dort ist jedes Haus wegen
+    // der Rathaus-Items mehr wert – der Lufthafen soll diesen Platz meiden.
+    const rhTile = new Uint8Array(w * h);
+    for (const t of townHalls) {
+      const tcx = t.x + 2;
+      const tcy = t.y + 2;
+      for (let y = Math.max(0, Math.floor(tcy - 21)); y < Math.min(h, Math.ceil(tcy + 21)); y++) {
+        for (let x = Math.max(0, Math.floor(tcx - 21)); x < Math.min(w, Math.ceil(tcx + 21)); x++) {
+          if (Math.hypot(x + 0.5 - tcx, y + 0.5 - tcy) <= 20) rhTile[y * w + x] = 1;
+        }
+      }
+    }
+    const RH_TILE_COST = 5;
+    const ROAD_TILE_COST = 3;
+    const DIST_WEIGHT = 0.5;
     type AirCand = { rects: Array<[number, number, number, number]>; value: number; houses: number[]; dist: number; roads: number[] };
     const found: AirCand[] = [];
     for (const rel of variants) {
@@ -534,6 +549,7 @@ export function placeServices(
           let ok = true;
           const hs = new Set<number>();
           const roads: number[] = [];
+          let rhCount = 0;
           for (const [rx, ry, rw, rh] of rel) {
             for (let dy = 0; dy < rh && ok; dy++) {
               for (let dx = 0; dx < rw; dx++) {
@@ -545,6 +561,7 @@ export function placeServices(
                   ok = false;
                   break;
                 }
+                if (rhTile[i]) rhCount++;
               }
             }
             if (!ok) break;
@@ -552,9 +569,11 @@ export function placeServices(
           if (!ok) continue;
           let cost = 0;
           for (const k of hs) cost += houseCost(k);
+          cost += rhCount * RH_TILE_COST + roads.length * ROAD_TILE_COST;
           const dist = harbor ? Math.hypot(x + AW / 2 - harbor.x, y + AH / 2 - harbor.y) : 0;
-          // 1 Kachel Abstand ≈ 20 Einwohner: ein Haus (≈ 250) wiegt ≈ 12 Kacheln.
-          found.push({ rects: rel.map(([rx, ry, rw, rh]) => [x + rx, y + ry, rw, rh]), value: dist * 20 - cost, houses: [...hs], dist, roads });
+          // Wenig verdrängte Häuser und wenig Rathaus-Fläche zählen; der Abstand zur
+          // Anlegestelle entscheidet nur bei fast Gleichstand (0,5 je Kachel).
+          found.push({ rects: rel.map(([rx, ry, rw, rh]) => [x + rx, y + ry, rw, rh]), value: dist * DIST_WEIGHT - cost, houses: [...hs], dist, roads });
         }
       }
     }

@@ -180,8 +180,11 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
     const airCity = cityFromStamp(decodeStampFull(buildGenericStamp(items3.buildings, 'ow', items3.streets)));
     const airA = analyzeCity(airCity, DEFAULT_RULES);
     const parts = air.city.services.filter((sv) => sv.owner === 9001);
-    expect('Lufthafen: mit 2 Modulen, ≥ 150 Kacheln von der Anlegestelle, Ministerium, keine Warnungen',
-      air.report.airport.placed && parts.length === 3 && air.report.airport.distance >= 150 && air.report.ministry.placed &&
+    // Bewertung: wenig verdrängte Häuser und wenig Rathaus-Fläche; Abstand zur Anlegestelle nur schwach.
+    const ap = parts.find((sv) => sv.kind === 'airport');
+    const apInRH = ap ? dense.townHalls.some((t) => Math.hypot(ap.x + ap.w / 2 - (t.x + 2), ap.y + ap.h / 2 - (t.y + 2)) <= 20) : true;
+    expect('Lufthafen: mit 2 Modulen, ≤ 22 Häuser verdrängt, Mitte nicht im Rathausradius, Ministerium, keine Warnungen',
+      air.report.airport.placed && parts.length === 3 && air.report.airport.houses <= 22 && !apInRH && air.report.ministry.placed &&
         airA.warnings.length === 0 && airCity.conflicts === 0 && air.city.plan.networks === dense.plan.networks,
       `${air.report.airport.distance} Kacheln, ${air.report.airport.houses} Häuser verdrängt; ${airA.warnings.join('; ')}`);
   }

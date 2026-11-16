@@ -147,8 +147,8 @@ unnötig verändern.
 - Spielbarkeit des großen Ein-Stempel-Exports ist noch ein Praxistest.
 - Kein automatisierter End-to-End-/Browser-Test (nur `npm run check` für den
   Solver).
-- Stadtplaner: Lagerhaus-Reichweite der Produktion (20) ist eine Annahme;
-  im Spiel prüfen (`PRODUCTION_WAREHOUSE_RANGE`).
+- Stadtplaner: Produktion → Lagerhaus 60 Pflasterkacheln (Angabe des Nutzers für Hochrad-Werkhallen;
+  für andere Fabriken ungeprüft).
 - Optimalität ist für große Inseln nicht bewiesen; Benchmark-Insel
   189 × 290: 41 HK / 25–26 Rathäuser (alter Solver: 33 HK).
 - Der Feldweg-GUID wird aus dem ersten importierten Stempel übernommen
