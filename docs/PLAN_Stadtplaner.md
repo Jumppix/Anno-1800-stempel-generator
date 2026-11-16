@@ -857,7 +857,61 @@ praktisch geometrisch bedingt (3×3-Häuser an einer gezackten Küste, jede
 Spalte endet mit 0–2 Kacheln Rest); ein Neuaufbau der ganzen Stadt holt sie
 nicht zurück.
 
-## 27. Noch offene Fragen
+## 27. Plan: nächste Meilensteine (nach Rückmeldung des Nutzers)
+
+Rückmeldung: Hochrad-Werkhallen reichen 60 Pflaster-Kacheln (Lagerhaus-Weg);
+Lufthafen: Abstand zur Anlegestelle nur schwach bewerten, wichtig ist wenig
+verschwendeter Platz und wenig belegte versorgte Fläche; 10 Durchläufe,
+möglichst gleichzeitig; Punkte 2, 4, 5 umsetzen. Jeder Meilenstein wird mit
+der Test-Pipeline über mehrere Seeds gegen den Stand davor gemessen.
+
+**M1 – Schnelle Korrekturen (klein)**
+- Produktion → Lagerhaus: Reichweite 60 statt 20 (`PRODUCTION_WAREHOUSE_RANGE`).
+- Lufthafen: Bewertung = verdrängte Häuser (mit Rathaus-Item- und
+  Versorgungswert) + belegte versorgte Fläche; Abstand zur Anlegestelle nur
+  noch als schwacher Zuschlag (Gleichstand-Entscheider). Plätze auf
+  Küstenresten/Restflächen werden bevorzugt.
+- Abnahme: weniger verdrängte Häuser, Lufthafen weiter gültig (Check).
+
+**M2 – 10 Durchläufe gleichzeitig (mittel)**
+- Ganze Planung eines Durchlaufs in einen eigenen Worker verlegen
+  (Pipeline-Worker statt Steuerung im Hauptthread); Worker-Pool mit
+  `hardwareConcurrency − 1` Plätzen, 10 Durchläufe in der Warteschlange
+  (Linienlänge 6/8/12/16 × verschiedene Seeds), der beste gewinnt.
+- Ladeanzeige: Gesamtbalken + kleine Zeile je Durchlauf (Schritt, Einwohner).
+- Hinweis: „gleichzeitig“ ist durch die CPU-Kerne begrenzt – bei 4 Kernen
+  laufen 3 parallel, 10 Durchläufe dauern dann ≈ 4× einen Durchlauf.
+- Abnahme: gleiche Ergebnisse wie nacheinander, Zeit ≈ Durchläufe/Kerne.
+
+**M3 – Versorgung ↔ Stufen bis zum Stillstand (klein)**
+- Statt genau einer zweiten Runde: Versorgung mit exakten Hauswerten neu
+  setzen → Stufen → … bis < 0,1 % Gewinn oder 4 Runden.
+- Abnahme: Ø Einwohner ≥ vorher über 10 Seeds.
+
+**M4 – Exakter Löser für die Läden (mittel–groß)**
+- Platzierung von Kaufhaus/Einrichtungshaus/Drogerie/Universität/Kraftwerk als
+  ganzzahliges Optimierungsproblem mit HiGHS (WebAssembly, MIT-Lizenz, neue
+  Abhängigkeit `highs`): binäre Wahl je Kandidatenplatz, Abdeckung je Haus,
+  keine Flächenüberlappung, Ziel = Versorgungswert − verdrängte Häuser −
+  Betriebskosten. Kandidaten vorher ausdünnen, Häuser zu Gruppen zusammenfassen,
+  Zeitlimit; Lagerhäuser danach wie bisher.
+- Vergleich gierig+lokale Suche gegen exakt; Fallback auf die bisherige Lösung.
+
+**M5 – Nachverdichtung mit echtem Einwohnerziel (mittel–groß)**
+- Fenster räumen/neu belegen bewertet nicht mehr nur Häuserzahl + Rathaus,
+  sondern geschätzte Einwohner je Haus: geplante Stufe, Rathaus-Items,
+  Versorgung durch die festen Gebäude, Panorama-Näherung.
+- Zweite Ausbaustufe: Fenster um Läden/Rathäuser mitsamt Gebäude neu setzen.
+
+**M6 – Kalibrierung mit dem Spielstand (laufend)**
+- Einwohnerberechnung (Abschnitt unten in der Antwort / `rules.ts`) mit
+  Werten aus dem Spielstand des Nutzers vergleichen und Regeln anpassen
+  (Panorama-Radius, Bonus-Bedürfnisse, Items).
+
+Reihenfolge: M1 → M2 (beschleunigt alle weiteren Messungen) → M3 → M4 → M5;
+M6, sobald Spielwerte vorliegen.
+
+## 28. Noch offene Fragen
 - Lagerhaus-Reichweite für Produktion (Annahme 20 Straßenkacheln).
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4
