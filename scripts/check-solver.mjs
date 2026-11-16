@@ -149,7 +149,7 @@ const lastCovered = Math.max(
 expect('Straßenreichweite: letztes versorgtes Haus bei x ≤ 67', lastCovered <= 67 && lastCovered >= 61, `x=${lastCovered}`);
 
 // 5. Stadtplaner Phase 2: vollständige Bebauung + Rathäuser auf der Benchmark-Insel.
-const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity, planServices, editCity, thinCity } =
+const { planFromFill, townHallProblem, finishPlan, refillAroundTownHalls, planToStampItems, freeTiles, compactCity, planServices, editCity, thinCity, improveRoads } =
   await server.ssrLoadModule('/src/planner.ts');
 const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
 {
@@ -216,6 +216,11 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
       fire >= 0.95 && opt.city.plan.networks === dense.plan.networks,
       `${opt.report.placed.fireStation} Feuerwachen, ${(fire * 100).toFixed(1)} %`);
   }
+  const planA0Coverage = (c) => {
+    const it = planToStampItems(mask, c, { coast: false, coastGuid: 1000178 });
+    const cc = cityFromStamp(decodeStampFull(buildGenericStamp(it.buildings, 'ow', it.streets)));
+    return analyzeCity(cc, DEFAULT_RULES).totals.coverage.departmentStore ?? 0;
+  };
   {
     // Querstraßen ausdünnen: nicht weniger Häuser, Netz zusammenhängend, keine Überlappung/Warnung.
     const th = thinCity(mask, city, { deadline: performance.now() + 10000, houseValue: 300 });
@@ -226,6 +231,16 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
       th.city.houses.length >= city.houses.length && th.city.plan.networks === city.plan.networks && cT.conflicts === 0 &&
         aT.warnings.length === 0,
       `${th.report.segments} Stücke, ${city.houses.length} → ${th.city.houses.length} Häuser; ${aT.warnings.join('; ')}`);
+    // Querstraßen nach Bedarf + Ausdünnen: Abdeckung Kaufhaus nicht schlechter, Netz unverändert, keine Warnung.
+    const ir = improveRoads(mask, city, { deadline: performance.now() + 30000, insert: true, thin: true });
+    const itI = planToStampItems(mask, ir.city, { coast: false, coastGuid: 1000178 });
+    const cI = cityFromStamp(decodeStampFull(buildGenericStamp(itI.buildings, 'ow', itI.streets)));
+    const aI = analyzeCity(cI, DEFAULT_RULES);
+    const covBefore = planA0Coverage(city);
+    expect('Querstraßen anpassen: Kaufhaus-Abdeckung höchstens 1 Punkt schlechter, Netz unverändert, keine Überlappung/Warnung',
+      (aI.totals.coverage.departmentStore ?? 0) >= covBefore - 0.01 && ir.city.plan.networks === city.plan.networks &&
+        cI.conflicts === 0 && aI.warnings.length === 0,
+      `${ir.insert?.inserted} eingefügt (−${ir.insert?.housesLost} Häuser), ${ir.thin?.segments} ausgedünnt; Kaufhaus ${(covBefore * 100).toFixed(1)} → ${((aI.totals.coverage.departmentStore ?? 0) * 100).toFixed(1)} %; ${aI.warnings.join('; ')}`);
   }
   {
     // Phase 6: Plan bearbeiten – Kaufhaus verschieben/drehen, ungültige Züge ablehnen.

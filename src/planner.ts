@@ -16,6 +16,7 @@ import { placePostBoxes, type PostReport } from './post';
 import { compact, type CompactOptions, type CompactResult } from './compact';
 import { placeServices, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
 import { thinCrossRoads, type ThinOptions, type ThinReport } from './thin';
+import { insertCrossRoads, type InsertReport } from './codesign';
 import type { LandMask, OverlapPenalty } from './solver';
 import type { StampBuilding, StampStreet } from './stamp';
 
@@ -888,4 +889,82 @@ export function thinCity(
   greedyFill(s);
   report.gained += s.houses.length - before;
   return { city: { ...stateToCity(s, city, [...city.townHalls]), services: city.services }, report };
+}
+
+/**
+ * „Läden von Anfang an“ (codesign.ts): Versorgung auf dem Raster mit langen
+ * Reihen setzen, dann Querstraßen nach Bedarf einfügen (Abdeckung gegen
+ * Häuser), bei Variante „replan“ die Versorgung auf dem neuen Straßennetz neu
+ * planen, zuletzt entbehrliche Querstraßen wieder ausdünnen.
+ */
+export function codesignCity(
+  mask: LandMask,
+  city: CityPlan,
+  options: ServiceOptions & { deadline: number; variant?: string },
+): { city: CityPlan; report: { insert: InsertReport; thin: ThinReport; replanned: boolean } } {
+  const ministry = options.ministry;
+  const sv = planServices(mask, city, options);
+  const s = cityToState(mask, sv.city);
+  const insert = insertCrossRoads(s, sv.city.services ?? [], {
+    deadline: Math.min(options.deadline, performance.now() + 40000),
+    ministry,
+    townHalls: sv.city.townHalls,
+    houseValue: 300,
+  });
+  greedyFill(s);
+  let next: CityPlan = { ...stateToCity(s, sv.city, [...sv.city.townHalls]), services: sv.city.services };
+  let replanned = false;
+  if (options.variant === 'replan') {
+    // Versorgung auf dem neuen Straßennetz neu planen (alte Flächen werden zu Häusern).
+    const bare = cityToState(mask, { ...next, services: [] });
+    greedyFill(bare);
+    const base: CityPlan = { ...stateToCity(bare, next, [...next.townHalls]), services: [] };
+    next = planServices(mask, base, options).city;
+    replanned = true;
+  }
+  const thin = thinCity(mask, next, { deadline: performance.now() + 20000, ministry, houseValue: 300 });
+  return { city: thin.city, report: { insert, thin: thin.report, replanned } };
+}
+
+/**
+ * Straßennetz an die fertige Versorgung anpassen: erst Querstraßen nach Bedarf
+ * einfügen (`insert`, codesign.ts), dann entbehrliche ausdünnen (thin.ts).
+ */
+export function improveRoads(
+  mask: LandMask,
+  city: CityPlan,
+  options: {
+    deadline: number;
+    ministry?: { range: number; welfare: number; web: number };
+    insert: boolean;
+    thin: boolean;
+    onProgress?: (phase: 'insert' | 'thin', count: number, houses: number) => void;
+  },
+): { city: CityPlan; insert: InsertReport | null; thin: ThinReport | null } {
+  let next = city;
+  let insert: InsertReport | null = null;
+  if (options.insert) {
+    const s = cityToState(mask, next);
+    insert = insertCrossRoads(s, next.services ?? [], {
+      deadline: Math.min(options.deadline, performance.now() + 40000),
+      ministry: options.ministry,
+      townHalls: next.townHalls,
+      houseValue: 300,
+      onProgress: (n, lost) => options.onProgress?.('insert', n, -lost),
+    });
+    greedyFill(s);
+    next = { ...stateToCity(s, next, [...next.townHalls]), services: next.services };
+  }
+  let thin: ThinReport | null = null;
+  if (options.thin) {
+    const r = thinCity(mask, next, {
+      deadline: Math.min(options.deadline, performance.now() + 20000),
+      ministry: options.ministry,
+      houseValue: 300,
+      onProgress: (n, gained) => options.onProgress?.('thin', n, gained),
+    });
+    next = r.city;
+    thin = r.report;
+  }
+  return { city: next, insert, thin };
 }

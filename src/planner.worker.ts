@@ -1,8 +1,9 @@
 // Rechnet die Bebauung (Gittersuche mit Bandverschiebung) und die
 // Nachverdichtung im Hintergrund, damit die Oberfläche bedienbar bleibt.
 import { addBridges, searchFill, type FillResult, type Orientation } from './fill';
-import { compactCity, planPost, planServices, planToStampItems, thinCity, type CityPlan } from './planner';
+import { compactCity, improveRoads, planPost, planServices, planToStampItems, type CityPlan } from './planner';
 import type { ThinReport } from './thin';
+import type { InsertReport } from './codesign';
 import type { PostReport } from './post';
 import { analyzeCity } from './analysis';
 import { cityFromStamp } from './city';
@@ -46,10 +47,12 @@ export type PlannerJob =
       city: CityPlan;
       budgetMs: number;
       ministry?: { range: number; welfare: number; web: number };
+      insert: boolean;
+      thin: boolean;
     };
 
 export type PlannerMessage =
-  | { kind: 'thin'; id: number; city: CityPlan; report: ThinReport }
+  | { kind: 'thin'; id: number; city: CityPlan; report: ThinReport | null; insert: InsertReport | null }
   | { kind: 'fill'; id: number; result: FillResult }
   | { kind: 'progress'; id: number; gained: number; city?: CityPlan }
   | { kind: 'compact'; id: number; city: CityPlan; gained: number; moved: number }
@@ -83,13 +86,14 @@ scope.onmessage = (event) => {
     return;
   }
   if (job.kind === 'thin') {
-    const r = thinCity(job.mask, job.city, {
+    const r = improveRoads(job.mask, job.city, {
       deadline: performance.now() + job.budgetMs,
       ministry: job.ministry,
-      houseValue: 300,
-      onProgress: (_removed, gained) => scope.postMessage({ kind: 'progress', id: job.id, gained }),
+      insert: job.insert,
+      thin: job.thin,
+      onProgress: (_phase, _count, houses) => scope.postMessage({ kind: 'progress', id: job.id, gained: houses }),
     });
-    scope.postMessage({ kind: 'thin', id: job.id, city: r.city, report: r.report });
+    scope.postMessage({ kind: 'thin', id: job.id, city: r.city, report: r.thin, insert: r.insert });
     return;
   }
   if (job.kind === 'post') {

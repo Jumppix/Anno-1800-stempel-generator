@@ -820,7 +820,44 @@ einzelnen Gewinne (+15 Häuser Raster je Landstück, +7–10 Ausdünnen) liegen 
 der Größenordnung der Streuung zwischen zwei Läufen; der Plan ist nahe an
 dem, was Küste, Querstraßen-Abdeckung und Sondergebäude zulassen.
 
-## 26. Noch offene Fragen
+## 26. „Läden von Anfang an“ und leere Kacheln (Messung über mehrere Läufe)
+
+**Querstraßen nach Bedarf** (`src/codesign.ts`, `insertCrossRoads`): Nach der
+Versorgung wird für jede mögliche Stelle (6 Kacheln zwischen zwei parallelen
+Längsstraßen) und für Ketten aus 2–12 solchen Stücken (durchgehende
+Querstraße) berechnet, wie viele Häuser neu in Reichweite von Läden/Strom
+kommen (Abkürzung über vorberechnete Entfernungskarten je Versorger) und wie
+viele Häuser die Straße kostet (`realignLanes` im Ausschnitt – hat eine
+Spalte 1–2 Kacheln Rest, kostet sie oft nichts). Faule Gier (nur die beste
+Stelle wird neu gerechnet). Danach Ausdünnen (`thin.ts`), dann Stufen.
+In der App: Schritt „Querstraßen anpassen“ (`improveRoads`), abwählbar.
+
+Test-Pipeline (Bebauung, Rathäuser, 10 s Nachverdichtung, Versorgung mit
+Ministerium/Lufthafen, Stufen; ohne Post), je 3 Seeds:
+| Variante | Einwohner Ø | Häuser Ø | Kaufhaus | Einr.-haus |
+| --- | --- | --- | --- | --- |
+| 6er bisher | 551.864 | 2.030 | 95 % | 89 % |
+| 12er bisher | 553.621 | 2.034 | 96 % | 85 % |
+| **6er + nach Bedarf** | **555.689** | 2.027 | 98 % | 90 % |
+| **12er + nach Bedarf** | **555.326** | 2.040 | 97 % | 86 % |
+| 24er + nach Bedarf | 553.681 | 2.049 | 94 % | 87 % |
+| 35er + nach Bedarf | 547.377 | 2.049 | 91 % | 81 % |
+Ergebnis: +0,7 % gegenüber dem bisherigen 6er-Raster. Lange Reihen gewinnen
+auch damit nicht – eine Querstraße über eine volle Spalte kostet 1 Haus je
+Spalte, die Abdeckung braucht viele davon. „Replan“ (Versorgung nach dem
+Einfügen neu planen) war schlechter (35er 544.600).
+
+**Leere Kacheln:** frei 5,8–6,8 % der Landfläche, davon nur 0,2 % in keinem
+3×3-Landquadrat. Karte über drei Läufe (6er/12er/35er): fast nur 1 Kachel
+breiter Saum an der Küste (Spaltenende mit Rest < 3) und Reste neben
+Rathäusern/Versorgung. Test „ganze Stadt umbauen“: Nachverdichtung (Fenster
+räumen und mit Häusern + Straßen neu belegen) mit 60 s statt 10 s → 2.029
+statt 2.030 Häuser im Schnitt, frei unverändert 5,8 %. Die Reste sind damit
+praktisch geometrisch bedingt (3×3-Häuser an einer gezackten Küste, jede
+Spalte endet mit 0–2 Kacheln Rest); ein Neuaufbau der ganzen Stadt holt sie
+nicht zurück.
+
+## 27. Noch offene Fragen
 - Lagerhaus-Reichweite für Produktion (Annahme 20 Straßenkacheln).
 - Panorama-Radius: ≤ 5 oder < 5 (ein Hochhaus im Spiel anklicken: wird das
   Haus über die Straße hinweg, 4 Kacheln entfernt, und das diagonal 3/4

@@ -1015,13 +1015,13 @@ export function pruneBridges(s: FillState): number {
  * (dynamische Programmierung) mit Straßenanschluss je Haus. Ersetzt nur, wenn
  * dabei mehr Häuser entstehen. Liefert die Zahl gewonnener Häuser.
  */
-export function realignLanes(s: FillState): number {
+export function realignLanes(s: FillState, box?: { x0: number; y0: number; x1: number; y1: number }): number {
   let gained = 0;
-  for (const vertical of [true, false]) gained += realignPass(s, vertical);
+  for (const vertical of [true, false]) gained += realignPass(s, vertical, box);
   return gained;
 }
 
-function realignPass(s: FillState, vertical: boolean): number {
+function realignPass(s: FillState, vertical: boolean, box?: { x0: number; y0: number; x1: number; y1: number }): number {
   const { w, h, cell } = s;
   // Kachel → Hausindex
   const houseAt = new Int32Array(w * h).fill(-1);
@@ -1035,8 +1035,14 @@ function realignPass(s: FillState, vertical: boolean): number {
   const keys = new Set<number>(s.houses.map((hs) => (vertical ? hs.x : hs.y)));
   const remove = new Set<number>();
   const add: Array<{ x: number; y: number }> = [];
+  // Nur Spalten/Abschnitte, die den Ausschnitt berühren (falls angegeben).
+  const a0 = box ? (vertical ? box.x0 : box.y0) : -Infinity;
+  const a1 = box ? (vertical ? box.x1 : box.y1) : Infinity;
+  const b0 = box ? (vertical ? box.y0 : box.x0) : -Infinity;
+  const b1 = box ? (vertical ? box.y1 : box.x1) : Infinity;
   for (const a of keys) {
     if (a < 0 || a + 3 > A) continue;
+    if (a + 2 < a0 || a > a1) continue;
     const okRow = (b: number): boolean => {
       for (let d = 0; d < 3; d++) {
         const i = idx(a + d, b);
@@ -1071,6 +1077,7 @@ function realignPass(s: FillState, vertical: boolean): number {
       const end = b; // [start, end)
       const len = end - start;
       if (len < 3) continue;
+      if (end <= b0 || start > b1) continue;
       // Aktuelle Häuser dieser Spalte im Abschnitt
       const current = new Set<number>();
       for (let t = start; t < end; t++) {

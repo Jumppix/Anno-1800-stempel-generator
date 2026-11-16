@@ -99,6 +99,8 @@ unnötig verändern.
 - `src/thin.ts`: `thinCrossRoads` – Querstraßen-Stücke nach der Versorgung ausdünnen
   (Häuserwert gegen Abdeckung, Lagerwege, Ministerium, Netz); Hülle `thinCity` in `planner.ts`.
   `PlannerUi.run` startet 1/3/5 Durchläufe (`passList`), bester Plan gewinnt.
+- `src/codesign.ts`: `insertCrossRoads` – Querstraßen (auch Ketten) nach Bedarf einfügen
+  (Abdeckungsgewinn gegen Häuser); `improveRoads` in `planner.ts` = Einfügen + Ausdünnen.
 - `src/camera.ts`: Zoom/Verschieben (Mausrad, rechte Maustaste) für Anordnen,
   Ergebnis und Plan/Analyse; Ereignisse in `main.ts`, `CityUi.camera`.
 - `src/style.css`: Styling.

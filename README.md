@@ -170,7 +170,9 @@ Balken, Zeit, Details) erscheint unter dem Button und groß über dem Bild.
 
 Gründlichkeit (unter „Erweitert“): **Durchläufe** 1/3/5 – die ganze Planung
 läuft mehrmals mit anderer Linienlänge bzw. anderem Zufall, der Plan mit den
-meisten Einwohnern gewinnt (Standard 3). **Querstraßen ausdünnen**: nach der
+meisten Einwohnern gewinnt (Standard 3). **Querstraßen nach Bedarf**: nach der
+Versorgung Querstraßen dort einfügen, wo sie Läden/Strom mehr Häuser
+erreichen lassen, als sie kosten (+0,7 % auf Insel 2). **Querstraßen ausdünnen**: nach der
 Versorgung entbehrliche Querstraßen-Stücke entfernen und Reihen
 zusammenschieben, ohne Versorgung, Lagerwege oder Netz zu verschlechtern.
 Getrennte Inselteile bekommen je ein eigenes Raster. Messungen und Grenzen:

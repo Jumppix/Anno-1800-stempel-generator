@@ -29,6 +29,7 @@ import { cityWideWebBonus, localDepartmentRange, welfareBonus, type RuleConfig }
 import type { PostReport } from './post';
 import type { ServiceReport } from './services';
 import type { ThinReport } from './thin';
+import type { InsertReport } from './codesign';
 
 const SERVICE_KINDS_UI: BuildingKind[] = [
   'departmentStore',
@@ -452,8 +453,8 @@ export class PlannerUi {
       if (withServices) steps.push({ label: 'Produktion, Lufthafen & Versorgung', est: 9000 });
       steps.push({ label: 'Hochhaus-Stufen', est: lvMs });
       if (second) steps.push({ label: 'Versorgung an Stufen anpassen', est: 9000 }, { label: 'Hochhaus-Stufen erneut', est: lvMs });
-      if (withServices && el<HTMLInputElement>('#plan-thin').checked) {
-        steps.push({ label: 'Querstraßen ausdünnen', est: 5000 }, { label: 'Hochhaus-Stufen nach Ausdünnen', est: lvMs });
+      if (withServices && (el<HTMLInputElement>('#plan-thin').checked || el<HTMLInputElement>('#plan-insert').checked)) {
+        steps.push({ label: 'Querstraßen anpassen', est: 25000 }, { label: 'Hochhaus-Stufen nach Straßenanpassung', est: lvMs });
       }
       if (el<HTMLInputElement>('#plan-post').checked) steps.push({ label: 'Briefkästen', est: 3000 });
       steps.push({ label: 'Fertigstellen', est: 1500 });
@@ -536,17 +537,24 @@ export class PlannerUi {
         levels = levels2;
       }
     }
-    // Querstraßen ausdünnen: entbehrliche Querstraßen-Stücke entfernen, Reihen
-    // zusammenschieben (thin.ts); Versorgung, Lagerwege und Netz bleiben erhalten.
+    // Straßennetz an die Versorgung anpassen: Querstraßen nach Bedarf einfügen
+    // (codesign.ts, Abdeckung gegen Häuser), dann entbehrliche ausdünnen (thin.ts).
     let thinned: ThinReport | null = null;
-    if (serviced && el<HTMLInputElement>('#plan-thin').checked) {
-      this.progress.step('Querstraßen ausdünnen', 'Entbehrliche Querstraßen entfernen, Reihen zusammenschieben');
-      const t = await this.thin(src.mask, city, this.ministryOption());
-      thinned = t.report;
-      if (t.report.gained > 0) {
+    let inserted: InsertReport | null = null;
+    const doInsert = el<HTMLInputElement>('#plan-insert').checked;
+    const doThin = el<HTMLInputElement>('#plan-thin').checked;
+    if (serviced && (doInsert || doThin)) {
+      this.progress.step('Querstraßen anpassen', 'Querstraßen dort einfügen, wo Läden/Strom sie brauchen, entbehrliche entfernen');
+      const before = city.houses.length;
+      const t = await this.roads(src.mask, city, this.ministryOption(), doInsert, doThin);
+      thinned = t.thin;
+      inserted = t.insert;
+      const changed = (t.insert?.inserted ?? 0) + (t.thin?.segments ?? 0) > 0;
+      if (changed) {
         city = { ...t.city, removedHouses: city.removedHouses };
         this.preview(src.mask, city, 'Zwischenstand');
-        this.progress.step('Hochhaus-Stufen nach Ausdünnen', `+${t.report.gained} Häuser`);
+        const diff = city.houses.length - before;
+        this.progress.step('Hochhaus-Stufen nach Straßenanpassung', `${diff >= 0 ? '+' : ''}${diff} Häuser`);
         levels = await this.levels(src.mask, city, levelMode, levelMs, seed);
       }
     }
@@ -665,28 +673,30 @@ export class PlannerUi {
     }
     items.push(
       `Durchlauf ${linesPerGroup}er-Linien nach ${secs} s${compacted ? ` · Nachverdichtung +${compacted.gained} Häuser` : ''}${
-        thinned ? ` · Querstraßen ausgedünnt: ${thinned.segments} Stücke, +${thinned.gained} Häuser` : ''
-      }`,
+        inserted ? ` · Querstraßen nach Bedarf: ${inserted.inserted} eingefügt (−${inserted.housesLost} Häuser)` : ''
+      }${thinned ? ` · ausgedünnt: ${thinned.segments} Stücke, +${thinned.gained} Häuser` : ''}`,
     );
     return { residents: totals?.residents ?? 0, items, result: this.result as PlanResult };
   }
 
-  /** Querstraßen ausdünnen im Hintergrund (thin.ts). */
-  private thin(
+  /** Straßennetz an die Versorgung anpassen im Hintergrund (codesign.ts + thin.ts). */
+  private roads(
     mask: LandMask,
     city: CityPlan,
     ministry: { range: number; welfare: number; web: number } | undefined,
-  ): Promise<{ city: CityPlan; report: ThinReport }> {
+    insert: boolean,
+    thin: boolean,
+  ): Promise<{ city: CityPlan; thin: ThinReport | null; insert: InsertReport | null }> {
     const id = ++this.jobId;
     const worker = this.worker(0);
     return new Promise((resolve) => {
       worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
         const msg = event.data;
         if (msg.id !== id) return;
-        if (msg.kind === 'progress') this.progress.detail(`bisher +${msg.gained} Häuser`);
-        else if (msg.kind === 'thin') resolve({ city: msg.city, report: msg.report });
+        if (msg.kind === 'progress') this.progress.detail(`Häuser bisher ${msg.gained >= 0 ? '+' : ''}${msg.gained}`);
+        else if (msg.kind === 'thin') resolve({ city: msg.city, thin: msg.report, insert: msg.insert });
       };
-      const job: PlannerJob = { kind: 'thin', id, mask, city, budgetMs: 20000, ministry };
+      const job: PlannerJob = { kind: 'thin', id, mask, city, budgetMs: 60000, ministry, insert, thin };
       worker.postMessage(job);
     });
   }
