@@ -873,7 +873,7 @@ der Test-Pipeline über mehrere Seeds gegen den Stand davor gemessen.
   Küstenresten/Restflächen werden bevorzugt.
 - Abnahme: weniger verdrängte Häuser, Lufthafen weiter gültig (Check).
 
-**M2 – 10 Durchläufe gleichzeitig (mittel)**
+**M2 – 10 Durchläufe gleichzeitig (mittel)** ✓ umgesetzt: `src/pipeline.ts` (`runPass`, ganzer Durchlauf ohne Umwege) im `pipeline.worker.ts`; Pool mit `hardwareConcurrency − 1` Workern; Ladeanzeige mit einer Spur je Durchlauf; Zwischenstände vom ersten Durchlauf, danach der beste fertige. Insel 2 (4 Kerne → 3 gleichzeitig, Rathäuser 2 s, Nachverdichtung 10 s, Stufen 6 s): 10 Durchläufe in 269 s, Spanne 780.568–787.354, bester gewählt (Werte mit neuem Post-Modell, nicht mit früheren vergleichbar).
 - Ganze Planung eines Durchlaufs in einen eigenen Worker verlegen
   (Pipeline-Worker statt Steuerung im Hauptthread); Worker-Pool mit
   `hardwareConcurrency − 1` Plätzen, 10 Durchläufe in der Warteschlange

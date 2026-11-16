@@ -4,22 +4,10 @@
 
 import { CITY_PAD } from './city';
 import type { CityUi } from './cityUi';
-import type { FillResult } from './fill';
-import {
-  editCity,
-  editTargetAt,
-  finishPlan,
-  freeTiles,
-  planFromFill,
-  planToStampItems,
-  refillAroundTownHalls,
-  splitBands,
-  townHallProblem,
-  type CityPlan,
-  type Orientation,
-} from './planner';
+import { editCity, editTargetAt, freeTiles, planToStampItems, splitBands, type CityPlan, type Orientation } from './planner';
+import type { PassInput, PassResult } from './pipeline';
+import type { PipelineJob, PipelineMessage } from './pipeline.worker';
 import type { LandMask } from './solver';
-import { SolveRunner } from './solveRunner';
 import { buildGenericStamp } from './stamp';
 import type { PlannerJob, PlannerMessage } from './planner.worker';
 import { CLIPPABLE, lookup, type BuildingKind } from './catalog';
@@ -27,9 +15,6 @@ import type { ProductionRequest } from './production';
 import type { LevelMode } from './levels';
 import { cityWideWebBonus, localDepartmentRange, welfareBonus, type RuleConfig } from './rules';
 import type { PostReport } from './post';
-import type { ServiceReport } from './services';
-import type { ThinReport } from './thin';
-import type { InsertReport } from './codesign';
 
 const SERVICE_KINDS_UI: BuildingKind[] = [
   'departmentStore',
@@ -77,6 +62,11 @@ function download(name: string, data: Uint8Array | Blob): void {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+/** Geplante Stufen aus dem Worker-Format [Index, 0/1, Stufe]. */
+function toPlanned(list: ReadonlyArray<[number, number, number]>): Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }> {
+  return new Map(list.map(([idx, t, l]) => [idx, { tier: t === 0 ? 'engineer' : 'investor', level: l as 3 | 4 | 5 }]));
+}
+
 /** Anzahl Brücken = zusammenhängende Gruppen von Brückenkacheln. */
 function countBridges(tiles: readonly number[], w: number): number {
   const set = new Set(tiles);
@@ -101,43 +91,57 @@ function countBridges(tiles: readonly number[], w: number): number {
 }
 
 /**
- * Ladeanzeige: Schritt x/y, Balken (nach geschätzter Dauer je Schritt),
- * verstrichene Zeit und Detailzeile – in der Leiste und groß über dem Bild.
+ * Ladeanzeige: eine Spur je Durchlauf (Schritt x/y nach geschätzter Dauer),
+ * Gesamtbalken, Zeit und Details – in der Leiste und groß über dem Bild.
  */
+interface Track {
+  label: string;
+  steps: Array<{ label: string; est: number }>;
+  cur: number;
+  stepStart: number;
+  detail: string;
+  done?: string;
+}
+
 class Progress {
-  private steps: Array<{ label: string; est: number }> = [];
-  private cur = -1;
-  private stepStart = 0;
+  private tracks: Track[] = [];
   private started = 0;
   private timer = 0;
-  private detailText = '';
   private readonly boxes = [el<HTMLElement>('#plan-progress'), el<HTMLElement>('#stage-progress')];
 
-  private prefix = '';
+  /** Eine Spur (z. B. „Stufen & Post neu berechnen“). */
+  start(steps: Array<{ label: string; est: number }>, label = ''): void {
+    this.startTracks([{ label, steps }]);
+  }
 
-  start(steps: Array<{ label: string; est: number }>, prefix = ''): void {
-    this.steps = steps;
-    this.prefix = prefix;
-    this.cur = -1;
+  startTracks(tracks: Array<{ label: string; steps: Array<{ label: string; est: number }> }>): void {
+    this.tracks = tracks.map((t) => ({ ...t, cur: -1, stepStart: 0, detail: '' }));
     this.started = performance.now();
-    this.detailText = '';
     for (const b of this.boxes) b.hidden = false;
     clearInterval(this.timer);
-    this.timer = window.setInterval(() => this.render(), 250);
+    this.timer = window.setInterval(() => this.render(), 300);
     this.render();
   }
 
   /** Nächsten Schritt mit diesem Namen beginnen (Schritte dürfen fehlen). */
-  step(label: string, detail = ''): void {
-    const i = this.steps.findIndex((st, k) => k > this.cur && st.label === label);
-    if (i >= 0) this.cur = i;
-    this.stepStart = performance.now();
-    this.detailText = detail;
+  step(label: string, detail = '', track = 0): void {
+    const t = this.tracks[track];
+    if (!t) return;
+    const i = t.steps.findIndex((st, k) => k > t.cur && st.label === label);
+    if (i >= 0) t.cur = i;
+    t.stepStart = performance.now();
+    t.detail = detail;
     this.render();
   }
 
-  detail(text: string): void {
-    this.detailText = text;
+  detail(text: string, track = 0): void {
+    const t = this.tracks[track];
+    if (t) t.detail = text;
+  }
+
+  done(track: number, text: string): void {
+    const t = this.tracks[track];
+    if (t) t.done = text;
     this.render();
   }
 
@@ -146,24 +150,47 @@ class Progress {
     for (const b of this.boxes) b.hidden = true;
   }
 
-  private render(): void {
-    if (!this.steps.length) return;
-    const total = this.steps.reduce((a, st) => a + st.est, 0);
+  private fraction(t: Track): number {
+    if (t.done) return 1;
+    if (t.cur < 0) return 0;
+    const total = t.steps.reduce((a, st) => a + st.est, 0);
     let done = 0;
-    for (let k = 0; k < this.cur; k++) done += this.steps[k].est;
-    const step = this.steps[Math.max(0, this.cur)];
-    if (this.cur >= 0) done += Math.min(performance.now() - this.stepStart, step.est * 0.95);
-    const frac = Math.min(0.99, done / total);
+    for (let k = 0; k < t.cur; k++) done += t.steps[k].est;
+    done += Math.min(performance.now() - t.stepStart, t.steps[t.cur].est * 0.95);
+    return Math.min(0.99, done / total);
+  }
+
+  private render(): void {
+    if (!this.tracks.length) return;
+    const frac = Math.min(0.99, this.tracks.reduce((a, t) => a + this.fraction(t), 0) / this.tracks.length);
     const secs = Math.round((performance.now() - this.started) / 1000);
+    const stepText = (t: Track): string =>
+      t.done ?? (t.cur < 0 ? 'wartet …' : `Schritt ${t.cur + 1}/${t.steps.length}: ${t.steps[t.cur].label}`);
+    let title: string;
+    let detail: string;
+    if (this.tracks.length === 1) {
+      const t = this.tracks[0];
+      title = `${t.label ? `${t.label} · ` : ''}${stepText(t)} …`;
+      detail = esc(t.detail);
+    } else {
+      const done = this.tracks.filter((t) => t.done).length;
+      const running = this.tracks.filter((t) => !t.done && t.cur >= 0).length;
+      title = `${this.tracks.length} Durchläufe · ${running} laufen gleichzeitig · ${done} fertig`;
+      detail = this.tracks
+        .map((t) => `<div class="${t.done ? 'track-done' : t.cur < 0 ? 'track-wait' : ''}">${esc(t.label)}: ${esc(stepText(t))}${t.detail && !t.done ? ` <span class="muted">(${esc(t.detail)})</span>` : ''}</div>`)
+        .join('');
+    }
     for (const b of this.boxes) {
       const q = <T extends HTMLElement>(sel: string): T => b.querySelector<T>(sel) as T;
-      q('.progress-step').textContent = `${this.prefix}Schritt ${Math.max(1, this.cur + 1)}/${this.steps.length}: ${step.label} …`;
+      q('.progress-step').textContent = title;
       q('.progress-time').textContent = `${Math.round(frac * 100)} % · ${secs} s`;
       q<HTMLElement>('.progress-bar i').style.width = `${(frac * 100).toFixed(1)}%`;
-      q('.progress-detail').textContent = this.detailText;
+      q('.progress-detail').innerHTML = detail;
     }
   }
 }
+
+const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export class PlannerUi {
   private readonly progress = new Progress();
@@ -181,7 +208,6 @@ export class PlannerUi {
   private readonly split = el<HTMLInputElement>('#plan-split');
   private readonly stampList = el<HTMLElement>('#plan-stamps');
 
-  private runner: SolveRunner;
   private result: PlanResult | null = null;
   private readonly levelMode = el<HTMLSelectElement>('#plan-levels');
   private stamps: Uint8Array[] = [];
@@ -201,7 +227,6 @@ export class PlannerUi {
     /** Startet das Wählen der Anlegestelle in der Ansicht „Anordnen“. */
     private readonly onPickHarbor: () => void = () => undefined,
   ) {
-    this.runner = new SolveRunner(() => undefined);
     el<HTMLButtonElement>('#plan-harbor').addEventListener('click', () => {
       this.harborInfo.textContent = 'Klicke in „Anordnen“ auf die Stelle der Hauptanlegestelle …';
       this.onPickHarbor();
@@ -371,26 +396,90 @@ export class PlannerUi {
 
   /**
    * Durchläufe: die ganze Planung mehrmals mit anderer Linienlänge bzw. anderem
-   * Zufall – der Plan mit den meisten Einwohnern gewinnt.
+   * Zufall – gleichzeitig in eigenen Workern; der Plan mit den meisten
+   * Einwohnern gewinnt.
    */
   private passList(): Array<{ lines: number; seed: number; label: string }> {
     const lines = Number(this.perLine.value) || 6;
     const alt = lines === 12 ? 6 : 12;
+    const third = lines === 8 ? 16 : 8;
     const all = [
       { lines, seed: 0 },
       { lines: alt, seed: 0 },
       { lines, seed: 1 },
-      { lines: lines === 8 ? 16 : 8, seed: 0 },
+      { lines: third, seed: 0 },
       { lines: alt, seed: 1 },
+      { lines, seed: 2 },
+      { lines: alt, seed: 2 },
+      { lines: third, seed: 1 },
+      { lines, seed: 3 },
+      { lines: alt, seed: 3 },
     ];
     const n = Math.max(1, Math.min(all.length, Number(el<HTMLSelectElement>('#plan-passes').value) || 1));
     return all.slice(0, n).map((p) => ({ ...p, label: `${p.lines}er${p.seed ? ` (Variante ${p.seed + 1})` : ''}` }));
   }
 
+  /** Geschätzte Schritte eines Durchlaufs (für die Ladeanzeige). */
+  private passSteps(): Array<{ label: string; est: number }> {
+    const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
+    const withServices = kinds.length > 0 || this.production.some((r) => r.count > 0);
+    const lvMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
+    const steps: Array<{ label: string; est: number }> = [{ label: 'Bebauung (Raster, Gittersuche)', est: 9000 }];
+    if (this.townHalls.checked) steps.push({ label: 'Rathäuser optimieren', est: Number(this.budget.value) || 6000 });
+    const cMs = Number(this.compactBudget.value) || 0;
+    if (cMs > 0) steps.push({ label: 'Nachverdichtung', est: cMs });
+    if (withServices) steps.push({ label: 'Produktion, Lufthafen & Versorgung', est: 9000 });
+    steps.push({ label: 'Hochhaus-Stufen', est: lvMs });
+    if (kinds.length && this.levelMode.value !== 'l3') {
+      steps.push({ label: 'Versorgung an Stufen anpassen', est: 9000 }, { label: 'Hochhaus-Stufen erneut', est: lvMs });
+    }
+    if (withServices && (el<HTMLInputElement>('#plan-thin').checked || el<HTMLInputElement>('#plan-insert').checked)) {
+      steps.push({ label: 'Querstraßen anpassen', est: 20000 }, { label: 'Hochhaus-Stufen nach Straßenanpassung', est: lvMs });
+    }
+    if (el<HTMLInputElement>('#plan-post').checked) steps.push({ label: 'Briefkästen', est: 3000 });
+    steps.push({ label: 'Fertigstellen', est: 1500 });
+    return steps;
+  }
+
+  /** Alle Einstellungen eines Durchlaufs aus der Oberfläche. */
+  private passInput(src: IslandSource, lines: number, seed: number, snapshots: boolean): PassInput {
+    const rules = this.cityUi.currentRules();
+    const production = this.production.some((r) => r.count > 0)
+      ? { requests: this.production.map((r) => ({ ...r })), power: el<HTMLInputElement>('#prod-power').checked }
+      : undefined;
+    return {
+      mask: src.mask,
+      lines,
+      seed,
+      orientation: this.orientation.value as 'auto' | Orientation,
+      bridgeLen: Number(el<HTMLSelectElement>('#plan-bridges').value) || 0,
+      townHalls: this.townHalls.checked,
+      minCover: Math.max(0, Number(this.minCover.value) || 0),
+      rhBudget: Number(this.budget.value) || 6000,
+      compactMs: Number(this.compactBudget.value) || 0,
+      kinds: SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked),
+      goal: Number(this.svcGoal.value) || 0,
+      deliveryGoods: el<HTMLInputElement>('#rule-delivery').checked,
+      townHallItems: rules.townHallItems,
+      ministry: this.ministryOption(),
+      airport: el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined,
+      production,
+      levelMode: this.levelMode.value as LevelMode,
+      levelMs: Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000,
+      selfWorkforce: el<HTMLInputElement>('#plan-engineers').checked,
+      post: el<HTMLInputElement>('#plan-post').checked,
+      insert: el<HTMLInputElement>('#plan-insert').checked,
+      thin: el<HTMLInputElement>('#plan-thin').checked,
+      rules,
+      snapshots,
+    };
+  }
+
+  private pipelineWorkers: Worker[] = [];
+
   private async run(): Promise<void> {
     const src = this.island();
     if (!src || this.running) return;
-    this.runner.cancel();
     this.running = true;
     this.runButton.disabled = true;
     this.exportBox.hidden = true;
@@ -399,26 +488,77 @@ export class PlannerUi {
     this.status.innerHTML = '';
     const started = performance.now();
     const passes = this.passList();
-    let best: { residents: number; items: string[]; result: PlanResult } | null = null;
-    const tried: string[] = [];
-    try {
-      for (let k = 0; k < passes.length; k++) {
-        const prefix = passes.length > 1 ? `Durchlauf ${k + 1}/${passes.length} (${passes[k].label}) · ` : '';
-        const r = await this.runOnce(src, passes[k].lines, passes[k].seed, prefix);
-        tried.push(`${passes[k].label} ${num(r.residents)}`);
-        if (!best || r.residents > best.residents) best = r;
+    const steps = this.passSteps();
+    this.progress.startTracks(passes.map((p) => ({ label: p.label, steps })));
+    // So viele gleichzeitig, wie Kerne frei sind (einer bleibt für die Oberfläche).
+    const slots = Math.max(1, Math.min(passes.length, (navigator.hardwareConcurrency || 2) - 1));
+    while (this.pipelineWorkers.length < slots) {
+      this.pipelineWorkers.push(new Worker(new URL('./pipeline.worker.ts', import.meta.url), { type: 'module' }));
+    }
+    const results: Array<PassResult | null> = passes.map(() => null);
+    let bestShown = -1;
+    let next = 0;
+    // Zwischenstände zeigt der erste Durchlauf, bis ein Durchlauf fertig ist.
+    let previewPass = 0;
+    const runSlot = async (worker: Worker): Promise<void> => {
+      while (next < passes.length) {
+        const k = next++;
+        const id = ++this.jobId;
+        const input = this.passInput(src, passes[k].lines, passes[k].seed, this.watch.checked && k === previewPass);
+        const result = await new Promise<PassResult | null>((resolve) => {
+          worker.onmessage = (event: MessageEvent<PipelineMessage>) => {
+            const msg = event.data;
+            if (msg.id !== id) return;
+            if (msg.kind === 'event') {
+              const e = msg.event;
+              if (e.kind === 'step') this.progress.step(e.label, e.detail ?? '', k);
+              else if (e.kind === 'detail') this.progress.detail(e.text, k);
+              else if (e.kind === 'snapshot' && k === previewPass && bestShown < 0) {
+                this.preview(src.mask, e.city, 'Zwischenstand', e.planned ? toPlanned(e.planned) : undefined);
+              }
+            } else if (msg.kind === 'done') resolve(msg.result);
+            else {
+              this.progress.done(k, `Fehler: ${msg.message}`);
+              resolve(null);
+            }
+          };
+          worker.postMessage({ id, input } satisfies PipelineJob);
+        });
+        results[k] = result;
+        if (result) {
+          this.progress.done(k, `✓ ${num(result.residents)} Einwohner (${Math.round(result.ms / 1000)} s)`);
+          // Besten bisher fertigen Plan zeigen.
+          const bestK = results.reduce((b, r, i) => (r && (b < 0 || r.residents > (results[b] as PassResult).residents) ? i : b), -1);
+          if (bestK !== bestShown && this.watch.checked) {
+            bestShown = bestK;
+            const r = results[bestK] as PassResult;
+            this.preview(src.mask, r.city, `Bester bisher: ${passes[bestK].label}`, toPlanned(r.planned));
+          }
+        }
       }
+    };
+    try {
+      await Promise.all(this.pipelineWorkers.slice(0, slots).map((w) => runSlot(w)));
     } finally {
       this.progress.finish();
       this.running = false;
     }
-    if (best) {
-      this.result = best.result;
+    const bestK = results.reduce((b, r, i) => (r && (b < 0 || r.residents > (results[b] as PassResult).residents) ? i : b), -1);
+    if (bestK >= 0) {
+      const best = results[bestK] as PassResult;
+      this.result = { city: best.city, mask: src.mask, streetGuid: src.streetGuid, planned: toPlanned(best.planned) };
       this.buildStamps();
-      const items = [...best.items];
-      if (passes.length > 1) items.push(`Durchläufe: ${tried.join(' · ')} – bester gewählt`);
+      const items = this.statusItems(src, best, passes[bestK].label);
+      if (passes.length > 1) {
+        const tried = passes
+          .map((p, i) => (results[i] ? `${p.label} ${num((results[i] as PassResult).residents)}` : `${p.label} –`))
+          .join(' · ');
+        items.push(`Durchläufe (${slots} gleichzeitig): ${tried} – bester: <strong>${passes[bestK].label}</strong>`);
+      }
       items.push(`Gesamt ${((performance.now() - started) / 1000).toFixed(0)} s`);
       this.status.innerHTML = `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+    } else {
+      this.status.textContent = 'Kein Durchlauf erfolgreich.';
     }
     this.refreshIsland();
   }
@@ -431,192 +571,32 @@ export class PlannerUi {
       : undefined;
   }
 
-  /** Ein kompletter Planungsdurchlauf; liefert Einwohner, Statuszeilen und Plan. */
-  private async runOnce(
-    src: IslandSource,
-    linesPerGroup: number,
-    seed: number,
-    prefix: string,
-  ): Promise<{ residents: number; items: string[]; result: PlanResult }> {
-    const started = performance.now();
-    const orientation = this.orientation.value as 'auto' | Orientation;
-    {
-      // Geplante Schritte mit geschätzter Dauer (für den Balken).
-      const kindsNow = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
-      const withServices = kindsNow.length > 0 || this.production.some((r) => r.count > 0);
-      const lvMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
-      const second = kindsNow.length > 0 && this.levelMode.value !== 'l3';
-      const steps: Array<{ label: string; est: number }> = [{ label: 'Bebauung (Raster, Gittersuche)', est: 8000 }];
-      if (this.townHalls.checked) steps.push({ label: 'Rathäuser optimieren', est: Number(this.budget.value) || 6000 });
-      const cMs = Number(this.compactBudget.value) || 0;
-      if (cMs > 0) steps.push({ label: 'Nachverdichtung', est: cMs });
-      if (withServices) steps.push({ label: 'Produktion, Lufthafen & Versorgung', est: 9000 });
-      steps.push({ label: 'Hochhaus-Stufen', est: lvMs });
-      if (second) steps.push({ label: 'Versorgung an Stufen anpassen', est: 9000 }, { label: 'Hochhaus-Stufen erneut', est: lvMs });
-      if (withServices && (el<HTMLInputElement>('#plan-thin').checked || el<HTMLInputElement>('#plan-insert').checked)) {
-        steps.push({ label: 'Querstraßen anpassen', est: 25000 }, { label: 'Hochhaus-Stufen nach Straßenanpassung', est: lvMs });
-      }
-      if (el<HTMLInputElement>('#plan-post').checked) steps.push({ label: 'Briefkästen', est: 3000 });
-      steps.push({ label: 'Fertigstellen', est: 1500 });
-      this.progress.start(steps, prefix);
-      this.progress.step('Bebauung (Raster, Gittersuche)', 'Häuserraster über die ganze Insel, beste Gitterlage …');
-    }
-    await new Promise((r) => setTimeout(r, 30));
-    const fill = await this.fill(src.mask, orientation, linesPerGroup);
-    const plan = planFromFill(fill);
-    this.progress.step('Rathäuser optimieren', `Bebauung: ${num(plan.houses.length)} Häuser`);
-    this.preview(src.mask, finishPlan(plan, [], 0), 'Zwischenstand');
-    let lastPreview = performance.now();
-
-    let townHalls: Array<{ x: number; y: number }> = [];
-    if (this.townHalls.checked && plan.houses.length) {
-      const problem = townHallProblem(src.mask, plan);
-      townHalls = await new Promise((resolve) => {
-        this.runner = new SolveRunner(({ layout, running, workers }) => {
-          const group = layout.groups[0];
-          const secs = ((performance.now() - started) / 1000).toFixed(1);
-          this.progress.detail(`${workers} Kern${workers === 1 ? '' : 'e'} · bisher ${group?.chambers.length ?? 0} Rathäuser · ${secs} s`);
-          // Zwischenstand höchstens alle 2 s zeigen (Analyse läuft im Hauptthread).
-          if (running && group && this.watch.checked && performance.now() - lastPreview > 2000) {
-            this.preview(src.mask, finishPlan(plan, group.chambers.map((c) => ({ x: c.x, y: c.y })), 0), 'Zwischenstand');
-            lastPreview = performance.now();
-          }
-          if (!running) resolve(group ? group.chambers.map((c) => ({ x: c.x, y: c.y })) : []);
-        });
-        void this.runner.start(problem.target, ['rh'], Number(this.budget.value) || 6000, null, {
-          allowed: problem.allowed,
-          overlapPenalty: problem.penalty,
-        });
-      });
-    }
-
-    const finished = finishPlan(plan, townHalls, Math.max(0, Number(this.minCover.value) || 0));
-    const refilled = refillAroundTownHalls(src.mask, finished);
-    this.preview(src.mask, refilled, 'Zwischenstand');
-    // Erst nachverdichten (Häuser/Rathäuser schieben), dann Versorgung setzen:
-    // so verlängert kein späteres Verschieben die Wege zu Lagerhäusern.
-    const compactMs = Number(this.compactBudget.value) || 0;
-    if (compactMs > 0) this.progress.step('Nachverdichtung', 'Häuser und Rathäuser verschieben, Lücken füllen');
-    const compacted = compactMs > 0 ? await this.compact(src.mask, refilled, compactMs, started, seed) : null;
-    const dense = compacted ? { ...compacted.city, removedHouses: refilled.removedHouses } : refilled;
-    if (compacted) this.preview(src.mask, dense, 'Zwischenstand');
-    const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
-    const goal = Number(this.svcGoal.value) || 0;
-    const levelMode = this.levelMode.value as LevelMode;
-    const levelMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
-    let serviced: { city: CityPlan; report: ServiceReport; refilled: number } | null = null;
-    const withProduction = this.production.some((r) => r.count > 0);
-    if (kinds.length || withProduction) {
-      this.progress.step('Produktion, Lufthafen & Versorgung', `${withProduction ? 'Geclippte Produktion, ' : ''}Lufthafen, Ministerium, Läden, Kraftwerke, Lagerhäuser`);
-      serviced = await this.services(src.mask, dense, kinds, goal);
-    }
-    let city = serviced ? { ...serviced.city, removedHouses: refilled.removedHouses } : dense;
-    if (serviced) this.preview(src.mask, city, 'Zwischenstand');
-    // Hochhaus-Stufen (3-3-5 / 4-5) auf dem fertigen Plan optimieren.
-    this.progress.step('Hochhaus-Stufen', 'Bauweise 3-3-5 / 4-5, Panorama je Haus');
-    let levels = await this.levels(src.mask, city, levelMode, levelMs, seed);
-    this.preview(src.mask, city, 'Zwischenstand', levels.planned);
-    // Zweiter Durchgang: Versorgung passend zu den Stufen neu setzen (z. B. keine
-    // Universität ohne Ingenieure, Drogerie für Investoren 5), dann Stufen erneut.
-    if (kinds.length && levelMode !== 'l3') {
-      const states = new Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
-      city.houses.forEach((hs, k) => {
-        const st = levels.planned.get(k);
-        if (st) states.set(`${hs.x},${hs.y}`, st);
-      });
-      this.progress.step('Versorgung an Stufen anpassen', 'Versorgung passend zu den geplanten Stufen');
-      const second = await this.services(src.mask, dense, kinds, goal, states);
-      const city2 = { ...second.city, removedHouses: refilled.removedHouses };
-      this.preview(src.mask, city2, 'Zwischenstand');
-      this.progress.step('Hochhaus-Stufen erneut');
-      const levels2 = await this.levels(src.mask, city2, levelMode, levelMs, seed);
-      const total = (l: typeof levels): number => l.residents;
-      if (total(levels2) > total(levels)) {
-        serviced = second;
-        city = city2;
-        levels = levels2;
-      }
-    }
-    // Straßennetz an die Versorgung anpassen: Querstraßen nach Bedarf einfügen
-    // (codesign.ts, Abdeckung gegen Häuser), dann entbehrliche ausdünnen (thin.ts).
-    let thinned: ThinReport | null = null;
-    let inserted: InsertReport | null = null;
-    const doInsert = el<HTMLInputElement>('#plan-insert').checked;
-    const doThin = el<HTMLInputElement>('#plan-thin').checked;
-    if (serviced && (doInsert || doThin)) {
-      this.progress.step('Querstraßen anpassen', 'Querstraßen dort einfügen, wo Läden/Strom sie brauchen, entbehrliche entfernen');
-      const before = city.houses.length;
-      const t = await this.roads(src.mask, city, this.ministryOption(), doInsert, doThin);
-      thinned = t.thin;
-      inserted = t.insert;
-      const changed = (t.insert?.inserted ?? 0) + (t.thin?.segments ?? 0) > 0;
-      if (changed) {
-        city = { ...t.city, removedHouses: city.removedHouses };
-        this.preview(src.mask, city, 'Zwischenstand');
-        const diff = city.houses.length - before;
-        this.progress.step('Hochhaus-Stufen nach Straßenanpassung', `${diff >= 0 ? '+' : ''}${diff} Häuser`);
-        levels = await this.levels(src.mask, city, levelMode, levelMs, seed);
-      }
-    }
-    // Post: Briefkästen in Restkacheln, bis die Produktion den Bedarf deckt.
-    let post: (PostReport & { removedHouses: number }) | null = null;
-    const rulesNow = this.cityUi.currentRules();
-    if (el<HTMLInputElement>('#plan-post').checked && rulesNow.mail !== 'none') {
-      this.progress.step('Briefkästen', 'Post in Restkacheln');
-      const before = city;
-      const r = await this.post(src.mask, city, rulesNow, levels.planned);
-      city = { ...r.city, removedHouses: city.removedHouses };
-      post = r.report;
-      if (r.report.removedHouses) {
-        // Häuser sind weggefallen → geplante Stufen über die Lage neu zuordnen.
-        const byPos = new Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
-        before.houses.forEach((hs, k) => {
-          const st = levels.planned.get(k);
-          if (st) byPos.set(`${hs.x},${hs.y}`, st);
-        });
-        const planned = new Map<number, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>();
-        city.houses.forEach((hs, k) => {
-          const st = byPos.get(`${hs.x},${hs.y}`);
-          if (st) planned.set(k, st);
-        });
-        levels = { ...levels, planned };
-      }
-    }
-    this.progress.step('Fertigstellen', 'Stempel, Analyse und Bauliste');
-    await new Promise((r) => setTimeout(r, 30));
-    this.result = { city, mask: src.mask, streetGuid: src.streetGuid, planned: levels.planned };
-    this.buildStamps();
-    const secs = ((performance.now() - started) / 1000).toFixed(1);
-    const totals = this.cityUi.totals();
+  /** Statuszeilen zum gewählten Plan. */
+  private statusItems(src: IslandSource, r: PassResult, label: string): string[] {
+    const city = r.city;
     const items: string[] = [];
+    const totals = this.cityUi.totals();
     if (totals) {
+      items.push(`<strong>${num(totals.residents)} Einwohner</strong> (Schätzung) · Rathausradius ${Math.round(totals.townHallShare * 100)} %`);
+    }
+    const names: Record<string, string> = { l3: 'nur Stufe 3', '335': '3-3-5', '45': '4-5', free: 'frei gemischt' };
+    const c = r.levels.counts;
+    const mix = [c.V5 ? `${num(c.V5)}× V5` : '', c.V4 ? `${num(c.V4)}× V4` : '', c.V3 ? `${num(c.V3)}× V3` : '', c.I3 ? `${num(c.I3)}× I3` : '']
+      .filter(Boolean)
+      .join(', ');
+    items.push(`Bauweise <strong>${names[r.levels.mode] ?? r.levels.mode}</strong>: ${mix}`);
+    if (r.levels.minEngineers > 0) {
       items.push(
-        `<strong>${num(totals.residents)} Einwohner</strong> (Schätzung) · Rathausradius ${Math.round(totals.townHallShare * 100)} %`,
+        `Ingenieure ${num(r.levels.engineers)} / benötigt ${num(r.levels.minEngineers)} (Kraftwerke)${
+          r.levels.engineers < r.levels.minEngineers ? ' – <strong>zu wenig</strong>' : ' ✓'
+        }`,
       );
     }
-    {
-      const names: Record<string, string> = { l3: 'nur Stufe 3', '335': '3-3-5', '45': '4-5', free: 'frei gemischt' };
-      const c = levels.counts;
-      const mix = [c.V5 ? `${num(c.V5)}× V5` : '', c.V4 ? `${num(c.V4)}× V4` : '', c.V3 ? `${num(c.V3)}× V3` : '', c.I3 ? `${num(c.I3)}× I3` : '']
-        .filter(Boolean)
-        .join(', ');
-      items.push(`Bauweise <strong>${names[levels.mode] ?? levels.mode}</strong>: ${mix}`);
-      if (levels.minEngineers > 0) {
-        items.push(
-          `Ingenieure ${num(levels.engineers)} / benötigt ${num(levels.minEngineers)} (Kraftwerke)${
-            levels.engineers < levels.minEngineers ? ' – <strong>zu wenig</strong>' : ' ✓'
-          }`,
-        );
-      }
-    }
     items.push(
-      `${num(city.houses.length)} Häuser · ${city.townHalls.length} Rathäuser · Restfläche ${(
-        (100 * freeTiles(src.mask, city)) /
-        src.mask.landCount
-      ).toFixed(1)} %`,
+      `${num(city.houses.length)} Häuser · ${city.townHalls.length} Rathäuser · Restfläche ${((100 * freeTiles(src.mask, city)) / src.mask.landCount).toFixed(1)} %`,
     );
-    if (serviced) {
-      const r = serviced.report;
+    if (r.services) {
+      const s = r.services;
       const short: Record<string, string> = {
         departmentStore: 'Kaufhaus',
         furnitureStore: 'Einrichtungsh.',
@@ -630,7 +610,7 @@ export class PlannerUi {
         varietyTheatre: 'Varieté',
         membersClub: 'Clubhaus',
       };
-      const p = r.production;
+      const p = s.production;
       if (p) {
         const parts = Object.entries(p.byGuid).map(([g, n]) => `${n}× ${lookup(Number(g)).name}`);
         items.push(
@@ -642,21 +622,19 @@ export class PlannerUi {
         );
       }
       items.push(
-        `Versorgung: ${kinds
-          .filter((k) => r.placed[k])
-          .map((k) => `${r.placed[k]}× ${short[k]}`)
-          .join(', ')}, ${r.warehouses}× Lagerhaus${
-          r.ministry.placed ? ` · Regionalministerium (${num(r.ministry.houses)} Häuser in Reichweite)` : ''
-        }${
-          r.airport.placed
-            ? ` · Lufthafen${this.currentHarbor() ? ` ${r.airport.distance} Kacheln von der Anlegestelle` : ' (Anlegestelle nicht gesetzt)'}, ${r.airport.houses} Häuser verdrängt`
+        `Versorgung: ${SERVICE_KINDS_UI.filter((k) => s.placed[k])
+          .map((k) => `${s.placed[k]}× ${short[k]}`)
+          .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · Regionalministerium (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
+          s.airport.placed
+            ? ` · Lufthafen${this.currentHarbor() ? ` ${s.airport.distance} Kacheln von der Anlegestelle` : ''}, ${s.airport.houses} Häuser verdrängt`
             : el<HTMLInputElement>('#plan-airport').checked
               ? ' · Lufthafen: kein Platz gefunden'
               : ''
         }`,
       );
     }
-    if (post) {
+    if (r.post) {
+      const post = r.post;
       items.push(
         `Post: ${post.boxes} Briefkästen${post.removedHouses ? ` (${post.removedHouses} davon statt eines Hauses)` : ' in Restkacheln'} · ${post.production.toFixed(0)} von ${post.need.toFixed(0)} t/min Bedarf${
           post.production < post.need ? ' (zu wenig Platz – Rest per Postamt/Luftschiff)' : ''
@@ -672,33 +650,11 @@ export class PlannerUi {
       );
     }
     items.push(
-      `Durchlauf ${linesPerGroup}er-Linien nach ${secs} s${compacted ? ` · Nachverdichtung +${compacted.gained} Häuser` : ''}${
-        inserted ? ` · Querstraßen nach Bedarf: ${inserted.inserted} eingefügt (−${inserted.housesLost} Häuser)` : ''
-      }${thinned ? ` · ausgedünnt: ${thinned.segments} Stücke, +${thinned.gained} Häuser` : ''}`,
+      `Gewählter Durchlauf ${label} (${Math.round(r.ms / 1000)} s)${r.compactGained ? ` · Nachverdichtung +${r.compactGained} Häuser` : ''}${
+        r.insert ? ` · Querstraßen nach Bedarf: ${r.insert.inserted} eingefügt (−${r.insert.housesLost} Häuser)` : ''
+      }${r.thin ? ` · ausgedünnt: ${r.thin.segments} Stücke, +${r.thin.gained} Häuser` : ''}`,
     );
-    return { residents: totals?.residents ?? 0, items, result: this.result as PlanResult };
-  }
-
-  /** Straßennetz an die Versorgung anpassen im Hintergrund (codesign.ts + thin.ts). */
-  private roads(
-    mask: LandMask,
-    city: CityPlan,
-    ministry: { range: number; welfare: number; web: number } | undefined,
-    insert: boolean,
-    thin: boolean,
-  ): Promise<{ city: CityPlan; thin: ThinReport | null; insert: InsertReport | null }> {
-    const id = ++this.jobId;
-    const worker = this.worker(0);
-    return new Promise((resolve) => {
-      worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
-        const msg = event.data;
-        if (msg.id !== id) return;
-        if (msg.kind === 'progress') this.progress.detail(`Häuser bisher ${msg.gained >= 0 ? '+' : ''}${msg.gained}`);
-        else if (msg.kind === 'thin') resolve({ city: msg.city, thin: msg.report, insert: msg.insert });
-      };
-      const job: PlannerJob = { kind: 'thin', id, mask, city, budgetMs: 60000, ministry, insert, thin };
-      worker.postMessage(job);
-    });
+    return items;
   }
 
   private readonly watch = el<HTMLInputElement>('#plan-watch');
@@ -790,98 +746,6 @@ export class PlannerUi {
       const job: PlannerJob = { kind: 'levels', id, mask, city, rules, mode, budgetMs, seed: 11 + seed * 977, selfWorkforce, withMail };
       worker.postMessage(job);
     });
-  }
-
-  /** Versorgungsgebäude + Lagerhäuser im Hintergrund (services.ts). */
-  private services(
-    mask: LandMask,
-    city: CityPlan,
-    kinds: BuildingKind[],
-    fullCoverageValue: number,
-    houseStates?: Map<string, { tier: 'engineer' | 'investor'; level: 3 | 4 | 5 }>,
-  ): Promise<{ city: CityPlan; report: ServiceReport; refilled: number }> {
-    const id = ++this.jobId;
-    const worker = this.worker(0);
-    return new Promise((resolve) => {
-      worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
-        const msg = event.data;
-        if (msg.id === id && msg.kind === 'services') resolve({ city: msg.city, report: msg.report, refilled: msg.refilled });
-      };
-      const deliveryGoods = el<HTMLInputElement>('#rule-delivery').checked;
-      const rules = this.cityUi.currentRules();
-      const townHallItems = rules.townHallItems;
-      const ministry =
-        el<HTMLInputElement>('#plan-ministry').checked && rules.ministry !== 'none'
-          ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules) }
-          : undefined;
-      const airport = el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined;
-      const production = this.production.some((r) => r.count > 0)
-        ? { requests: this.production.map((r) => ({ ...r })), power: el<HTMLInputElement>('#prod-power').checked }
-        : undefined;
-      const job: PlannerJob = { kind: 'services', id, mask, city, kinds, fullCoverageValue, deliveryGoods, houseStates, townHallItems, ministry, airport, production };
-      worker.postMessage(job);
-    });
-  }
-
-  /** Gittersuche (mit Bandverschiebung) im Hintergrund. */
-  private fill(mask: LandMask, orientation: 'auto' | Orientation, housesPerLine: number): Promise<FillResult> {
-    const id = ++this.jobId;
-    const worker = this.worker(0);
-    return new Promise((resolve) => {
-      worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
-        const msg = event.data;
-        if (msg.id === id && msg.kind === 'fill') resolve(msg.result);
-      };
-      const bridgeLen = Number(el<HTMLSelectElement>('#plan-bridges').value) || 0;
-      const job: PlannerJob = { kind: 'fill', id, mask, orientation, housesPerLine, bridgeLen };
-      worker.postMessage(job);
-    });
-  }
-
-  /**
-   * Nachverdichtung auf mehreren Kernen mit verschiedenen Seeds; das Ergebnis
-   * mit dem höchsten Wert (Häuser × 225 + Häuser im Rathausradius × 31) gewinnt.
-   */
-  private async compact(
-    mask: LandMask,
-    city: CityPlan,
-    budgetMs: number,
-    started: number,
-    seed = 0,
-  ): Promise<{ city: CityPlan; gained: number; moved: number }> {
-    const cores = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
-    const id = ++this.jobId;
-    const progress = new Array<number>(cores).fill(0);
-    const value = (c: CityPlan): number => {
-      const covered = c.houses.filter((hs) =>
-        c.townHalls.some((t) => Math.hypot(hs.x + 1 - (t.x + 1.5), hs.y + 1 - (t.y + 1.5)) <= 20 + 1e-9),
-      ).length;
-      return c.houses.length * 225 + covered * 31;
-    };
-    const results = await Promise.all(
-      Array.from({ length: cores }, (_, i) => {
-        const worker = this.worker(i);
-        return new Promise<{ city: CityPlan; gained: number; moved: number }>((resolve) => {
-          worker.onmessage = (event: MessageEvent<PlannerMessage>) => {
-            const msg = event.data;
-            if (msg.id !== id) return;
-            if (msg.kind === 'progress') {
-              progress[i] = msg.gained;
-              if (msg.city) this.preview(mask, msg.city, 'Zwischenstand');
-              const secs = ((performance.now() - started) / 1000).toFixed(0);
-              this.progress.detail(`${cores} Kern${cores === 1 ? '' : 'e'} · bisher +${Math.max(...progress)} Häuser · ${secs} s`);
-            } else if (msg.kind === 'compact') {
-              resolve({ city: msg.city, gained: msg.gained, moved: msg.moved });
-            }
-          };
-          // Zwischenstände nur vom ersten Kern (die Analyse läuft im Hauptthread).
-          const job: PlannerJob = { kind: 'compact', id, mask, city, budgetMs, seed: 17 + i * 7919 + seed * 104729, snapshots: i === 0 && this.watch.checked };
-          worker.postMessage(job);
-        });
-      }),
-    );
-    results.sort((a, b) => value(b.city) - value(a.city));
-    return results[0];
   }
 
   private buildStamps(): void {

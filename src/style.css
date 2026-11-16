@@ -1222,3 +1222,15 @@ body:not([data-view='result']) .stage-layer {
   font-weight: 400;
   color: var(--muted);
 }
+
+.progress-detail .track-done {
+  color: #9fd79f;
+}
+
+.progress-detail .track-wait {
+  opacity: 0.55;
+}
+
+.progress-detail .muted {
+  color: var(--muted);
+}

@@ -168,9 +168,10 @@ analysieren, Beispielstadt, Katalog-Teststempel, Bedienung). Die Ebene der
 Plan-Ansicht wählt man oben rechts im Bild. Die Ladeanzeige (Schritt x/y,
 Balken, Zeit, Details) erscheint unter dem Button und groß über dem Bild.
 
-Gründlichkeit (unter „Erweitert“): **Durchläufe** 1/3/5 – die ganze Planung
-läuft mehrmals mit anderer Linienlänge bzw. anderem Zufall, der Plan mit den
-meisten Einwohnern gewinnt (Standard 3). **Querstraßen nach Bedarf**: nach der
+Gründlichkeit (unter „Erweitert“): **Durchläufe** 1/3/5/10 – die ganze Planung
+läuft mehrmals mit anderer Linienlänge bzw. anderem Zufall, gleichzeitig in
+eigenen Workern (so viele wie CPU-Kerne frei sind); der Plan mit den meisten
+Einwohnern gewinnt (Standard 10). **Querstraßen nach Bedarf**: nach der
 Versorgung Querstraßen dort einfügen, wo sie Läden/Strom mehr Häuser
 erreichen lassen, als sie kosten (+0,7 % auf Insel 2). **Querstraßen ausdünnen**: nach der
 Versorgung entbehrliche Querstraßen-Stücke entfernen und Reihen
