@@ -24,7 +24,8 @@ npm run build     # tsc + Vite; Pflichtprüfung nach Änderungen
 npm run preview   # Produktionsbuild lokal
 npm run check     # Solver-Regressionstest + Invarianten (scripts/check-solver.mjs)
 npm run build-db  # Spieldatenbank public/db neu erzeugen (Rohdaten: bash scripts/data/fetch-sources.sh)
-npm run check-db  # Prüfbericht der Datenbank (Gegenprobe Rechner, Stadtplaner-Werte)
+npm run build-prod # Produktion & Handelskammer vorberechnen (public/db/prod.json: Layouts, Item-Vorschläge)
+npm run check-db  # Prüfbericht der Datenbank (Gegenprobe Rechner, Stadtplaner-Werte, Layouts)
 ```
 
 Node 22+ wird in GitHub Actions verwendet. `package-lock.json` nicht
@@ -46,7 +47,11 @@ unnötig verändern.
 ## Code-Landkarte
 
 - Hilfeseite (mehrere Seiten, `vite.config.js` `build.rollupOptions.input`): `index.html` Startseite
-  (`src/start.ts`), `datenbank.html` (`src/db/page.ts`), `planer.html` (bisheriges Werkzeug, `src/main.ts`).
+  (`src/start.ts`), `datenbank.html` (`src/db/page.ts`, Typen/Laden `src/db/data.ts`), `produktion.html`
+  (`src/prod/page.ts`: Produktion & Handelskammer nach Vorbild annolayouts.de; Rechenkern `src/prod/calc.ts`
+  – Produktivität/Strom/Clipping/Arbeitskraft, `bestSetup`; Packer `src/prod/layout.ts` – meiste Gebäude
+  je HK-Radius mit Straßennetz; Vorberechnung `scripts/data/build-prod.mjs`), `planer.html` (bisheriges
+  Werkzeug, `src/main.ts`).
   Gemeinsamer Rahmen `src/site.ts`/`src/site-frame.css` (Navigation, Sprachumschalter, Fanprojekt-Hinweis;
   auch im Stadtplaner, dort ohne Fußzeile/Sprachwahl), Seitenstile `src/site.css` (Start/Datenbank),
   Sprachen `src/i18n.ts` (de/en, `data-i18n`; der Stadtplaner ist noch nur deutsch).

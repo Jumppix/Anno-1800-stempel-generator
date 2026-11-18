@@ -122,3 +122,48 @@ Offen, wartet auf `assets.xml`/`templates.xml` des Nutzers:
   Kosten von 504 Gebäuden, Regionen einzelner Gebäude), Freischaltbedingungen.
 - Bevölkerungsstufen/Bedürfnisse/Verbrauch, Herkunft der Items (Händler, Expeditionen),
   Sets (Zoo/Museum).
+
+## 7. Bereich „Produktion & Handelskammer“ (Vorbild annolayouts.de, Nov. 2026)
+
+Aufbau wie die Optimierungs-Übersicht von annolayouts.de: alle Produktionsgebäude
+nach Region und Arbeitskraft-Stufe gruppiert, je Gebäude eine Tabellenzeile mit
+Handelskammer-Item-Plätzen und den Ergebniswerten. Eigene Umsetzung aus unserer
+Datenbank – die Setups und Layout-Bilder von annolayouts.de sind Handarbeit des
+Autors und werden nicht übernommen; wir berechnen sie selbst.
+
+Je Gebäude:
+- Ein-/Ausgang, Grundfläche, Basis-t/min (Zykluszeit; sonst Anno-1800-Rechner).
+- **Item-Plätze (3)** mit drei berechneten Vorschlägen: *Max. Produktion*,
+  *Ohne Arbeitskraft* (falls mit Items erreichbar), *Ohne legendäre Items*.
+  Plätze per Klick änderbar (Auswahl aller passenden HK-Items, nach Seltenheit).
+- **Strom** an/aus (bei Pflicht immer an; Item mit Stromversorgung zählt),
+  **Clipping** (Item-Effekte doppelt).
+- Werte: Produktivität, Zykluszeit, t/min je Gebäude und je Handelskammer,
+  Arbeitskraft (inkl. Ersatz-Arbeitskraft), Zusatzwaren, ersetzte/entfallende Eingänge.
+- **Gebäude je Handelskammer**: eigener Packer (Mittelpunkt im Radius 15,
+  Straßenanschluss, Straßennetz mit Anschluss an die HK), Vorschau und
+  **Stempel-Download** (Alte/Neue Welt). Für Farmen (Felder), Minen (Vorkommen)
+  und Flächengebäude (Wald) nur manuelle Anzahl.
+
+Formel (wie annolayouts.de): Produktivität = 100 % + Σ Item-Produktivität
+(geclippt ×2) + 100 % Strom (wenn `Industrializable` und nicht
+`BoostedByIndustrialization = 0`); Zykluszeit = ⌊Basis · 100 / Produktivität⌋;
+Arbeitskraft = Basis · (1 + Σ %/100), mindestens 0.
+
+Später: Palast-Effekte/Zeitung, Hafenmeisterei-Items (Fischerei/Hafengebäude),
+Rathaus-Bereich, Produktionsketten-Rechner.
+
+**Stand (18.11.2026) – umgesetzt:** `produktion.html` mit Regionen-Reitern (Alte/Neue Welt,
+Arktis, Enbesa), Gruppen je Arbeitskraft, Suche, Clipping-Schalter; je Gebäude drei
+vorberechnete Setups (`public/db/prod.json`, `npm run build-prod`), Item-Auswahl (nach
+Seltenheit, mit Effekt-Zusammenfassung), Strom-Schalter (Pflicht/optional/Item), Werte je
+Gebäude und × Anzahl. Packer: 28 Grundflächen, z. B. 6×6 (Hochrad) 20, 5×5 28, 3×3 66 Gebäude
+je Handelskammer; `check-db` prüft Radius, Überlappung und Straßenanschluss aller Layouts.
+Stempel-Download (Alte Welt) mit Handelskammer, Gebäuden und Pflaster; Gegenprobe mit dem
+eigenen Stempel-Einleser: 20/20 im Radius, keine Überlappung. Farmen, Minen, Flächen- und
+Küstengebäude: Anzahl manuell. Test- und Kampagnen-Gebäude ausgeblendet, fehlende Regionen
+aus Vorlage/Arbeitskraft abgeleitet.
+
+Offen: Hafenmeisterei-Items für Küstengebäude, Palast/Zeitung, Farmen mit Feldern im
+Layout, Stempel für Neue Welt/Enbesa (Handelskammer-GUID der Region fehlt im Abzug),
+„+50 % bei 0 Arbeitskraft“ (in annolayouts.de umgesetzt, Spielmechanik noch nicht geprüft).

@@ -1,5 +1,21 @@
 {
- "built": "2026-11-18T13:28:23.861Z",
+ "built": "2026-11-18T14:40:40.709Z",
+ "workforce": [
+  1010052,
+  1010115,
+  1010116,
+  1010117,
+  1010128,
+  1010366,
+  1010367,
+  112653,
+  112654,
+  114340,
+  114341,
+  124478,
+  132723,
+  5406
+ ],
  "sources": [
   {
    "name": "anno-toolkit (jansepke)",
@@ -25,9 +41,9 @@
  ],
  "counts": {
   "items": 1455,
-  "buildings": 1396,
-  "names": 6038,
-  "icons": 2105
+  "buildings": 1388,
+  "names": 6028,
+  "icons": 2102
  },
  "limits": [
   "Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).",
@@ -398,13 +414,13 @@
   },
   {
    "file": "buildings.json",
-   "bytes": 468720,
-   "sha1": "0218c4427b8e"
+   "bytes": 471814,
+   "sha1": "a60b99ec54cd"
   },
   {
    "file": "names.json",
-   "bytes": 726287,
-   "sha1": "13fd91a6de39"
+   "bytes": 725398,
+   "sha1": "9131545934db"
   },
   {
    "file": "items-raw.json",
@@ -413,8 +429,8 @@
   },
   {
    "file": "buildings-raw.json",
-   "bytes": 1838676,
-   "sha1": "aa2a9bc9e97a"
+   "bytes": 1828023,
+   "sha1": "dd9b11eb1c75"
   }
  ]
 }

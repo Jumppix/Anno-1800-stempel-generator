@@ -53,6 +53,38 @@ for (const [g, name, want] of [[1010323, 'Hochrad-Werkhalle', 'req'], [135100, '
 }
 console.log(`info   Strom erforderlich: ${buildings.filter((b) => b.pow === 'req').length}, optional: ${buildings.filter((b) => b.pow === 'opt').length}`);
 
+// Produktion & Handelskammer (public/db/prod.json)
+{
+  const prod = load('prod.json');
+  const hochrad = prod.layouts['6x6'];
+  check('Layout 6×6 (Hochrad-Werkhalle): ≥ 18 Gebäude je Handelskammer', (hochrad?.n ?? 0) >= 18, `${hochrad?.n}`);
+  // Jedes Gebäude im Layout: Mittelpunkt im Radius, keine Überlappung, Straße angrenzend
+  let bad = 0;
+  for (const [key, L] of Object.entries(prod.layouts)) {
+    const [px, pz] = key.split('x').map(Number);
+    const occ = new Set(['-2,-2']);
+    for (let y = -2; y < 2; y++) for (let x = -2; x < 2; x++) occ.add(`${x},${y}`);
+    const roads = new Set(L.r.map(([x, y]) => `${x},${y}`));
+    for (const [x, y, turns] of L.b) {
+      const w = turns % 2 ? px : pz;
+      const h = turns % 2 ? pz : px;
+      if (Math.hypot(x + w / 2, y + h / 2) > prod.radius + 1e-9) bad++;
+      let road = false;
+      for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
+        const k = `${xx},${yy}`;
+        if (occ.has(k) || roads.has(k)) bad++;
+        occ.add(k);
+      }
+      for (let xx = x; xx < x + w; xx++) road ||= roads.has(`${xx},${y - 1}`) || roads.has(`${xx},${y + h}`);
+      for (let yy = y; yy < y + h; yy++) road ||= roads.has(`${x - 1},${yy}`) || roads.has(`${x + w},${yy}`);
+      if (!road) bad++;
+    }
+  }
+  check('Layouts: alle Gebäude im Radius, ohne Überlappung, mit Straßenanschluss', bad === 0, `${Object.keys(prod.layouts).length} Größen, ${bad} Fehler`);
+  const withSetup = Object.values(prod.setups).filter((s) => s.max?.length).length;
+  console.log(`info   ${withSetup}/${Object.keys(prod.setups).length} Produktionsgebäude mit Item-Vorschlag`);
+}
+
 // 3. Lücken
 const noSize = buildings.filter((b) => !b.sz && b.c !== 'ornament' && b.c !== 'module');
 console.log(`info   ${noSize.length} Gebäude (ohne Zierde/Module) ohne Grundfläche im Anno Designer`);

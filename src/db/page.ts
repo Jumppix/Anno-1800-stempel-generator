@@ -5,71 +5,7 @@ import '../site.css';
 import { applyI18n, getLang, onLangChange, pick, t } from '../i18n';
 import { mountSite } from '../site';
 
-type Bi = { de: string; en: string };
-type Amount = { p: number; a: number; ia?: number; inf?: number };
-
-interface Building {
-  g: number;
-  t: string;
-  c: string;
-  n: Bi;
-  d?: Bi;
-  i?: string;
-  reg?: string[];
-  sz?: [number, number];
-  rad?: number;
-  rng?: number;
-  road?: boolean;
-  cost?: Amount[];
-  costInh?: boolean;
-  mt?: Amount[];
-  in?: Amount[];
-  out?: Amount[];
-  ct?: number;
-  calcTpm?: number;
-  ps?: { full?: number; none?: number; out?: number[] };
-  pw?: number;
-  pow?: 'req' | 'opt';
-  sock?: { r?: number; a?: string };
-  res?: { lvl?: number; max?: number };
-  up?: number;
-  ph?: number[];
-  dlc?: number;
-}
-
-interface Effect {
-  grp: string;
-  k: string;
-  v: unknown;
-}
-
-interface Item {
-  g: number;
-  t: string;
-  n: Bi;
-  d?: Bi;
-  i?: string;
-  r: string;
-  s: string;
-  it?: string;
-  p?: number;
-  tg: number[];
-  tgx: number[];
-  fx: Effect[];
-  ex?: Array<{ k: string; v: number }>;
-  dlc?: number;
-  act?: boolean;
-}
-
-interface Meta {
-  built: string;
-  sources: Array<{ name: string; url: string; commit: string | null; license: string; use: string }>;
-  counts: Record<string, number>;
-  limits: string[];
-  labels: { effects: Record<string, [string, string]>; rarity: Record<string, [string, string]>; expedition?: Record<string, [string, string]> };
-}
-
-type Names = Record<string, [string, string, string?]>;
+import type { Amount, Bi, Building, Effect, Item, Meta, Names } from './data';
 
 const BASE = `${import.meta.env.BASE_URL}db/`;
 const PAGE = 120;

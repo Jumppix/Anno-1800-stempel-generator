@@ -306,6 +306,15 @@ for (const start of nextPhase.keys()) {
   for (const g of chain) phaseChain.set(g, chain);
 }
 
+// Arbeitskraft → Region (Name der Arbeitskraft-Ware: moderate/colony/arctic/africa …)
+const WF_REGION = { moderate: 'ow', colony: 'nw', arctic: 'arctic', africa: 'africa' };
+const workforceRegion = new Map();
+for (const r of byTemplate.get('Product') ?? []) {
+  if (!isObj(r.v.Product) || !r.v.Product.IsWorkforce) continue;
+  const key = String(r.v.Standard.Name ?? '').split(' ')[0].toLowerCase();
+  if (WF_REGION[key]) workforceRegion.set(r.g, WF_REGION[key]);
+}
+
 console.log('Gebäude …');
 const buildings = [];
 const buildingsRaw = {};
@@ -313,12 +322,22 @@ for (const rec of byGuid.values()) {
   const v = rec.v;
   if (!('Building' in v) || !('Constructable' in v) || SKIP_TEMPLATES.has(rec.t)) continue;
   if (/^CreativeMode|^Campaign/i.test(v.Standard.Name ?? '')) continue;
+  // Test- und Kampagnen-Gebäude (z. B. „GASOLINE TEST“, „Edvards Holzhof“)
+  if (/\bTEST\b|Testr|Edvard/.test(`${v.Standard.Name ?? ''} ${v.Text?.LocaText?.English?.Text ?? ''} ${textsEn[rec.g] ?? ''}`)) continue;
   const name = nameOf(rec);
   if (!name) continue;
   const p = presets.get(rec.g);
+  // Region: Spielangabe; fehlt sie (Vorlagen-Standard), aus der Vorlage bzw. der Arbeitskraft ableiten.
   const regions = isObj(v.Building) && v.Building.AssociatedRegions
     ? String(v.Building.AssociatedRegions).split(';').map((r) => REGION[r] ?? r)
-    : undefined;
+    : /_Arctic$/.test(rec.t)
+      ? ['arctic']
+      : /Africa/.test(rec.t)
+        ? ['africa']
+        : (() => {
+            const wf = arr(v.Maintenance?.Maintenances?.Item).map((m) => workforceRegion.get(m.Product)).find(Boolean);
+            return wf ? [wf] : undefined;
+          })();
   const costItems = arr(v.Cost?.Costs?.Item);
   const cost = [];
   let costInherited;
@@ -345,6 +364,9 @@ for (const rec of byGuid.values()) {
   const dlc = v.Locked?.DLCDependency ?? (cf?.dlcs?.length ? calcDlc.get(cf.dlcs[0]) : undefined);
   if (dlc) ref(dlc);
   const res = isObj(v.Residence7) ? v.Residence7 : undefined;
+  // Farmen und Flächengebäude (Wald) laufen im Spiel ohne Strom; der Vorlagen-Standard
+  // von Industrializable ist dort unbekannt → nur ausdrückliche Angaben/„Electrifiable“-Vorlagen.
+  const noPowerDefault = (isObj(v.ModuleOwner) || 'FreeAreaProductivity' in v) && !/Electrifiable/.test(rec.t);
   if (res?.PopulationLevel7) ref(res.PopulationLevel7);
   buildings.push({
     g: rec.g,
@@ -369,12 +391,30 @@ for (const rec of byGuid.values()) {
     pw: isObj(v.Powerplant) ? v.Powerplant.IndustrializationDistance : undefined,
     // Strom: Komponente Industrializable (auch leer = Vorlagen-Standard: Bonus, nicht Pflicht).
     // MandatoryIndustrialization 1 = läuft nur mit Strom; BoostedByIndustrialization 0 = Strom ohne Wirkung.
-    pow: 'Industrializable' in v
+    pow: 'Industrializable' in v && (!noPowerDefault || (isObj(v.Industrializable) && v.Industrializable.MandatoryIndustrialization))
       ? isObj(v.Industrializable) && v.Industrializable.MandatoryIndustrialization
         ? 'req'
         : isObj(v.Industrializable) && v.Industrializable.BoostedByIndustrialization === 0
           ? undefined
           : 'opt'
+      : undefined,
+    // Strombonus (+100 % laut annolayouts.de): Industrializable vorhanden und nicht BoostedByIndustrialization 0.
+    eb: 'Industrializable' in v && !noPowerDefault && !(isObj(v.Industrializable) && v.Industrializable.BoostedByIndustrialization === 0) ? 1 : undefined,
+    // Bauart für den Handelskammer-Packer: Farm (Felder), Mine (Vorkommen), Fläche (Wald/Gebiet), sonst Fabrik.
+    kind: /Water|Coast/.test(isObj(v.Building) ? String(v.Building.TerrainType ?? '') : '')
+      ? 'coast'
+      : isObj(v.ModuleOwner)
+      ? 'farm'
+      : 'Slot' in v || /^(SlotFactory|OilPump)/.test(rec.t)
+        ? 'mine'
+        : 'FreeAreaProductivity' in v
+          ? 'area'
+          : undefined,
+    mods: isObj(v.ModuleOwner)
+      ? {
+          g: arr(v.ModuleOwner.ConstructionOptions?.Item ?? v.ModuleOwner.ConstructionOptions).map((o) => ref(o?.ModuleGUID)).filter(Boolean),
+          n: v.ModuleOwner.ModuleLimits?.Main?.Limit,
+        }
       : undefined,
     sock: isObj(v.ItemContainer) ? { r: v.ItemContainer.SocketScopeRadius, a: v.ItemContainer.SocketAllocation } : undefined,
     res: res ? { lvl: res.PopulationLevel7, max: res.ResidentMax } : undefined,
@@ -435,8 +475,13 @@ const files = [
   write('items-raw.json', itemsRaw),
   write('buildings-raw.json', buildingsRaw),
 ];
+// Arbeitskraft-Waren (Product.IsWorkforce), Reihenfolge wie im Spiel.
+const workforce = (byTemplate.get('Product') ?? [])
+  .filter((r) => isObj(r.v.Product) && r.v.Product.IsWorkforce)
+  .map((r) => ref(r.g));
 const meta = {
   built: new Date().toISOString(),
+  workforce,
   sources: [
     { name: 'anno-toolkit (jansepke)', url: 'https://github.com/jansepke/anno-toolkit', commit: commit(TK), license: 'MIT', use: 'assets.xml als JSON, Texte, Icons' },
     { name: 'Anno1800Calculator (NiHoel)', url: 'https://github.com/NiHoel/Anno1800Calculator', commit: commit(join(RAW, 'Anno1800Calculator')), license: 'MIT', use: 'Gegenprobe Produktion (t/min), DLC-Zuordnung' },

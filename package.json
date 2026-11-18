@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "node scripts/check-solver.mjs",
     "build-db": "node scripts/data/build-db.mjs",
-    "check-db": "node scripts/data/check-db.mjs"
+    "check-db": "node scripts/data/check-db.mjs",
+    "build-prod": "node scripts/data/build-prod.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2",

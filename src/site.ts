@@ -3,7 +3,7 @@
 import './site-frame.css';
 import { applyI18n, getLang, onLangChange, setLang, t } from './i18n';
 
-export type Page = 'start' | 'db' | 'planner';
+export type Page = 'start' | 'db' | 'prod' | 'planner';
 
 export function mountSite(page: Page): void {
   const header = document.createElement('header');
@@ -13,6 +13,7 @@ export function mountSite(page: Page): void {
     <nav class="site-nav">
       <a href="./" data-i18n="nav.start" ${page === 'start' ? 'aria-current="page"' : ''}></a>
       <a href="./datenbank.html" data-i18n="nav.db" ${page === 'db' ? 'aria-current="page"' : ''}></a>
+      <a href="./produktion.html" data-i18n="nav.prod" ${page === 'prod' ? 'aria-current="page"' : ''}></a>
       <a href="./planer.html" data-i18n="nav.planner" ${page === 'planner' ? 'aria-current="page"' : ''}></a>
     </nav>
     ${page === 'planner' ? '' : '<button class="site-lang" type="button" data-i18n="lang.switch"></button>'}`;
@@ -31,7 +32,8 @@ export function mountSite(page: Page): void {
   applyI18n();
   if (page === 'planner') return; // Titel steht in planer.html
   const title = (): void => {
-    document.title = page === 'db' ? `${t('db.title')} · ${t('site.title')}` : t('site.title');
+    const sub = page === 'db' ? t('db.title') : page === 'prod' ? t('prod.title') : '';
+    document.title = sub ? `${sub} · ${t('site.title')}` : t('site.title');
   };
   title();
   onLangChange(title);

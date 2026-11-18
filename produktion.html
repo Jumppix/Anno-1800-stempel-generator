@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Produktion · Anno-1800-Hilfe</title>
+  </head>
+  <body class="site">
+    <main class="prod">
+      <header class="prod-head">
+        <h1 data-i18n="prod.title"></h1>
+        <p class="lead" data-i18n="prod.lead"></p>
+        <div class="prod-bar">
+          <nav class="prod-regions" id="prod-regions"></nav>
+          <div class="search">
+            <input id="prod-q" type="search" data-i18n-ph="db.search" />
+            <button id="prod-q-clear" type="button" hidden>✕</button>
+          </div>
+          <label class="prod-toggle"><input id="prod-clip" type="checkbox" /> <span data-i18n="prod.clip"></span></label>
+        </div>
+      </header>
+      <div id="prod-groups" class="prod-groups"><p class="db-empty" data-i18n="db.loading"></p></div>
+      <p class="note prod-foot" data-i18n="prod.formula"></p>
+    </main>
+    <div id="prod-modal" class="modal" hidden>
+      <div class="modal-box" role="dialog" aria-modal="true">
+        <button class="modal-close" type="button" aria-label="Schließen">✕</button>
+        <div class="modal-body"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/prod/page.ts"></script>
+  </body>
+</html>

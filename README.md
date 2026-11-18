@@ -17,6 +17,16 @@ Die Seite ist eine Anno-1800-Hilfeseite mit mehreren Bereichen:
 lässt sich zwischen Deutsch und Englisch umschalten (der Stadtplaner ist noch
 nur deutsch).
 
+**Produktion & Handelskammer** (`produktion.html`, nach dem Vorbild der
+Optimierungs-Übersicht von annolayouts.de): alle Produktionsgebäude je Region,
+gruppiert nach Arbeitskraft-Stufe. Je Gebäude drei berechnete Vorschläge für
+die Handelskammer-Items (*Max*, *Ohne Arbeitskraft*, *Ohne Legendär*), per
+Klick änderbar; Strom an/aus, Clipping, Produktivität, Zykluszeit, Ausstoß und
+Arbeitskraft je Gebäude und je Handelskammer, Zusatzwaren, ersetzte Eingänge.
+„Anzahl je HK“ kommt aus einem eigenen Packer (meiste Gebäude mit Mittelpunkt
+im Radius 15, alle mit Straßenanschluss) – mit Vorschau und Stempel-Download
+(Alte Welt). Auswahl wird im Browser gespeichert.
+
 Die Datenbank zeigt alle Gebäude und Items mit Kosten, Unterhalt, Produktion,
 Reichweiten, Item-Effekten und Zielgebäuden sowie alle Rohwerte. Sie wird aus
 Spieldaten erzeugt (`npm run build-db`, Quellen und Vorgehen in
