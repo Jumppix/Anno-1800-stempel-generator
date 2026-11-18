@@ -272,6 +272,40 @@ const CATEGORY = [
 const REGION = { Moderate: 'ow', Colony01: 'nw', Arctic: 'arctic', Africa: 'africa' };
 const categoryOf = (t) => CATEGORY.find(([re]) => re.test(t))?.[1] ?? 'other';
 
+// Geerbte Kosten (VectorElement/InheritedIndex): Die Ware steht in der Vorlage
+// (templates.xml). Abgeleitet nur für Vorlagen, deren ausgeschriebene
+// Kostenlisten alle der Standardfolge entsprechen; sonst „unbekannt“.
+const STD_COST = [1010017, 1010196, 1010205, 1010218, 1010207, 1010202];
+const stdCostTemplates = new Set();
+{
+  const ok = new Map();
+  for (const rec of byGuid.values()) {
+    const list = arr(rec.v?.Cost?.Costs?.Item);
+    if (!list.length || list.some((c) => c?.VectorElement)) continue;
+    const good = list.slice(0, STD_COST.length).every((c, i) => c?.Ingredient === STD_COST[i]);
+    ok.set(rec.t, (ok.get(rec.t) ?? true) && good);
+  }
+  for (const [tmpl, good] of ok) if (good) stdCostTemplates.add(tmpl);
+}
+
+// Bauphasen (Monumente): Monument.UpgradeTarget verkettet die Phasen.
+const nextPhase = new Map();
+const hasPrev = new Set();
+for (const rec of byGuid.values()) {
+  const target = isObj(rec.v?.Monument) ? rec.v.Monument.UpgradeTarget : undefined;
+  if (typeof target === 'number' && byGuid.has(target)) {
+    nextPhase.set(rec.g, target);
+    hasPrev.add(target);
+  }
+}
+const phaseChain = new Map(); // GUID → Liste aller Phasen (Start bis Ende)
+for (const start of nextPhase.keys()) {
+  if (hasPrev.has(start)) continue;
+  const chain = [start];
+  for (let g = nextPhase.get(start); g !== undefined && !chain.includes(g); g = nextPhase.get(g)) chain.push(g);
+  for (const g of chain) phaseChain.set(g, chain);
+}
+
 console.log('Gebäude …');
 const buildings = [];
 const buildingsRaw = {};
@@ -286,10 +320,17 @@ for (const rec of byGuid.values()) {
     ? String(v.Building.AssociatedRegions).split(';').map((r) => REGION[r] ?? r)
     : undefined;
   const costItems = arr(v.Cost?.Costs?.Item);
-  const cost = costItems
-    .filter((c) => typeof c.Ingredient === 'number' && (c.Amount ?? 0) > 0)
-    .map((c) => ({ p: ref(c.Ingredient), a: c.Amount }));
-  const costInherited = costItems.some((c) => c.VectorElement) || undefined;
+  const cost = [];
+  let costInherited;
+  for (const c of costItems) {
+    if ((c?.Amount ?? 0) <= 0) continue;
+    if (typeof c.Ingredient === 'number') cost.push({ p: ref(c.Ingredient), a: c.Amount });
+    else if (c.VectorElement) {
+      const idx = c.VectorElement.InheritedIndex ?? 0;
+      if (stdCostTemplates.has(rec.t) && idx < STD_COST.length) cost.push({ p: ref(STD_COST[idx]), a: c.Amount, inf: 1 });
+      else costInherited = true;
+    }
+  }
   const maint = arr(v.Maintenance?.Maintenances?.Item)
     .filter((m) => typeof m.Product === 'number')
     .map((m) => ({ p: ref(m.Product), a: m.Amount ?? 0, ia: m.InactiveAmount }));
@@ -338,6 +379,7 @@ for (const rec of byGuid.values()) {
     sock: isObj(v.ItemContainer) ? { r: v.ItemContainer.SocketScopeRadius, a: v.ItemContainer.SocketAllocation } : undefined,
     res: res ? { lvl: res.PopulationLevel7, max: res.ResidentMax } : undefined,
     up: isObj(v.Upgradable) && v.Upgradable.NextGUID ? ref(v.Upgradable.NextGUID) : undefined,
+    ph: phaseChain.get(rec.g)?.map(ref),
     dlc,
   });
   buildingsRaw[rec.g] = norm(stripNoise(v));
@@ -404,6 +446,7 @@ const meta = {
   limits: [
     'Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).',
     'Standardwerte der Vorlagen (templates.xml) fehlen: nicht angegebene Felder sind unbekannt, nicht 0.',
+    'Geerbte Baukosten sind nur dort aufgelöst, wo alle Kostenlisten der Vorlage die Standardfolge Münzen, Bretter, Ziegel, Stahlträger, Fenster, Stahlbeton haben (markiert als abgeleitet).',
   ],
   labels,
   files,

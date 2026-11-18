@@ -1,0 +1,109 @@
+/* Gemeinsamer Rahmen: Kopf- und Fußzeile (Startseite, Datenbank, Stadtplaner). */
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #0e1e2a, #0a1721);
+  flex-wrap: wrap;
+}
+
+.site-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 16px;
+}
+
+.site-mark {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+}
+
+.site-nav {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.site-nav a:hover {
+  color: var(--text);
+  background: var(--card);
+}
+
+.site-nav a[aria-current="page"] {
+  color: var(--gold);
+  background: var(--card);
+}
+
+.site-lang {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.site-lang:hover {
+  color: var(--text);
+  border-color: var(--gold);
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 10px 20px;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+
+/* Stadtplaner: Kopfleiste über dem Werkzeug, Werkzeug füllt den Rest. */
+body.with-header {
+  display: flex;
+  flex-direction: column;
+}
+
+body.with-header #app {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+@media (max-width: 760px) {
+  .site-header {
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .site-nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .site-lang {
+    margin-left: auto;
+  }
+}

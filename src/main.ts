@@ -1,4 +1,5 @@
 import './style.css';
+import { mountSite } from './site';
 import { zipSync, strToU8 } from 'fflate';
 import { emptyLayout, splitChunks, type Chunk, type LandMask, type Layout } from './solver';
 import { BUILDINGS, modeTypes, type BuildingMode } from './buildings';
@@ -21,6 +22,9 @@ import { Camera } from './camera';
 import { assembleParts, type AssembleResult } from './assemble';
 import { loadIsland, persistSettings, saveIsland } from './persist';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
+
+// Kopfleiste der Hilfeseite (Navigation) über dem Werkzeug.
+mountSite('planner');
 
 function el<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);

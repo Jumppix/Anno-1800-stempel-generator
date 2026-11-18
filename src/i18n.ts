@@ -106,6 +106,13 @@ const DICT: Record<string, [string, string]> = {
   'd.dlc': ['DLC', 'DLC'],
   'd.template': ['Vorlage', 'Template'],
   'd.cost': ['Baukosten', 'Construction cost'],
+  'd.phases': ['Bauphasen', 'Construction phases'],
+  'd.phasesTotal': ['Summe aller Phasen', 'Total of all phases'],
+  'd.phasesNote': [
+    'Kosten je Eintrag laut Spieldaten. Ob der letzte Eintrag (fertiges Gebäude) zusätzlich bezahlt wird, ist noch nicht im Spiel geprüft.',
+    'Cost per entry from the game data. Whether the last entry (finished building) is paid in addition is not yet verified in game.',
+  ],
+  'd.inferred': ['Ware aus der Vorlage abgeleitet (noch unbestätigt)', 'good derived from the template (not yet confirmed)'],
   'd.costInh': ['weitere Kosten aus der Vorlage (noch unbekannt)', 'more costs from the template (not yet known)'],
   'd.upkeep': ['Unterhalt', 'Upkeep'],
   'd.inactive': ['inaktiv', 'inactive'],

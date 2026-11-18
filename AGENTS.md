@@ -47,12 +47,14 @@ unnötig verändern.
 
 - Hilfeseite (mehrere Seiten, `vite.config.js` `build.rollupOptions.input`): `index.html` Startseite
   (`src/start.ts`), `datenbank.html` (`src/db/page.ts`), `planer.html` (bisheriges Werkzeug, `src/main.ts`).
-  Gemeinsamer Rahmen `src/site.ts`/`src/site.css` (Navigation, Sprachumschalter, Fanprojekt-Hinweis),
+  Gemeinsamer Rahmen `src/site.ts`/`src/site-frame.css` (Navigation, Sprachumschalter, Fanprojekt-Hinweis;
+  auch im Stadtplaner, dort ohne Fußzeile/Sprachwahl), Seitenstile `src/site.css` (Start/Datenbank),
   Sprachen `src/i18n.ts` (de/en, `data-i18n`; der Stadtplaner ist noch nur deutsch).
 - Spieldatenbank (Plan: `docs/PLAN_Datenbank.md`): `scripts/data/build-db.mjs` erzeugt `public/db/*.json`
   und `public/db/icons/*.webp` (via `scripts/data/shrink-icons.py`, Pillow) aus `research/raw/`
   (nicht im Repo; `scripts/data/fetch-sources.sh`). `public/db` ist erzeugt, wird aber committet
-  (Rohdaten fehlen in CI). Prüfbericht `scripts/data/check-db.mjs`.
+  (Rohdaten fehlen in CI). Prüfbericht `scripts/data/check-db.mjs`. Bauphasen (Monumente) über
+  `Monument.UpgradeTarget` (`ph`); geerbte Kosten nur bei Standard-Kostenfolge abgeleitet (`inf`).
 - `src/main.ts`: UI, Import, Zustand, `update()`/`rebuildOutputs()`, Export,
   Randstrecken.
 - `src/buildings.ts`: Gebäudetypen (Größe, Radius, GUID, Farbe).

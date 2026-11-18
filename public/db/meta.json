@@ -1,5 +1,5 @@
 {
- "built": "2026-11-18T13:21:55.194Z",
+ "built": "2026-11-18T13:28:23.861Z",
  "sources": [
   {
    "name": "anno-toolkit (jansepke)",
@@ -31,7 +31,8 @@
  },
  "limits": [
   "Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).",
-  "Standardwerte der Vorlagen (templates.xml) fehlen: nicht angegebene Felder sind unbekannt, nicht 0."
+  "Standardwerte der Vorlagen (templates.xml) fehlen: nicht angegebene Felder sind unbekannt, nicht 0.",
+  "Geerbte Baukosten sind nur dort aufgelöst, wo alle Kostenlisten der Vorlage die Standardfolge Münzen, Bretter, Ziegel, Stahlträger, Fenster, Stahlbeton haben (markiert als abgeleitet)."
  ],
  "labels": {
   "effects": {
@@ -397,8 +398,8 @@
   },
   {
    "file": "buildings.json",
-   "bytes": 465511,
-   "sha1": "008fc272287e"
+   "bytes": 468720,
+   "sha1": "0218c4427b8e"
   },
   {
    "file": "names.json",

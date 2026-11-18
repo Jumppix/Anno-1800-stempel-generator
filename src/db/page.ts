@@ -1,11 +1,12 @@
 // Datenbank-Seite: Gebäude und Items aus public/db (erzeugt von
 // scripts/data/build-db.mjs). Liste mit Suche/Filtern links, Details rechts,
 // Verweise per #b=<GUID> bzw. #i=<GUID>.
+import '../site.css';
 import { applyI18n, getLang, onLangChange, pick, t } from '../i18n';
 import { mountSite } from '../site';
 
 type Bi = { de: string; en: string };
-type Amount = { p: number; a: number; ia?: number };
+type Amount = { p: number; a: number; ia?: number; inf?: number };
 
 interface Building {
   g: number;
@@ -32,6 +33,7 @@ interface Building {
   sock?: { r?: number; a?: string };
   res?: { lvl?: number; max?: number };
   up?: number;
+  ph?: number[];
   dlc?: number;
 }
 
@@ -104,14 +106,16 @@ const nameOfGuid = (g: number): string => {
  * Tooltip (Maus darüber oder antippen). Ohne Icon wird der Name gezeigt.
  * Link zum Eintrag, falls es ihn in der Datenbank gibt.
  */
-function chip(g: number, extra = ''): string {
+function chip(g: number, extra = '', opts: { name?: boolean; inferred?: boolean } = {}): string {
   const n = names[g];
   const name = nameOfGuid(g);
   const ic = n?.[2];
   const href = buildingBy.has(g) ? `#b=${g}` : itemBy.has(g) ? `#i=${g}` : '';
-  const body = ic ? `${img(ic)}${extra ? `<span>${esc(extra)}</span>` : ''}` : `${esc(name)}${extra ? ` ${esc(extra)}` : ''}`;
-  const cls = `chip${ic ? (extra ? '' : ' icon-only') : ' plain'}`;
-  const tip = `data-tip="${esc(name)}" aria-label="${esc(name)}${extra ? ` ${esc(extra)}` : ''}"`;
+  const label = opts.name ? `${name}${extra ? ` ${extra}` : ''}` : extra;
+  const body = ic ? `${img(ic)}${label ? `<span>${esc(label)}</span>` : ''}` : `${esc(name)}${extra ? ` ${esc(extra)}` : ''}`;
+  const cls = `chip${ic ? (label ? '' : ' icon-only') : ' plain'}${opts.inferred ? ' inferred' : ''}`;
+  const tipText = opts.inferred ? `${name} – ${t('d.inferred')}` : name;
+  const tip = `data-tip="${esc(tipText)}" aria-label="${esc(name)}${extra ? ` ${esc(extra)}` : ''}"`;
   return href ? `<a class="${cls}" href="${href}" ${tip}>${body}</a>` : `<span class="${cls}" tabindex="0" ${tip}>${body}</span>`;
 }
 
@@ -159,7 +163,11 @@ function setupTooltip(): void {
 const amounts = (list?: Amount[], inactive = false): string =>
   list?.length
     ? `<div class="chips">${list
-        .map((a) => chip(a.p, `${num(a.a)}${inactive && a.ia !== undefined && a.ia !== a.a ? ` (${t('d.inactive')} ${num(a.ia)})` : ''}`))
+        .map((a) =>
+          chip(a.p, `${num(a.a)}${inactive && a.ia !== undefined && a.ia !== a.a ? ` (${t('d.inactive')} ${num(a.ia)})` : ''}`, {
+            inferred: !!a.inf,
+          }),
+        )
         .join('')}</div>`
     : '–';
 
@@ -381,6 +389,29 @@ function head(e: { g: number; n: Bi; d?: Bi; i?: string }, sub: string): string 
   }`;
 }
 
+/** Alle Bauphasen eines Monuments mit Kosten und Summe. */
+function phasesHtml(b: Building): string {
+  const phases = (b.ph ?? []).map((g) => buildingBy.get(g)).filter((x): x is Building => !!x);
+  const total = new Map<number, { a: number; inf: boolean }>();
+  let unknown = false;
+  const rows = phases.map((p, idx) => {
+    for (const c of p.cost ?? []) {
+      const s = total.get(c.p) ?? { a: 0, inf: false };
+      s.a += c.a;
+      s.inf ||= !!c.inf;
+      total.set(c.p, s);
+    }
+    unknown ||= !!p.costInh;
+    return `<li class="${p.g === b.g ? 'current' : ''}"><a href="#b=${p.g}" class="ph-name"><span class="ph-no">${idx + 1}</span>${esc(
+      pick(p.n),
+    )}</a>${amounts(p.cost)}${p.costInh ? `<span class="note">${esc(t('d.costInh'))}</span>` : ''}</li>`;
+  });
+  const sum = [...total].map(([p, s]) => ({ p, a: s.a, inf: s.inf ? 1 : undefined }));
+  return `<ol class="phases">${rows.join('')}</ol><div class="ph-total"><span class="lbl">${esc(t('d.phasesTotal'))}</span>${amounts(sum)}</div>${
+    unknown ? `<p class="note">${esc(t('d.costInh'))}</p>` : ''
+  }`;
+}
+
 function buildingDetail(b: Building): string {
   const sub = esc([t(`cat.${b.c}`), `GUID ${b.g}`].join(' · '));
   const general = grid(
@@ -423,7 +454,8 @@ function buildingDetail(b: Building): string {
   return (
     head(b, sub) +
     sec('d.general', general) +
-    sec('d.cost', b.cost || b.costInh ? amounts(b.cost) + (b.costInh ? `<p class="note">${esc(t('d.costInh'))}</p>` : '') : '') +
+    (b.ph ? sec('d.phases', phasesHtml(b), t('d.phasesNote')) : '') +
+    sec('d.cost', !b.ph && (b.cost || b.costInh) ? amounts(b.cost) + (b.costInh ? `<p class="note">${esc(t('d.costInh'))}</p>` : '') : '') +
     sec('d.upkeep', b.mt ? amounts(b.mt, true) : '') +
     sec('d.production', prod) +
     sec('d.ranges', ranges, ranges ? t('d.rangeNote') : '') +
@@ -445,9 +477,11 @@ function itemDetail(i: Item): string {
   );
   const fx = i.fx.length ? `<ul class="fx">${i.fx.map((e) => `<li>${fmtEffect(e)}</li>`).join('')}</ul>` : '';
   const targets = i.tg.length
-    ? `<div class="chips">${i.tg.map((g) => chip(g)).join('')}</div>${
+    ? `<div class="chips">${i.tg.map((g) => chip(g, '', { name: true })).join('')}</div>${
         i.tgx.length > i.tg.length || i.tgx.some((g) => !i.tg.includes(g))
-          ? `<details><summary class="note">${esc(t('db.count', { n: i.tgx.length }))}</summary><div class="chips">${i.tgx.map((g) => chip(g)).join('')}</div></details>`
+          ? `<details><summary class="note">${esc(t('db.count', { n: i.tgx.length }))}</summary><div class="chips">${i.tgx
+              .map((g) => chip(g, '', { name: true }))
+              .join('')}</div></details>`
           : ''
       }`
     : '';
