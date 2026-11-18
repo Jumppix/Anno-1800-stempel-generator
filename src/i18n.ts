@@ -220,6 +220,18 @@ const DICT: Record<string, [string, string]> = {
     'Berechnung wie annolayouts.de: Produktivität = 100 % + Item-Produktivität (geclippt doppelt) + 100 % Strom; Zykluszeit = Basis ÷ Produktivität (abgerundet); Arbeitskraft = Basis × (1 + Item-%) . Vorschläge: Max = höchster Ausstoß, Ohne AK = höchster Ausstoß ohne Arbeitskraft, Ohne Legendär = ohne legendäre Items. Palast- und Zeitungseffekte sind noch nicht eingerechnet.',
     'Calculated like annolayouts.de: productivity = 100 % + item productivity (doubled when clipped) + 100 % power; cycle time = base ÷ productivity (rounded down); workforce = base × (1 + item %). Suggestions: Max = highest output, No WF = highest output without workforce, No legendary = without legendary items. Palace and newspaper effects are not included yet.',
   ],
+  // Infofenster
+  'hc.more': ['und {n} weitere', 'and {n} more'],
+  'hc.slot': ['Ausgerüstet in', 'Equipped in'],
+  'hc.affects': ['Beeinflusst', 'Affects'],
+  'hc.powerReq': ['erforderlich', 'required'],
+  'hc.powerOpt': ['optional (+ Produktivität)', 'optional (+ productivity)'],
+  'hc.items': ['{n} Items beeinflussen dieses Gebäude', '{n} items affect this building'],
+  'hc.producedIn': ['Hergestellt in', 'Produced in'],
+  'hc.usedIn': ['Verbraucht in', 'Used in'],
+  'hc.extraBy': ['Als Zusatzware durch', 'As extra good from'],
+  'hc.good': ['Ware', 'Good'],
+  'hc.noInfo': ['Keine Produktionsangaben in der Datenbank.', 'No production data in the database.'],
   // Kategorien
   'cat.residence': ['Wohnen', 'Residences'],
   'cat.public': ['Öffentlich & Versorgung', 'Public & services'],

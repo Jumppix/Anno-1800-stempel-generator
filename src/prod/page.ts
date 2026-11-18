@@ -7,6 +7,7 @@ import '../site.css';
 import { applyI18n, getLang, onLangChange, pick, t } from '../i18n';
 import { mountSite } from '../site';
 import { DB_BASE, loadDb, rarityRank, type Building, type Db, type Item } from '../db/data';
+import { setupHoverCards } from '../db/hovercard';
 import { evaluate, itemFx, isUseful, slotsFor, SETUP_KINDS, SLOTS, type ProdResult, type SetupKind } from './calc';
 import { buildGenericStamp, type StampBuilding, type StampStreet } from '../stamp';
 import { STREET_GUIDS } from '../catalog';
@@ -50,8 +51,8 @@ const icon = (g: number, cls = 'ic', extra = ''): string => {
   const f = db.names[g]?.[2];
   const name = esc(nameOf(g));
   return f
-    ? `<img class="${cls}" src="${DB_BASE}icons/${f}" alt="${name}" data-tip="${name}${extra ? ` ${esc(extra)}` : ''}" loading="lazy" />`
-    : `<span class="${cls} txt" data-tip="${name}">${name}</span>`;
+    ? `<img class="${cls}" src="${DB_BASE}icons/${f}" alt="${name}" data-card="${g}" data-tip="${name}${extra ? ` ${esc(extra)}` : ''}" loading="lazy" />`
+    : `<span class="${cls} txt" data-card="${g}" data-tip="${name}">${name}</span>`;
 };
 
 // ------------------------------------------------------------------ Zustand
@@ -191,7 +192,7 @@ function rowHtml(b: Building): string {
       )}">▦ ${L.n}</button>`
     : `<input type="number" min="0" max="999" value="${n}" data-act="count" aria-label="${esc(t('prod.col.count'))}" data-tip="${esc(t(`prod.kind.${b.kind ?? 'none'}`))}" />`;
   return `
-    <span class="cell-b"><a href="./datenbank.html#b=${b.g}" class="bname">${b.i ? `<img class="bic" src="${DB_BASE}icons/${b.i}" alt="" loading="lazy" />` : ''}<span><b>${esc(pick(b.n))}</b><small>${
+    <span class="cell-b"><a href="./datenbank.html#b=${b.g}" class="bname">${b.i ? `<img class="bic" src="${DB_BASE}icons/${b.i}" alt="" data-card="${b.g}" loading="lazy" />` : ''}<span><b>${esc(pick(b.n))}</b><small>${
       b.sz ? `${b.sz[0]}×${b.sz[1]}` : ''
     }${b.dlc ? ` · ${esc(nameOf(b.dlc))}` : ''}</small></span></a>${chain}</span>
     <span class="cell-n" data-label="${esc(t('prod.col.count'))}">${countCell}</span>
@@ -367,42 +368,15 @@ function downloadStamp(
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-// ------------------------------------------------------------------ Tooltip
-function setupTooltip(): void {
-  const tip = document.createElement('div');
-  tip.className = 'tip';
-  tip.hidden = true;
-  document.body.append(tip);
-  const show = (el: HTMLElement): void => {
-    tip.textContent = el.dataset.tip ?? '';
-    tip.hidden = !tip.textContent;
-    const r = el.getBoundingClientRect();
-    const w = tip.offsetWidth;
-    tip.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
-    tip.style.top = `${r.top - tip.offsetHeight - 6 < 4 ? r.bottom + 6 : r.top - tip.offsetHeight - 6}px`;
-  };
-  document.addEventListener('mouseover', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
-    if (el) show(el);
-    else tip.hidden = true;
-  });
-  document.addEventListener('touchstart', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('img[data-tip]');
-    if (el) show(el);
-    else tip.hidden = true;
-  });
-  window.addEventListener('scroll', () => (tip.hidden = true), true);
-}
-
 // ------------------------------------------------------------------ Start
 async function main(): Promise<void> {
   mountSite('prod');
-  setupTooltip();
   loadState();
   try {
     const [d, p] = await Promise.all([loadDb(), fetch(`${DB_BASE}prod.json`).then((r) => r.json() as Promise<ProdData>)]);
     db = d;
     prod = p;
+    setupHoverCards(db);
   } catch (err) {
     $('#prod-groups').innerHTML = `<p class="db-empty">${esc(t('db.error'))}</p>`;
     console.error(err);

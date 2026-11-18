@@ -5,7 +5,8 @@ import '../site.css';
 import { applyI18n, getLang, onLangChange, pick, t } from '../i18n';
 import { mountSite } from '../site';
 
-import type { Amount, Bi, Building, Effect, Item, Meta, Names } from './data';
+import { loadDb, type Amount, type Bi, type Building, type Db, type Effect, type Item, type Meta, type Names } from './data';
+import { setupHoverCards } from './hovercard';
 
 const BASE = `${import.meta.env.BASE_URL}db/`;
 const PAGE = 120;
@@ -19,6 +20,7 @@ const rarityRank = (r: string): number => {
   return i < 0 ? RARITY_ORDER.length : i;
 };
 
+let db: Db;
 let meta: Meta;
 let buildings: Building[] = [];
 let items: Item[] = [];
@@ -57,49 +59,8 @@ function chip(g: number, extra = '', opts: { name?: boolean; inferred?: boolean;
   const body = ic ? `${img(ic)}${label ? `<span>${esc(label)}</span>` : ''}` : `${esc(name)}${extra ? ` ${esc(extra)}` : ''}`;
   const cls = `chip${ic ? (label ? '' : ' icon-only') : ' plain'}${opts.inferred ? ' inferred' : ''}${opts.cls ? ` ${opts.cls}` : ''}`;
   const tipText = opts.inferred ? `${name} – ${t('d.inferred')}` : name;
-  const tip = `data-tip="${esc(tipText)}" aria-label="${esc(name)}${extra ? ` ${esc(extra)}` : ''}"`;
+  const tip = `data-card="${g}" data-tip="${esc(tipText)}" aria-label="${esc(name)}${extra ? ` ${esc(extra)}` : ''}"`;
   return href ? `<a class="${cls}" href="${href}" ${tip}>${body}</a>` : `<span class="${cls}" tabindex="0" ${tip}>${body}</span>`;
-}
-
-/** Tooltip für [data-tip]: beim Überfahren und beim Antippen/Klicken. */
-function setupTooltip(): void {
-  const tip = document.createElement('div');
-  tip.className = 'tip';
-  tip.hidden = true;
-  document.body.append(tip);
-  let pinned: HTMLElement | null = null;
-  const show = (el: HTMLElement): void => {
-    tip.textContent = el.dataset.tip ?? '';
-    tip.hidden = false;
-    const r = el.getBoundingClientRect();
-    const w = tip.offsetWidth;
-    tip.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
-    tip.style.top = `${r.top - tip.offsetHeight - 6 < 4 ? r.bottom + 6 : r.top - tip.offsetHeight - 6}px`;
-  };
-  const hide = (): void => {
-    tip.hidden = true;
-    pinned = null;
-  };
-  document.addEventListener('mouseover', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
-    if (el) show(el);
-    else if (!pinned) tip.hidden = true;
-  });
-  document.addEventListener('focusin', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
-    if (el) show(el);
-  });
-  document.addEventListener('click', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
-    if (el && el.tagName !== 'A') {
-      if (pinned === el) hide();
-      else {
-        show(el);
-        pinned = el;
-      }
-    } else hide();
-  });
-  window.addEventListener('scroll', hide, true);
 }
 
 const amounts = (list?: Amount[], inactive = false): string =>
@@ -115,26 +76,11 @@ const amounts = (list?: Amount[], inactive = false): string =>
 
 // ------------------------------------------------------------------ Laden
 async function load(): Promise<void> {
-  const get = async <T>(f: string): Promise<T> => {
-    const r = await fetch(BASE + f);
-    if (!r.ok) throw new Error(`${f}: ${r.status}`);
-    return (await r.json()) as T;
-  };
-  [meta, buildings, items, names] = await Promise.all([
-    get<Meta>('meta.json'),
-    get<Building[]>('buildings.json'),
-    get<Item[]>('items.json'),
-    get<Names>('names.json'),
-  ]);
-  for (const b of buildings) buildingBy.set(b.g, b);
-  for (const it of items) {
-    itemBy.set(it.g, it);
-    for (const g of it.tgx) {
-      const list = itemsFor.get(g);
-      if (list) list.push(it);
-      else itemsFor.set(g, [it]);
-    }
-  }
+  db = await loadDb();
+  ({ meta, buildings, items, names } = db);
+  for (const [k, v] of db.buildingBy) buildingBy.set(k, v);
+  for (const [k, v] of db.itemBy) itemBy.set(k, v);
+  for (const [k, v] of db.itemsFor) itemsFor.set(k, v);
 }
 
 const rawOf = (kind: 'b' | 'i', g: number): Promise<unknown> => {
@@ -250,7 +196,7 @@ function renderList(): void {
         : [t(`slot.${(e as Item).s}`), rarityLabel((e as Item).r), (e as Item).fx[0] ? effectLabel((e as Item).fx[0].k) : '']
       ;
     return `<button class="db-row${e.g === selected ? ' active' : ''}" data-g="${e.g}" type="button">${
-      e.i ? img(e.i, 'ico') : '<span class="ico"></span>'
+      e.i ? img(e.i, 'ico').replace('<img ', `<img data-card="${e.g}" `) : '<span class="ico"></span>'
     }<span class="txt"><span class="name${tab === 'i' ? ` rarity-${(e as Item).r}` : ''}">${esc(pick(e.n))}</span><span class="sub">${esc(
       sub.filter(Boolean).join(' · '),
     )}</span></span></button>`;
@@ -513,9 +459,9 @@ function fromHash(): void {
 
 async function main(): Promise<void> {
   mountSite('db');
-  setupTooltip();
   try {
     await load();
+    setupHoverCards(db);
   } catch (err) {
     $('#db-count').textContent = t('db.error');
     console.error(err);

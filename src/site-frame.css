@@ -107,3 +107,158 @@ body.with-header #app {
     margin-left: auto;
   }
 }
+
+/* Infofenster beim Überfahren (Items, Waren, Gebäude) */
+.hovercard {
+  position: fixed;
+  z-index: 60;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: hidden;
+  background: linear-gradient(180deg, #172633, #0e1a24);
+  color: var(--text);
+  border: 1px solid #5b4a2a;
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  pointer-events: none;
+}
+
+.hovercard[hidden] {
+  display: none;
+}
+
+.hovercard.simple {
+  width: auto;
+  max-width: 280px;
+  padding: 4px 8px;
+  border-color: var(--gold);
+}
+
+.hc-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: linear-gradient(90deg, rgba(217, 179, 108, 0.16), transparent);
+  border-bottom: 1px solid #5b4a2a;
+}
+
+.hc-big {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+}
+
+.hc-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f3e6c8;
+}
+
+.hc-sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-sec {
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(91, 74, 42, 0.5);
+}
+
+.hc-sec:last-child {
+  border-bottom: 0;
+}
+
+.hc-sec b {
+  color: #f3e6c8;
+}
+
+.hc-cap {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.hc-split {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.hc-fx {
+  margin-top: 2px;
+}
+
+.hc-sym {
+  display: inline-block;
+  width: 16px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.hc-sub-line {
+  padding-left: 16px;
+  margin: 2px 0;
+}
+
+.hc-sub-line s {
+  color: var(--muted);
+}
+
+.hc-named {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hc-ic {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+
+.hc-amounts,
+.hc-chain,
+.hc-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.hc-amounts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.hc-chain b {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--muted) !important;
+  font-size: 12px;
+}
+
+.hc-desc,
+.hc-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hovercard .pos {
+  color: #7fc48a !important;
+}
+
+.hovercard .neg {
+  color: var(--red, #c4685d) !important;
+}
+
+.hovercard .rarity-common { color: #e6edf3; }
+.hovercard .rarity-uncommon { color: #7fbf4a; }
+.hovercard .rarity-rare { color: #6f8fe0; }
+.hovercard .rarity-epic { color: #c27fc4; }
+.hovercard .rarity-legendary { color: #e08a50; }
+.hovercard .rarity-narrative { color: #9a86c0; }
