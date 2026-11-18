@@ -7,6 +7,8 @@ import type { Building, Item } from '../db/data';
 
 export const COINS = 1010017;
 export const SLOTS = 3;
+/** Palast-Erlass „Gewerkschaftsförderung“: +1 Sockel in jeder Handelskammer. */
+export const UNION_SUBSIDIES = 269202;
 
 export interface ProdOptions {
   /** Strom vorhanden (Kraftwerk in Reichweite). */
@@ -168,7 +170,10 @@ const extraTotal = (r: ProdResult): number => r.extra.reduce((s, e) => s + e.per
 function better(a: ProdResult, an: number, b: ProdResult | null, bn: number): boolean {
   if (!b) return true;
   if (a.works !== b.works) return a.works;
-  if (Math.abs(a.perMin - b.perMin) > 1e-9) return a.perMin > b.perMin;
+  // Ohne bekannte Zykluszeit zählt die Produktivität.
+  const sa = a.cycle ? a.perMin : a.prod / 100;
+  const sb = b.cycle ? b.perMin : b.prod / 100;
+  if (Math.abs(sa - sb) > 1e-9) return sa > sb;
   if (Math.abs(extraTotal(a) - extraTotal(b)) > 1e-9) return extraTotal(a) > extraTotal(b);
   if (workforceTotal(a) !== workforceTotal(b)) return workforceTotal(a) < workforceTotal(b);
   return an < bn;
@@ -185,15 +190,17 @@ export function bestSetup(
   kind: SetupKind,
   opts: ProdOptions,
   workforceSet: ReadonlySet<number>,
+  slots = SLOTS,
 ): Item[] | null {
   let pool = candidates.filter((i) => isUseful(itemFx(i)));
   if (kind === 'noLegendary') pool = pool.filter((i) => i.r !== 'legendary');
   if (!pool.length) return kind === 'max' ? [] : null;
+  const per = slots > 3 ? 10 : 14;
   const top = (score: (fx: ItemFx) => number): Item[] =>
     pool
       .filter((i) => score(itemFx(i)) > 0)
       .sort((x, y) => score(itemFx(y)) - score(itemFx(x)))
-      .slice(0, 14);
+      .slice(0, per);
   const pre = new Set<Item>([
     ...top((f) => f.prod),
     ...top((f) => -f.wf + (f.wfType ? 50 : 0)),
@@ -211,14 +218,13 @@ export function bestSetup(
       bestR = r;
     }
   };
-  consider([]);
-  for (let i = 0; i < list.length; i++) {
-    consider([list[i]]);
-    for (let j = i + 1; j < list.length; j++) {
-      consider([list[i], list[j]]);
-      for (let l = j + 1; l < list.length; l++) consider([list[i], list[j], list[l]]);
-    }
-  }
+  // Alle Kombinationen ohne Wiederholung bis zur Platzzahl
+  const walk = (start: number, combo: Item[]): void => {
+    consider(combo);
+    if (combo.length >= slots) return;
+    for (let i = start; i < list.length; i++) walk(i + 1, [...combo, list[i]]);
+  };
+  walk(0, []);
   if (kind === 'noWorkforce' && bestR && workforceTotal(bestR) > 0) return null;
   return best;
 }

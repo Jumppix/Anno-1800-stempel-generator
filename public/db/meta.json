@@ -1,5 +1,5 @@
 {
- "built": "2026-11-18T14:40:40.709Z",
+ "built": "2026-11-18T15:14:55.768Z",
  "workforce": [
   1010052,
   1010115,
@@ -40,9 +40,9 @@
   }
  ],
  "counts": {
-  "items": 1455,
+  "items": 1502,
   "buildings": 1388,
-  "names": 6028,
+  "names": 6094,
   "icons": 2102
  },
  "limits": [
@@ -409,23 +409,23 @@
  "files": [
   {
    "file": "items.json",
-   "bytes": 928326,
-   "sha1": "a7904b7bf980"
+   "bytes": 957759,
+   "sha1": "4ca98f41d1f6"
   },
   {
    "file": "buildings.json",
-   "bytes": 471814,
-   "sha1": "a60b99ec54cd"
+   "bytes": 471817,
+   "sha1": "dacfec2ec982"
   },
   {
    "file": "names.json",
-   "bytes": 725398,
-   "sha1": "9131545934db"
+   "bytes": 735239,
+   "sha1": "897c4ed01c1f"
   },
   {
    "file": "items-raw.json",
-   "bytes": 1333548,
-   "sha1": "59473060af86"
+   "bytes": 1365703,
+   "sha1": "d39bfeccb28c"
   },
   {
    "file": "buildings-raw.json",

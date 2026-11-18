@@ -200,15 +200,30 @@ const ITEM_TEMPLATES = {
   ItemSpecialActionVisualEffect: undefined,
   ItemWithUI: undefined, // nur mit Allocation (Bauerlaubnis)
   ItemWithUICrafting: undefined,
+  // Palast-Effekte (Palastflügel/Ministerien), kein Item-Teil: Platz „Palace“
+  GuildhouseBuff: 'Palace',
+  TownhallBuff: 'Palace',
+  HarbourOfficeBuff: 'Palace',
+  CultureBuff: 'Palace',
 };
+const BUFF_TEMPLATES = new Set(['GuildhouseBuff', 'TownhallBuff', 'HarbourOfficeBuff', 'CultureBuff']);
+// Palast-Erlasse/Ministerien: EffectContainer mit Palast-Icon verweisen auf die Buff-Assets.
+const palaceEffects = new Set();
+for (const rec of byTemplate.get('EffectContainer') ?? []) {
+  if (!/3dicons\/palace\//.test(rec.v.Standard?.IconFilename ?? '')) continue;
+  for (const e of arr(rec.v.EffectContainer?.Effects?.Item)) if (typeof e?.Effect === 'number') palaceEffects.add(e.Effect);
+}
 console.log('Items …');
 const items = [];
 const itemsRaw = {};
 for (const [tmpl, defSlot] of Object.entries(ITEM_TEMPLATES)) {
   for (const rec of byTemplate.get(tmpl) ?? []) {
     const v = rec.v;
-    if (!isObj(v.Item) || IGNORED_ITEMS.has(rec.g)) continue;
-    const slot = v.Item.Allocation ?? defSlot;
+    const isBuff = BUFF_TEMPLATES.has(tmpl);
+    if (isBuff && !palaceEffects.has(rec.g)) continue;
+    if ((!isObj(v.Item) && !isBuff) || IGNORED_ITEMS.has(rec.g)) continue;
+    const item = isObj(v.Item) ? v.Item : {};
+    const slot = isBuff ? defSlot : item.Allocation ?? defSlot;
     if (!slot) continue;
     const name = nameOf(rec);
     if (!name) continue;
@@ -241,10 +256,10 @@ for (const [tmpl, defSlot] of Object.entries(ITEM_TEMPLATES)) {
       n: name,
       d: txt(v.Standard.InfoDescription),
       i: icon(v.Standard.IconFilename),
-      r: (v.Item.Rarity ?? 'Common').toLowerCase(),
+      r: (item.Rarity ?? 'Common').toLowerCase(),
       s: slot,
-      it: v.Item.ItemType,
-      p: v.Item.TradePrice,
+      it: item.ItemType,
+      p: item.TradePrice,
       tg: targets,
       tgx: expanded,
       fx: effects,
@@ -262,9 +277,9 @@ const SKIP_TEMPLATES = new Set(['QuestLighthouse', 'Slot', 'SimpleBuilding', 'Ca
 const CATEGORY = [
   [/^Residence/, 'residence'],
   [/^(PublicService|Mall|CityInstitution|Market|Restaurant|TowerRestaurant|PostBox|Powerplant|Heater)/, 'public'],
-  [/^(Factory|Farm|FreeArea|Heavy|SlotFactory|Multifactory|RecipeFarm|OilPump|FertilizerBase|Hacienda$|BuffFactory$)/, 'production'],
+  [/^(Factory|Farm|FreeArea|Heavy|SlotFactory|Multifactory|RecipeFarm|OilPump|FertilizerBase|Hacienda$|BuffFactory$|BuffFactoryCulture)/, 'production'],
   [/^(Farmfield|FactoryModule|BuffFactoryModule|AdditionalModule|FertilizerBaseModule|CultureModule|OrnamentalModule|PalaceModule|BuildPermitModules|Airship.*Module|AirshipPost|Dockland.*Module|DocklandModule)/, 'module'],
-  [/^(Guildhouse|Palace|PalaceMinistry|ResearchCenter|Monument|Culture|BuffFactoryCulture)/, 'special'],
+  [/^(Guildhouse|Palace|PalaceMinistry|ResearchCenter|Monument|Culture)/, 'special'],
   [/^(Harbor|Warehouse|Dockland|Visitor|Shipyard|Repair|WorkforceConnector)/, 'harbor'],
   [/^(Street|Bridge|Busstop|Airship|Irrigation)/, 'infrastructure'],
   [/^(Ornamental|HarborOrnament|BuildPermitBuilding)/, 'ornament'],

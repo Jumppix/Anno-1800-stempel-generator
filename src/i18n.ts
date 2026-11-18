@@ -170,6 +170,11 @@ const DICT: Record<string, [string, string]> = {
     'Per production building the best trade-union items (three computed suggestions, click to change), electricity, productivity, output and workforce – for one building and for all buildings of a trade union.',
   ],
   'prod.clip': ['Geclippt (Item-Effekte ×2)', 'Clipped (item effects ×2)'],
+  'prod.union': ['Palast: Gewerkschaftsförderung (4. Item-Platz)', 'Palace: Union Subsidies Act (4th item slot)'],
+  'prod.unionTip': [
+    'Palast-Erlass „Gewerkschaftsförderung“: jede Handelskammer bekommt einen zusätzlichen Sockel.',
+    'Palace decree “Union Subsidies Act”: every trade union gets an extra socket.',
+  ],
   'prod.noWorkforce': ['Ohne Arbeitskraft', 'No workforce'],
   'prod.col.building': ['Gebäude', 'Building'],
   'prod.col.count': ['Anzahl je HK', 'Count per TU'],
@@ -217,8 +222,8 @@ const DICT: Record<string, [string, string]> = {
   'prod.fx.noInput': ['entfällt', 'not needed'],
   'prod.fx.maint': ['Unterhalt', 'Upkeep'],
   'prod.formula': [
-    'Berechnung wie annolayouts.de: Produktivität = 100 % + Item-Produktivität (geclippt doppelt) + 100 % Strom; Zykluszeit = Basis ÷ Produktivität (abgerundet); Arbeitskraft = Basis × (1 + Item-%) . Vorschläge: Max = höchster Ausstoß, Ohne AK = höchster Ausstoß ohne Arbeitskraft, Ohne Legendär = ohne legendäre Items. Palast- und Zeitungseffekte sind noch nicht eingerechnet.',
-    'Calculated like annolayouts.de: productivity = 100 % + item productivity (doubled when clipped) + 100 % power; cycle time = base ÷ productivity (rounded down); workforce = base × (1 + item %). Suggestions: Max = highest output, No WF = highest output without workforce, No legendary = without legendary items. Palace and newspaper effects are not included yet.',
+    'Berechnung wie annolayouts.de: Produktivität = 100 % + Item-Produktivität (geclippt doppelt) + 100 % Strom; Zykluszeit = Basis ÷ Produktivität (abgerundet); Arbeitskraft = Basis × (1 + Item-%) . Vorschläge: Max = höchster Ausstoß, Ohne AK = höchster Ausstoß ohne Arbeitskraft, Ohne Legendär = ohne legendäre Items. Vier Item-Plätze mit dem Palast-Erlass „Gewerkschaftsförderung“; Ministerien und Zeitung sind noch nicht eingerechnet.',
+    'Calculated like annolayouts.de: productivity = 100 % + item productivity (doubled when clipped) + 100 % power; cycle time = base ÷ productivity (rounded down); workforce = base × (1 + item %). Suggestions: Max = highest output, No WF = highest output without workforce, No legendary = without legendary items. Four item slots with the palace decree “Union Subsidies Act”; ministries and newspaper are not included yet.',
   ],
   // Infofenster
   'hc.more': ['und {n} weitere', 'and {n} more'],

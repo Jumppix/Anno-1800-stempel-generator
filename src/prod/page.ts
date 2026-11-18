@@ -17,6 +17,8 @@ interface ProdData {
   hk: [number, number];
   layouts: Record<string, { n: number; b: Array<[number, number, number]>; r: Array<[number, number]> }>;
   setups: Record<string, Partial<Record<SetupKind, number[]>>>;
+  /** Vorschläge mit 4 Plätzen (Palast-Erlass „Gewerkschaftsförderung“). */
+  setups4?: Record<string, Partial<Record<SetupKind, number[]>>>;
 }
 
 /** Zustand je Gebäude (im Browser gespeichert, wenn geändert). */
@@ -38,6 +40,10 @@ let workforceSet: Set<number>;
 let region: Region = 'ow';
 let query = '';
 let clip = false;
+/** Palast-Erlass „Gewerkschaftsförderung“: 4. Item-Platz in der Handelskammer. */
+let union = true;
+const slotCount = (): number => SLOTS + (union ? 1 : 0);
+const setupTable = (): ProdData['setups'] => (union && prod.setups4 ? prod.setups4 : prod.setups);
 const state = new Map<number, RowState>();
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector(sel) as T;
@@ -67,6 +73,7 @@ function loadState(): void {
     const r = localStorage.getItem(`${STORE}-region`);
     if (r && (REGIONS as readonly string[]).includes(r)) region = r as Region;
     clip = localStorage.getItem(`${STORE}-clip`) === '1';
+    union = localStorage.getItem(`${STORE}-union`) !== '0';
   } catch {
     /* ignorieren */
   }
@@ -76,6 +83,7 @@ function saveState(): void {
     localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(state)));
     localStorage.setItem(`${STORE}-region`, region);
     localStorage.setItem(`${STORE}-clip`, clip ? '1' : '0');
+    localStorage.setItem(`${STORE}-union`, union ? '1' : '0');
   } catch {
     /* ignorieren */
   }
@@ -84,11 +92,9 @@ function saveState(): void {
 const layoutOf = (b: Building): ProdData['layouts'][string] | undefined => (b.sz && !b.kind ? prod.layouts[b.sz.join('x')] : undefined);
 
 function rowState(b: Building): RowState {
-  let s = state.get(b.g);
-  if (!s) {
-    const items = prod.setups[b.g]?.max ?? [];
-    s = { kind: 'max', items: [...items], power: true, count: layoutOf(b)?.n ?? 1 };
-  }
+  const s = state.get(b.g) ?? { kind: 'max', items: [], power: true, count: layoutOf(b)?.n ?? 1 };
+  // Vorschläge folgen der aktuellen Platzzahl; eigene Auswahl bleibt.
+  if (s.kind !== 'custom') return { ...s, items: [...(setupTable()[b.g]?.[s.kind] ?? setupTable()[b.g]?.max ?? [])] };
   return s;
 }
 
@@ -157,7 +163,10 @@ function renderGroups(): void {
 
 function rowHtml(b: Building): string {
   const s = rowState(b);
-  const items = s.items.map((g) => db.itemBy.get(g)).filter((i): i is Item => !!i);
+  const items = s.items
+    .slice(0, slotCount())
+    .map((g) => db.itemBy.get(g))
+    .filter((i): i is Item => !!i);
   const r: ProdResult = evaluate(b, items, { power: s.power, clip }, workforceSet);
   const L = layoutOf(b);
   const n = Math.max(0, s.count);
@@ -168,9 +177,9 @@ function rowHtml(b: Building): string {
       return `<span class="${gone ? 'gone' : repl ? 'repl' : ''}">${icon(i.p)}${repl ? `→${icon(repl.to)}` : ''}</span>`;
     })
     .join('')}${b.in?.length ? '<span class="arrow">→</span>' : ''}${(b.out ?? []).map((o) => icon(o.p)).join('')}</span>`;
-  const setups = prod.setups[b.g] ?? {};
+  const setups = setupTable()[b.g] ?? {};
   const kinds = SETUP_KINDS.filter((k) => setups[k]);
-  const slots = Array.from({ length: SLOTS }, (_, i) => {
+  const slots = Array.from({ length: slotCount() }, (_, i) => {
     const it = items[i];
     return it
       ? `<button type="button" class="slot r-${it.r}" data-slot="${i}">${icon(it.g, 'sic')}</button>`
@@ -273,7 +282,7 @@ function openPicker(b: Building, slot: number): void {
       const items = [...s.items];
       if (g) items[slot] = g;
       else items.splice(slot, 1);
-      state.set(b.g, { ...s, kind: 'custom', items: items.filter(Boolean).slice(0, SLOTS) });
+      state.set(b.g, { ...s, kind: 'custom', items: items.filter(Boolean).slice(0, slotCount()) });
       saveState();
       closeModal();
       refreshRow(b.g);
@@ -385,6 +394,13 @@ async function main(): Promise<void> {
   workforceSet = new Set(db.meta.workforce ?? []);
   const clipBox = $<HTMLInputElement>('#prod-clip');
   clipBox.checked = clip;
+  const unionBox = $<HTMLInputElement>('#prod-union');
+  unionBox.checked = union;
+  unionBox.addEventListener('change', () => {
+    union = unionBox.checked;
+    saveState();
+    renderGroups();
+  });
   renderRegions();
   renderGroups();
 
@@ -426,7 +442,7 @@ async function main(): Promise<void> {
     if (slot) return openPicker(b, Number(slot.dataset.slot));
     const kind = target.closest<HTMLElement>('[data-kind]')?.dataset.kind as SetupKind | undefined;
     if (kind) {
-      state.set(b.g, { ...rowState(b), kind, items: [...(prod.setups[b.g]?.[kind] ?? [])] });
+      state.set(b.g, { ...rowState(b), kind, items: [...(setupTable()[b.g]?.[kind] ?? [])] });
       saveState();
       return refreshRow(b.g);
     }

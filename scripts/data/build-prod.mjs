@@ -27,17 +27,21 @@ for (const b of prodBuildings) {
   layouts[key] = { n: L.count, b: L.buildings.map((x) => [x.x, x.y, x.turns]), r: L.roads.map((r) => [r.x, r.y]) };
 }
 
+// Vorschläge für 3 Plätze und für 4 Plätze (Palast-Erlass „Gewerkschaftsförderung“)
 const setups = {};
+const setups4 = {};
 for (const b of prodBuildings) {
   const slots = slotsFor(b);
   const cands = items.filter((i) => slots.includes(i.s) && i.tgx.includes(b.g));
-  const entry = {};
-  for (const kind of SETUP_KINDS) {
-    const s = bestSetup(b, cands, kind, { power: true, clip: false }, workforce);
-    if (s) entry[kind] = s.map((i) => i.g);
+  for (const [target, n] of [[setups, 3], [setups4, 4]]) {
+    const entry = {};
+    for (const kind of SETUP_KINDS) {
+      const s = bestSetup(b, cands, kind, { power: true, clip: false }, workforce, n);
+      if (s) entry[kind] = s.map((i) => i.g);
+    }
+    target[b.g] = entry;
   }
-  setups[b.g] = entry;
 }
-writeFileSync(`${root}public/db/prod.json`, JSON.stringify({ radius: 15, hk: [-2, -2], layouts, setups }));
+writeFileSync(`${root}public/db/prod.json`, JSON.stringify({ radius: 15, hk: [-2, -2], layouts, setups, setups4 }));
 console.log(`${Object.keys(layouts).length} Layouts, ${prodBuildings.length} Gebäude mit Vorschlägen in ${((performance.now() - t0) / 1000).toFixed(1)} s`);
 await server.close();

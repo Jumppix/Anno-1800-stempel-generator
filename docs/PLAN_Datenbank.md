@@ -167,3 +167,18 @@ aus Vorlage/Arbeitskraft abgeleitet.
 Offen: Hafenmeisterei-Items für Küstengebäude, Palast/Zeitung, Farmen mit Feldern im
 Layout, Stempel für Neue Welt/Enbesa (Handelskammer-GUID der Region fehlt im Abzug),
 „+50 % bei 0 Arbeitskraft“ (in annolayouts.de umgesetzt, Spielmechanik noch nicht geprüft).
+
+**Abgleich mit annolayouts.de (18.11.2026):** Deren 520 Item-Setups (175 Gebäude)
+mit unserer Formel nachgerechnet und mit unseren Vorschlägen für dasselbe Ziel
+verglichen (Setups wurden nur gelesen, nicht übernommen). Ergebnis vorher: in 51
+Fällen höherer Ausstoß bei ihnen – fast immer, weil sie mit **4 Items** rechnen
+(Palast-Erlass „Gewerkschaftsförderung“ +1 Sockel). Umgesetzt:
+- Palast-Erlasse in der Datenbank (Platz „Palast“, erkannt über EffectContainer mit
+  Palast-Icon, 47 Effekte), Schalter „Gewerkschaftsförderung (4. Item-Platz)“,
+  Vorschläge für 3 und 4 Plätze (`setups`/`setups4` in prod.json).
+- Optimierer: bis zu 4 Items; ohne Zykluszeit zählt die Produktivität.
+- Hacienda-Düngerwerk (BuffFactoryCulture) zählt jetzt als Produktion.
+Ergebnis nachher: 0 Fälle mit höherem Ausstoß bei ihnen, 78 gleich, 442 bei uns höher
+(dort verfolgen ihre Setups oft andere Ziele, z. B. Zusatzwaren oder günstige Items).
+Offen: Ministerium für Arbeit (+60 % in Ministeriumsreichweite, mehrere Stufen-Varianten),
+Zeitung, „Qualifizierte Arbeitskräfte“/„Landbesitzreform“ (Palast-Zusatzwaren je Fabrik).
