@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "check": "node scripts/check-solver.mjs",
-    "build-db": "node scripts/data/build-db.mjs",
+    "build-db": "node scripts/data/build-db.mjs && node scripts/data/build-prod.mjs",
     "check-db": "node scripts/data/check-db.mjs",
     "build-prod": "node scripts/data/build-prod.mjs"
   },

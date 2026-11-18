@@ -529,7 +529,9 @@ for (const [k, id] of Object.entries(RARITY_LABELS)) {
 }
 
 // ---------------------------------------------------------------- Schreiben
-rmSync(OUT, { recursive: true, force: true });
+// Nur eigene Ausgaben ersetzen (prod.json von build-prod bleibt erhalten).
+rmSync(ICONS_OUT, { recursive: true, force: true });
+for (const f of ['items.json', 'buildings.json', 'names.json', 'info.json', 'items-raw.json', 'buildings-raw.json', 'meta.json']) rmSync(join(OUT, f), { force: true });
 mkdirSync(ICONS_OUT, { recursive: true });
 // Icons als WebP 64 px (Pillow nötig: pip install pillow)
 const pairsFile = join(OUT, '_icons.json');
