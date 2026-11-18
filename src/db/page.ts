@@ -76,6 +76,12 @@ const PAGE = 120;
 const CATEGORIES = ['residence', 'public', 'production', 'module', 'special', 'harbor', 'infrastructure', 'ornament', 'other'];
 const REGIONS = ['ow', 'nw', 'arctic', 'africa'];
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'narrative'];
+/** Sortierung nach Seltenheit absteigend (legendär zuerst, Erzählung/Quest zuletzt). */
+const RARITY_ORDER = ['legendary', 'epic', 'rare', 'uncommon', 'common', 'narrative'];
+const rarityRank = (r: string): number => {
+  const i = RARITY_ORDER.indexOf(r);
+  return i < 0 ? RARITY_ORDER.length : i;
+};
 
 let meta: Meta;
 let buildings: Building[] = [];
@@ -106,14 +112,14 @@ const nameOfGuid = (g: number): string => {
  * Tooltip (Maus darüber oder antippen). Ohne Icon wird der Name gezeigt.
  * Link zum Eintrag, falls es ihn in der Datenbank gibt.
  */
-function chip(g: number, extra = '', opts: { name?: boolean; inferred?: boolean } = {}): string {
+function chip(g: number, extra = '', opts: { name?: boolean; inferred?: boolean; cls?: string } = {}): string {
   const n = names[g];
   const name = nameOfGuid(g);
   const ic = n?.[2];
   const href = buildingBy.has(g) ? `#b=${g}` : itemBy.has(g) ? `#i=${g}` : '';
   const label = opts.name ? `${name}${extra ? ` ${extra}` : ''}` : extra;
   const body = ic ? `${img(ic)}${label ? `<span>${esc(label)}</span>` : ''}` : `${esc(name)}${extra ? ` ${esc(extra)}` : ''}`;
-  const cls = `chip${ic ? (label ? '' : ' icon-only') : ' plain'}${opts.inferred ? ' inferred' : ''}`;
+  const cls = `chip${ic ? (label ? '' : ' icon-only') : ' plain'}${opts.inferred ? ' inferred' : ''}${opts.cls ? ` ${opts.cls}` : ''}`;
   const tipText = opts.inferred ? `${name} – ${t('d.inferred')}` : name;
   const tip = `data-tip="${esc(tipText)}" aria-label="${esc(name)}${extra ? ` ${esc(extra)}` : ''}"`;
   return href ? `<a class="${cls}" href="${href}" ${tip}>${body}</a>` : `<span class="${cls}" tabindex="0" ${tip}>${body}</span>`;
@@ -447,8 +453,8 @@ function buildingDetail(b: Building): string {
   const itemChips = affecting.length
     ? `<div class="chips">${affecting
         .slice()
-        .sort((a, c) => pick(a.n).localeCompare(pick(c.n)))
-        .map((i) => chip(i.g))
+        .sort((a, c) => rarityRank(a.r) - rarityRank(c.r) || pick(a.n).localeCompare(pick(c.n)))
+        .map((i) => chip(i.g, '', { cls: `r-${i.r}` }))
         .join('')}</div>`
     : '';
   return (

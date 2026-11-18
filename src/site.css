@@ -391,6 +391,12 @@ body.site a.ph-name:hover {
   color: var(--gold);
 }
 
+.chip.r-uncommon { border-color: #4f7a2c; }
+.chip.r-rare { border-color: #3e5495; }
+.chip.r-epic { border-color: #8a4f8b; }
+.chip.r-legendary { border-color: #c76936; }
+.chip.r-narrative { border-color: #5a4a78; }
+
 .chip.inferred {
   border-style: dashed;
 }
