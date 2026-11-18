@@ -1,5 +1,5 @@
 {
- "built": "2026-11-18T15:14:55.768Z",
+ "built": "2026-11-18T15:27:55.254Z",
  "workforce": [
   1010052,
   1010115,
@@ -42,8 +42,8 @@
  "counts": {
   "items": 1502,
   "buildings": 1388,
-  "names": 6094,
-  "icons": 2102
+  "names": 6131,
+  "icons": 2118
  },
  "limits": [
   "Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).",
@@ -419,8 +419,13 @@
   },
   {
    "file": "names.json",
-   "bytes": 735239,
-   "sha1": "897c4ed01c1f"
+   "bytes": 737644,
+   "sha1": "fa9748980119"
+  },
+  {
+   "file": "info.json",
+   "bytes": 61085,
+   "sha1": "58b9dca8bab7"
   },
   {
    "file": "items-raw.json",

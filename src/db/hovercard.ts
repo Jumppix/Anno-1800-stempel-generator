@@ -8,10 +8,21 @@ import { DB_BASE, type Building, type Db, type Item } from './data';
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
 const num = (n: number, d = 2): string => n.toLocaleString(getLang() === 'de' ? 'de-DE' : 'en-US', { maximumFractionDigits: d });
 
+type NeedRef = { lvl: number; t?: number | null; r?: number; h?: number; from?: number; bonus?: 1; unlock?: [number, number] };
+
 interface Index {
   producers: Map<number, Building[]>;
   consumers: Map<number, Building[]>;
   extraBy: Map<number, Item[]>;
+  /** Unterhalt: Gebäude mit Menge (z. B. Arbeitskraft, Münzen). */
+  upkeepBy: Map<number, Array<{ b: Building; a: number }>>;
+  /** Baumaterial: Anzahl Gebäude, die diese Ware kosten. */
+  costCount: Map<number, number>;
+  /** Bedürfnis von Bevölkerungsstufen. */
+  needOf: Map<number, Array<NeedRef>>;
+  /** Arbeitskraft → Bevölkerungsstufe. */
+  workforceFrom: Map<number, number>;
+  dlcCount: Map<number, { b: number; i: number }>;
 }
 
 let db: Db;
@@ -38,7 +49,41 @@ function buildIndex(): Index {
       for (const o of e.v as Array<{ Product?: number }>) if (typeof o.Product === 'number') add(extraBy, o.Product, it);
     }
   }
-  return { producers, consumers, extraBy };
+  const upkeepBy = new Map<number, Array<{ b: Building; a: number }>>();
+  const costCount = new Map<number, number>();
+  const dlcCount = new Map<number, { b: number; i: number }>();
+  for (const b of db.buildings) {
+    for (const m of b.mt ?? []) {
+      const l = upkeepBy.get(m.p);
+      if (l) l.push({ b, a: m.a });
+      else upkeepBy.set(m.p, [{ b, a: m.a }]);
+    }
+    for (const c of b.cost ?? []) costCount.set(c.p, (costCount.get(c.p) ?? 0) + 1);
+    if (b.dlc) {
+      const d = dlcCount.get(b.dlc) ?? { b: 0, i: 0 };
+      d.b++;
+      dlcCount.set(b.dlc, d);
+    }
+  }
+  for (const it of db.items) {
+    if (!it.dlc) continue;
+    const d = dlcCount.get(it.dlc) ?? { b: 0, i: 0 };
+    d.i++;
+    dlcCount.set(it.dlc, d);
+  }
+  const needOf = new Map<number, NeedRef[]>();
+  const workforceFrom = new Map<number, number>();
+  for (const [g, pop] of Object.entries(db.info.population)) {
+    const lvl = Number(g);
+    for (const n of pop.needs) {
+      const l = needOf.get(n.p);
+      const e: NeedRef = { lvl, t: n.t, r: n.r, h: n.h, from: n.from, bonus: n.bonus, unlock: n.unlock };
+      if (l) l.push(e);
+      else needOf.set(n.p, [e]);
+    }
+    for (const o of pop.out) workforceFrom.set(o.p, lvl);
+  }
+  return { producers, consumers, extraBy, upkeepBy, costCount, needOf, workforceFrom, dlcCount };
 }
 
 const nameOf = (g: number): string => {
@@ -166,18 +211,104 @@ function buildingCard(b: Building): string {
 }
 
 // ------------------------------------------------------------------ Ware
+const COINS = 1010017;
+const capSec = (cap: string, body: string): string => (body ? `<div class="hc-sec"><div class="hc-cap">${esc(cap)}</div>${body}</div>` : '');
+const namedList = (gs: number[], max = 8): string =>
+  gs.length
+    ? `<div class="hc-list">${gs.slice(0, max).map((x) => named(x)).join('')}${gs.length > max ? `<span class="hc-note">${esc(t('hc.more', { n: gs.length - max }))}</span>` : ''}</div>`
+    : '';
+const uniqBuildings = (bs: Building[]): number[] => {
+  const seen = new Set<string>();
+  return bs.filter((b) => (seen.has(b.n.de) ? false : (seen.add(b.n.de), true))).map((b) => b.g);
+};
+
+/** Bedarf je 1.000 Einwohner in t/min, mit Art (Grundbedürfnis/Luxus). */
+function needLine(n: NeedRef, showLevel: boolean, g?: number): string {
+  const what = n.bonus
+    ? t('hc.needBonus', { n: n.r ?? 0 })
+    : n.r
+      ? t('hc.needBasic', { n: n.r })
+      : n.h
+        ? t('hc.needLuxury', { n: n.h })
+        : t('hc.needOther');
+  const unlock = n.unlock ? ` · ${t('hc.needUnlock', { n: num(n.unlock[1], 0), p: nameOf(n.unlock[0]) })}` : '';
+  const rate = n.t ? `${num(n.t * 1000, 3)} t/min` : '';
+  return `<div class="hc-split">${showLevel ? named(n.lvl) : named(g as number)}<b>${esc(rate)}</b></div><div class="hc-sub-line hc-note">${esc(what)}${
+    n.from ? ` · ${esc(t('hc.needFrom', { n: n.from }))}` : ''
+  }${esc(unlock)}</div>`;
+}
+
 function productCard(g: number): string {
-  const prod = index.producers.get(g) ?? [];
-  const cons = index.consumers.get(g) ?? [];
-  const extra = index.extraBy.get(g) ?? [];
-  const sec = (cap: string, list: number[]): string =>
-    list.length ? `<div class="hc-sec"><div class="hc-cap">${esc(cap)}</div><div class="hc-list">${list.slice(0, 8).map((x) => named(x)).join('')}${list.length > 8 ? `<span class="hc-note">${esc(t('hc.more', { n: list.length - 8 }))}</span>` : ''}</div></div>` : '';
-  const uniq = (bs: Building[]): number[] => {
+  const info = db.info.goods[g] ?? {};
+  const prod = uniqBuildings(index.producers.get(g) ?? []);
+  const cons = uniqBuildings(index.consumers.get(g) ?? []);
+  const extra = (index.extraBy.get(g) ?? []).map((i) => i.g);
+  const upkeep = index.upkeepBy.get(g) ?? [];
+  const costN = index.costCount.get(g) ?? 0;
+  const needs = index.needOf.get(g) ?? [];
+  const subParts = [
+    g === COINS ? t('hc.currency') : info.wf ? t('hc.workforce') : info.cat ? nameOf(info.cat) : t('hc.good'),
+    ...(info.reg ?? []).map((r) => t(`reg.${r}`)),
+  ];
+  let body = '';
+  if (info.d) body += `<div class="hc-sec hc-desc">${esc(pick(info.d))}</div>`;
+  if (g === COINS) body += `<div class="hc-sec hc-desc">${esc(t('hc.coinsText'))}</div>`;
+  if (info.price) body += `<div class="hc-sec"><div class="hc-split"><span>${esc(t('hc.price'))}</span><b>${num(info.price, 0)}</b></div></div>`;
+  // Arbeitskraft: woher und wofür
+  if (info.wf) {
+    const lvl = index.workforceFrom.get(g);
+    const pop = lvl ? db.info.population[lvl] : undefined;
+    if (lvl)
+      body += capSec(
+        t('hc.workforceFrom'),
+        `<div class="hc-split">${named(lvl)}${pop?.res ? named(pop.res) : ''}</div><div class="hc-note">${esc(
+          t('hc.workforcePer', { n: pop?.max ?? '?' }),
+        )}</div>`,
+      );
+  }
+  if (upkeep.length) {
+    const top = [...upkeep].sort((a, b) => b.a - a.a);
     const seen = new Set<string>();
-    return bs.filter((b) => (seen.has(b.n.de) ? false : (seen.add(b.n.de), true))).map((b) => b.g);
-  };
-  const body = sec(t('hc.producedIn'), uniq(prod)) + sec(t('hc.usedIn'), uniq(cons)) + sec(t('hc.extraBy'), extra.map((i) => i.g));
-  return `${head(g, nameOf(g), esc(t('hc.good')))}${body || `<div class="hc-sec hc-note">${esc(t('hc.noInfo'))}</div>`}`;
+    const rows = top
+      .filter((x) => (seen.has(x.b.n.de) ? false : (seen.add(x.b.n.de), true)))
+      .slice(0, 6)
+      .map((x) => `<div class="hc-split">${named(x.b.g)}<b>${num(x.a, 0)}</b></div>`)
+      .join('');
+    body += capSec(t(g === COINS || info.wf ? 'hc.upkeepIn' : 'hc.upkeepGood', { n: seen.size >= 6 ? upkeep.length : seen.size }), rows);
+  }
+  if (costN) body += `<div class="hc-sec hc-note">${esc(t('hc.costIn', { n: costN }))}</div>`;
+  if (needs.length) body += capSec(t('hc.needOf'), needs.map((n) => needLine(n, true)).join(''));
+  body += capSec(t('hc.producedIn'), namedList(prod)) + capSec(t('hc.usedIn'), namedList(cons)) + capSec(t('hc.extraBy'), namedList(extra));
+  return `${head(g, nameOf(g), esc(subParts.join(' · ')))}${body || `<div class="hc-sec hc-note">${esc(t('hc.noInfo'))}</div>`}`;
+}
+
+// ------------------------------------------------------------------ Bevölkerung, Gruppen, DLC
+function populationCard(g: number): string {
+  const pop = db.info.population[g];
+  const basic = pop.needs.filter((n) => n.r && !n.bonus);
+  const luxury = pop.needs.filter((n) => !n.r && !n.bonus);
+  const bonus = pop.needs.filter((n) => n.bonus);
+  const line = (n: (typeof pop.needs)[number]): string => needLine({ lvl: g, ...n }, false, n.p);
+  return `${head(g, nameOf(g), esc(t('hc.population')))}
+    <div class="hc-sec">${pop.res ? `<div class="hc-split"><span>${esc(t('hc.house'))}</span>${named(pop.res)}</div>` : ''}${
+      pop.max ? `<div class="hc-split"><span>${esc(t('d.residents'))}</span><b>${num(pop.max, 0)}</b></div>` : ''
+    }${pop.out.map((o) => `<div class="hc-split"><span>${esc(t('hc.gives'))}</span>${named(o.p)}</div>`).join('')}</div>
+    ${capSec(t('hc.basicNeeds'), basic.slice(0, 10).map(line).join(''))}
+    ${capSec(t('hc.luxuryNeeds'), luxury.slice(0, 10).map(line).join(''))}
+    ${capSec(t('hc.bonusNeeds'), bonus.slice(0, 10).map(line).join(''))}
+    <div class="hc-sec hc-note">${esc(t('hc.perThousand'))}</div>`;
+}
+
+function poolCard(g: number): string {
+  const members = db.info.pools[g] ?? [];
+  return `${head(g, nameOf(g), esc(t('hc.group', { n: members.length })))}${capSec(t('hc.members'), namedList(members, 14))}`;
+}
+
+function dlcCard(g: number): string {
+  const c = index.dlcCount.get(g) ?? { b: 0, i: 0 };
+  return `${head(g, nameOf(g), esc(t('hc.dlc')))}<div class="hc-sec"><div class="hc-split"><span>${esc(t('hc.dlcBuildings'))}</span><b>${num(c.b, 0)}</b></div><div class="hc-split"><span>${esc(
+    t('hc.dlcItems'),
+  )}</span><b>${num(c.i, 0)}</b></div></div>`;
 }
 
 export function cardHtml(g: number): string | null {
@@ -186,6 +317,9 @@ export function cardHtml(g: number): string | null {
   if (it) return itemCard(it);
   const b = db.buildingBy.get(g);
   if (b) return buildingCard(b);
+  if (db.info.population[g]) return populationCard(g);
+  if (db.info.pools[g]) return poolCard(g);
+  if (index.dlcCount.has(g)) return dlcCard(g);
   if (db.names[g]) return productCard(g);
   return null;
 }

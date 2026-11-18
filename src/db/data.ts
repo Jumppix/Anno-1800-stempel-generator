@@ -73,6 +73,29 @@ export interface Meta {
 
 export type Names = Record<string, [string, string, string?]>;
 
+export interface GoodInfo {
+  d?: Bi;
+  cat?: number;
+  price?: number;
+  civ?: number;
+  reg?: string[];
+  wf?: 1;
+}
+
+export interface PopulationInfo {
+  res?: number;
+  max?: number;
+  out: Array<{ p: number; a: number }>;
+  /** Bedürfnisse: Ware, t/min je Einwohner, Einwohner-Bonus, Zufriedenheit, ab Einwohnerzahl. */
+  needs: Array<{ p: number; t?: number | null; r?: number; h?: number; from?: number; bonus?: 1; unlock?: [number, number] }>;
+}
+
+export interface Info {
+  goods: Record<string, GoodInfo>;
+  population: Record<string, PopulationInfo>;
+  pools: Record<string, number[]>;
+}
+
 export const DB_BASE = `${import.meta.env.BASE_URL}db/`;
 
 export interface Db {
@@ -80,6 +103,7 @@ export interface Db {
   buildings: Building[];
   items: Item[];
   names: Names;
+  info: Info;
   buildingBy: Map<number, Building>;
   itemBy: Map<number, Item>;
   /** Items je beeinflusstem Gebäude (aufgelöste Zielgruppen). */
@@ -92,11 +116,12 @@ export async function loadDb(): Promise<Db> {
     if (!r.ok) throw new Error(`${f}: ${r.status}`);
     return (await r.json()) as T;
   };
-  const [meta, buildings, items, names] = await Promise.all([
+  const [meta, buildings, items, names, info] = await Promise.all([
     get<Meta>('meta.json'),
     get<Building[]>('buildings.json'),
     get<Item[]>('items.json'),
     get<Names>('names.json'),
+    get<Info>('info.json').catch(() => ({ goods: {}, population: {}, pools: {} }) as Info),
   ]);
   const buildingBy = new Map(buildings.map((b) => [b.g, b]));
   const itemBy = new Map(items.map((i) => [i.g, i]));
@@ -108,7 +133,7 @@ export async function loadDb(): Promise<Db> {
       else itemsFor.set(g, [it]);
     }
   }
-  return { meta, buildings, items, names, buildingBy, itemBy, itemsFor };
+  return { meta, buildings, items, names, info, buildingBy, itemBy, itemsFor };
 }
 
 /** Seltenheit absteigend (legendär zuerst, Erzählung/Quest zuletzt). */

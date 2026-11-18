@@ -47,7 +47,7 @@ unnötig verändern.
 ## Code-Landkarte
 
 - Hilfeseite (mehrere Seiten, `vite.config.js` `build.rollupOptions.input`): `index.html` Startseite
-  (`src/start.ts`), `datenbank.html` (`src/db/page.ts`, Typen/Laden `src/db/data.ts`, Infofenster beim Überfahren `src/db/hovercard.ts` – `data-card="<GUID>"` für Items/Waren/Gebäude, auch auf der Produktionsseite), `produktion.html`
+  (`src/start.ts`), `datenbank.html` (`src/db/page.ts`, Typen/Laden `src/db/data.ts`, Infofenster beim Überfahren `src/db/hovercard.ts` – `data-card="<GUID>"` für Items, Gebäude, Waren (inkl. Münzen/Arbeitskraft), Bevölkerungsstufen, Zielgruppen und DLCs; Zusatzdaten `public/db/info.json`: Waren, Bevölkerung mit Bedürfnissen, Zielgruppen; auch auf der Produktionsseite), `produktion.html`
   (`src/prod/page.ts`: Produktion & Handelskammer nach Vorbild annolayouts.de; Rechenkern `src/prod/calc.ts`
   – Produktivität/Strom/Clipping/Arbeitskraft, `bestSetup`; Packer `src/prod/layout.ts` – meiste Gebäude
   je HK-Radius mit Straßennetz; Vorberechnung `scripts/data/build-prod.mjs`), `planer.html` (bisheriges

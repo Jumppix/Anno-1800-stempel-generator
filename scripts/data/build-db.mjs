@@ -441,6 +441,66 @@ for (const rec of byGuid.values()) {
 }
 console.log(`  ${buildings.length} Gebäude`);
 
+// ---------------------------------------------------------------- Waren, Bevölkerung, Zielgruppen (Infofenster)
+const goods = {};
+for (const tmpl of ['Product', 'Product_Ammunition']) {
+  for (const rec of byTemplate.get(tmpl) ?? []) {
+    const pr = isObj(rec.v.Product) ? rec.v.Product : {};
+    const regs = String(pr.AssociatedRegion ?? '')
+      .split(';')
+      .filter(Boolean)
+      .map((r) => REGION[r] ?? r);
+    if (pr.ProductCategory) ref(pr.ProductCategory);
+    goods[rec.g] = {
+      d: txt(rec.v.Standard?.InfoDescription),
+      cat: pr.ProductCategory,
+      price: pr.BasePrice,
+      civ: pr.CivLevel,
+      reg: regs.length ? regs : undefined,
+      wf: pr.IsWorkforce ? 1 : undefined,
+    };
+    ref(rec.g);
+  }
+}
+// Bevölkerungsstufen: Wohnhaus, Arbeitskraft je vollem Haus, Bedürfnisse.
+// Verbrauch (t/min je Einwohner) und Einwohner je Bedürfnis aus dem Anno-1800-Rechner,
+// sonst Spielwert × 1,2 (Umrechnung wie im Rechner).
+const calcLevels = new Map((calc?.populationLevels ?? []).map((l) => [l.guid, l]));
+const population = {};
+for (const rec of byTemplate.get('PopulationLevel7') ?? []) {
+  const pl = isObj(rec.v.PopulationLevel7) ? rec.v.PopulationLevel7 : {};
+  const cl = calcLevels.get(rec.g);
+  const calcNeeds = new Map((cl?.needs ?? []).map((n) => [n.guid, n]));
+  const needs = arr(pl.PopulationInputs?.Item)
+    .filter((i) => typeof i?.Product === 'number')
+    .map((i) => {
+      const c = calcNeeds.get(i.Product);
+      return {
+        p: ref(i.Product),
+        t: c ? c.tpmin : i.Amount ? i.Amount * 1.2 : undefined,
+        r: c ? c.residents || undefined : i.SupplyWeight,
+        h: c ? c.happiness || undefined : i.HappinessValue,
+        from: i.NoWeightPopulationCount !== undefined ? i.NoWeightPopulationCount + 1 : undefined,
+        bonus: i.IsBonusNeed ? 1 : undefined,
+        unlock: isObj(i.AdditionalGlobalUnlockRequirement) && i.AdditionalGlobalUnlockRequirement.Population
+          ? [ref(i.AdditionalGlobalUnlockRequirement.Population), i.AdditionalGlobalUnlockRequirement.MinPopulationAmount ?? 0]
+          : undefined,
+      };
+    });
+  population[rec.g] = {
+    res: typeof pl.DefaultResidence === 'number' ? ref(pl.DefaultResidence) : undefined,
+    max: cl?.fullHouse,
+    out: arr(pl.PopulationOutputs?.Item)
+      .filter((o) => typeof o?.Product === 'number')
+      .map((o) => ({ p: ref(o.Product), a: o.Amount })),
+    needs,
+  };
+  ref(rec.g);
+}
+// Zielgruppen der Items (z. B. „Alle Minen und Zementwerke“) mit Mitgliedern
+const targetPools = {};
+for (const it of items) for (const g of it.tg) if (targetPools[g] === undefined && pools.has(g)) targetPools[g] = expandTargets(g).map(ref);
+
 // ---------------------------------------------------------------- Namen aller Verweise
 for (const b of buildings) ref(b.g);
 for (const i of items) ref(i.g);
@@ -487,6 +547,7 @@ const files = [
   write('items.json', items),
   write('buildings.json', buildings),
   write('names.json', names),
+  write('info.json', { goods, population, pools: targetPools }),
   write('items-raw.json', itemsRaw),
   write('buildings-raw.json', buildingsRaw),
 ];
