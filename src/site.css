@@ -249,6 +249,43 @@ a.tile:hover {
   grid-column: 1 / -1;
 }
 
+.search {
+  position: relative;
+}
+
+.search input {
+  padding-right: 32px;
+}
+
+.search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search button {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.search button:hover {
+  color: var(--text);
+  background: var(--card);
+}
+
+.power-req {
+  color: var(--gold);
+  font-weight: 600;
+}
+
 .db-count {
   color: var(--muted);
   font-size: 12px;

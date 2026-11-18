@@ -28,7 +28,7 @@ interface Building {
   calcTpm?: number;
   ps?: { full?: number; none?: number; out?: number[] };
   pw?: number;
-  el?: boolean;
+  pow?: 'req' | 'opt';
   sock?: { r?: number; a?: string };
   res?: { lvl?: number; max?: number };
   up?: number;
@@ -208,7 +208,9 @@ function dlcOptions(list: Array<{ dlc?: number }>): Array<[string, string]> {
 
 function renderFilters(): void {
   const box = $('#db-filters');
-  const search = `<input id="f-q" class="wide" type="search" value="${esc(filter.q)}" placeholder="${esc(t('db.search'))}" />`;
+  const search = `<div class="search wide"><input id="f-q" type="search" value="${esc(filter.q)}" placeholder="${esc(
+    t('db.search'),
+  )}" /><button id="f-q-clear" type="button" aria-label="${esc(t('db.clear'))}" title="${esc(t('db.clear'))}"${filter.q ? '' : ' hidden'}>✕</button></div>`;
   if (tab === 'b') {
     box.innerHTML =
       search +
@@ -235,6 +237,18 @@ function renderFilters(): void {
     });
   };
   bind('f-q', 'q', 'input');
+  const q = document.getElementById('f-q') as HTMLInputElement | null;
+  const clear = document.getElementById('f-q-clear');
+  q?.addEventListener('input', () => clear?.toggleAttribute('hidden', !q.value));
+  clear?.addEventListener('click', () => {
+    if (!q) return;
+    q.value = '';
+    filter.q = '';
+    shown = PAGE;
+    clear.hidden = true;
+    q.focus();
+    renderList();
+  });
   bind('f-cat', 'cat');
   bind('f-reg', 'reg');
   bind('f-dlc', 'dlc');
@@ -278,7 +292,7 @@ function filtered(): Array<Building | Item> {
 // ------------------------------------------------------------------ Liste
 function renderList(): void {
   const list = filtered();
-  $('#db-count').textContent = t('db.count', { n: num(list.length) });
+  $('#db-count').textContent = list.length === 1 ? t('db.count1') : t('db.count', { n: num(list.length) });
   const rows = list.slice(0, shown).map((e) => {
     const sub =
       tab === 'b'
@@ -374,7 +388,7 @@ function buildingDetail(b: Building): string {
       row('d.region', b.reg?.map((r) => esc(t(`reg.${r}`))).join(', ')) +
       row('d.dlc', b.dlc ? chip(b.dlc) : undefined) +
       row('d.template', esc(b.t)) +
-      row('d.electric', b.el ? esc(t('d.yes')) : undefined) +
+      row('d.electric', b.pow ? `<span class="${b.pow === 'req' ? 'power-req' : ''}">${esc(t(b.pow === 'req' ? 'd.powerReq' : 'd.powerOpt'))}</span>` : undefined) +
       row('d.upgrade', b.up ? chip(b.up) : undefined),
   );
   let prod = '';

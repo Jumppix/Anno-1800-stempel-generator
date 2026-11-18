@@ -171,7 +171,8 @@ function norm(x, key = '') {
 const NOISE = new Set(['Object', 'Mesh', 'SoundEmitter', 'Selection', 'FeedbackController', 'Infolayer', 'AmbientMoodProvider', 'Text', 'Blocking', 'MinimapToken', 'Audio', 'Nameable', 'QuestObject']);
 function stripNoise(v) {
   const out = {};
-  for (const [k, x] of Object.entries(v)) if (!NOISE.has(k) && x !== '') out[k] = x;
+  // Leere Komponenten bleiben sichtbar: vorhanden, alle Werte aus der Vorlage.
+  for (const [k, x] of Object.entries(v)) if (!NOISE.has(k)) out[k] = x === '' ? '(Vorlage)' : x;
   return out;
 }
 
@@ -325,7 +326,15 @@ for (const rec of byGuid.values()) {
     calcTpm: cf?.tpmin,
     ps: ps ? { full: ps.FullSatisfactionDistance, none: ps.NoSatisfactionDistance, out: psOut.length ? psOut : undefined } : undefined,
     pw: isObj(v.Powerplant) ? v.Powerplant.IndustrializationDistance : undefined,
-    el: 'Electrifiable' in v || undefined,
+    // Strom: Komponente Industrializable (auch leer = Vorlagen-Standard: Bonus, nicht Pflicht).
+    // MandatoryIndustrialization 1 = läuft nur mit Strom; BoostedByIndustrialization 0 = Strom ohne Wirkung.
+    pow: 'Industrializable' in v
+      ? isObj(v.Industrializable) && v.Industrializable.MandatoryIndustrialization
+        ? 'req'
+        : isObj(v.Industrializable) && v.Industrializable.BoostedByIndustrialization === 0
+          ? undefined
+          : 'opt'
+      : undefined,
     sock: isObj(v.ItemContainer) ? { r: v.ItemContainer.SocketScopeRadius, a: v.ItemContainer.SocketAllocation } : undefined,
     res: res ? { lvl: res.PopulationLevel7, max: res.ResidentMax } : undefined,
     up: isObj(v.Upgradable) && v.Upgradable.NextGUID ? ref(v.Upgradable.NextGUID) : undefined,

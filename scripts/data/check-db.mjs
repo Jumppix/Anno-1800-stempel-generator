@@ -47,6 +47,12 @@ for (const [g, name, paved] of [[135100, 'Kaufhaus', 62], [1010362, 'Universitä
   console.log(`info   ${name}: Spielwert ${base} → Pflaster ${paved} (Faktor ${base ? (paved / base).toFixed(2) : '?'})`);
 }
 
+// Strom: Pflicht (MandatoryIndustrialization) bzw. optional
+for (const [g, name, want] of [[1010323, 'Hochrad-Werkhalle', 'req'], [135100, 'Kaufhaus', 'req'], [1010283, 'Ziegelei', 'opt'], [1010343, 'Bauernhaus', undefined]]) {
+  check(`Strom ${want === 'req' ? 'erforderlich' : want ? 'optional' : 'nicht nötig'}: ${name}`, byGuid.get(g)?.pow === want, `ist ${byGuid.get(g)?.pow ?? 'ohne'}`);
+}
+console.log(`info   Strom erforderlich: ${buildings.filter((b) => b.pow === 'req').length}, optional: ${buildings.filter((b) => b.pow === 'opt').length}`);
+
 // 3. Lücken
 const noSize = buildings.filter((b) => !b.sz && b.c !== 'ornament' && b.c !== 'module');
 console.log(`info   ${noSize.length} Gebäude (ohne Zierde/Module) ohne Grundfläche im Anno Designer`);
