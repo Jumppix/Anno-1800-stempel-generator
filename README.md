@@ -9,6 +9,21 @@ Aufstellung mit möglichst vielen **Handelskammern** (Radius 15) und/oder
 Die App läuft vollständig im Browser. Es gibt keinen Server, keine Datenbank und
 keine Uploads: Stempeldateien werden nur lokal per Datei-Input gelesen.
 
+## Hilfeseite und Spieldatenbank
+
+Die Seite ist eine Anno-1800-Hilfeseite mit mehreren Bereichen:
+**Übersicht** (`index.html`), **Datenbank** (`datenbank.html`) und
+**Stadtplaner & Stempel** (`planer.html`, das bisherige Werkzeug). Oben rechts
+lässt sich zwischen Deutsch und Englisch umschalten (der Stadtplaner ist noch
+nur deutsch).
+
+Die Datenbank zeigt alle Gebäude und Items mit Kosten, Unterhalt, Produktion,
+Reichweiten, Item-Effekten und Zielgebäuden sowie alle Rohwerte. Sie wird aus
+Spieldaten erzeugt (`npm run build-db`, Quellen und Vorgehen in
+`docs/PLAN_Datenbank.md`); die Rohdaten liegen nicht im Repository
+(`bash scripts/data/fetch-sources.sh`). `npm run check-db` vergleicht mit dem
+Anno-1800-Rechner und den Werten des Stadtplaners.
+
 ## Schnellstart
 
 Voraussetzungen: Node.js 22+ und npm.

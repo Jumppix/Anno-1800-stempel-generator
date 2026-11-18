@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "check": "node scripts/check-solver.mjs"
+    "check": "node scripts/check-solver.mjs",
+    "build-db": "node scripts/data/build-db.mjs",
+    "check-db": "node scripts/data/check-db.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2",

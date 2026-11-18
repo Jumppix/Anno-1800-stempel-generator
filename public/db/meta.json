@@ -1,0 +1,419 @@
+{
+ "built": "2026-11-18T13:04:22.038Z",
+ "sources": [
+  {
+   "name": "anno-toolkit (jansepke)",
+   "url": "https://github.com/jansepke/anno-toolkit",
+   "commit": "617efabc571d853c152f853d3b6cb0b4a0cb1015",
+   "license": "MIT",
+   "use": "assets.xml als JSON, Texte, Icons"
+  },
+  {
+   "name": "Anno1800Calculator (NiHoel)",
+   "url": "https://github.com/NiHoel/Anno1800Calculator",
+   "commit": "61ab6df27af3338a01fde759dd51d4c795ed73c2",
+   "license": "MIT",
+   "use": "Gegenprobe Produktion (t/min), DLC-Zuordnung"
+  },
+  {
+   "name": "Anno Designer Presets",
+   "url": "https://github.com/AnnoDesigner/anno-designer",
+   "commit": null,
+   "license": "MIT",
+   "use": "Grundfläche, Einflussradius/-reichweite"
+  }
+ ],
+ "counts": {
+  "items": 1455,
+  "buildings": 1396,
+  "names": 6038,
+  "icons": 2105
+ },
+ "limits": [
+  "Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).",
+  "Standardwerte der Vorlagen (templates.xml) fehlen: nicht angegebene Felder sind unbekannt, nicht 0."
+ ],
+ "labels": {
+  "effects": {
+   "ProductivityUpgrade": [
+    "Produktivität",
+    "Productivity"
+   ],
+   "MaintenanceUpgrade": [
+    "Wartungskosten",
+    "Maintenance Cost"
+   ],
+   "ReplaceInputs": [
+    "Neue Eingangswaren",
+    "New Input"
+   ],
+   "AttractivenessUpgrade": [
+    "Attraktivität",
+    "Attractiveness"
+   ],
+   "AdditionalOutput": [
+    "Zusatzwaren",
+    "Extra Goods"
+   ],
+   "ReplacingWorkforce": [
+    "Ersatzarbeitskräfte",
+    "Substitute Workforce"
+   ],
+   "WorkforceAmountUpgrade": [
+    "Arbeitskräfte erforderlich",
+    "Workforce Needed"
+   ],
+   "ModuleLimitPercent": [
+    "Anzahl Module",
+    "No. of Modules"
+   ],
+   "NeededAreaPercentUpgrade": [
+    "Walddichte",
+    "Forest Density"
+   ],
+   "IncidentFireIncreaseUpgrade": [
+    "Brandgefahr",
+    "Chance of Fire"
+   ],
+   "ProvideIndustrialization": [
+    "Liefert Elektrizität",
+    "Provides Electricity"
+   ],
+   "IncidentExplosionIncreaseUpgrade": [
+    "Explosionswahrscheinlichkeit",
+    "Explosion Chance"
+   ],
+   "IncidentRiotIncreaseUpgrade": [
+    "Aufstandswahrscheinlichkeit",
+    "Riot Chance"
+   ],
+   "PipeCapacityUpgrade": [
+    "Bewässerungskapazität",
+    "Irrigation Capacity"
+   ],
+   "RiotInfluenceUpgrade": [
+    "Aufstandsintensität",
+    "Riot Intensity"
+   ],
+   "AdditionalHappiness": [
+    "Zufriedenheit",
+    "Happiness"
+   ],
+   "ResolverUnitDecreaseUpgrade": [
+    "Löschgeschwindigkeit",
+    "Extinguish Speed"
+   ],
+   "ResolverUnitMovementSpeedUpgrade": [
+    "Eingreiftempo",
+    "Healing Speed"
+   ],
+   "ResolverUnitCountUpgrade": [
+    "Zusätzliche Einheiten",
+    "Additional Units"
+   ],
+   "AddedFertility": [
+    "Fruchtbarkeit",
+    "Fertility"
+   ],
+   "PublicServiceFullSatisfactionDistance": [
+    "Reichweite",
+    "Range"
+   ],
+   "InputBenefitModifier": [
+    "Zusatzeinkommen",
+    "Bonus Income"
+   ],
+   "ResidentsUpgrade": [
+    "Einwohner (max.)",
+    "Max. Residents"
+   ],
+   "TaxModifierInPercent": [
+    "Einkommen pro Haus",
+    "Income Per House"
+   ],
+   "IncidentIllnessIncreaseUpgrade": [
+    "Krankheitsgefahr",
+    "Chance of Illness"
+   ],
+   "NeedProvideNeedUpgrade": [
+    "Zusatzversorgung",
+    "Bonus Supply"
+   ],
+   "StressUpgrade": [
+    "Arbeitspensumseffekte",
+    "Impact of working conditions"
+   ],
+   "GoodConsumptionUpgrade": [
+    "Bedürfnis-Bonus",
+    "Provided Needs"
+   ],
+   "WorkforceModifierInPercent": [
+    "Arbeitskräfte",
+    "Workforce"
+   ],
+   "InputAmountUpgrade": [
+    "Ohne Ausgangsmaterial",
+    "Removed Input"
+   ],
+   "SpecialUnitHappinessThresholdUpgrade": [
+    "Verringert die Zufriedenheit, die erforderlich ist, um zu rufen.",
+    "Reduces the happiness necessary for the to respond to calls."
+   ],
+   "BlockHostileTakeover": [
+    "Übernahme blockieren",
+    "Takeover Lockdown"
+   ],
+   "SpawnProbabilityFactor": [
+    "Besondere Gäste",
+    "Special Guests"
+   ],
+   "ConstructionCostInPercent": [
+    "Baukosten",
+    "Construction cost"
+   ],
+   "AddAssemblyOptions": [
+    "Fügt die Möglichkeit zu, dass Folgendes gebaut wird",
+    "Adds the ability to construct ."
+   ],
+   "BaseDamageUpgrade": [
+    "Schaden pro Schuss",
+    "Damage per shot"
+   ],
+   "AttackSpeedUpgrade": [
+    "Angriffsgeschwindigkeit",
+    "Attack Speed"
+   ],
+   "Hitpoints": [
+    "Trefferpunkte",
+    "Hitpoints"
+   ],
+   "GenProbability": [
+    "Hafenaktivität",
+    "Harbour Activity"
+   ],
+   "GenPool": [
+    "Zusatzversorgung",
+    "Bonus Supply"
+   ],
+   "BlockBuyShare": [
+    "Anteilerwerbssperre",
+    "Share Lockdown"
+   ],
+   "HappinessIgnoresMorale": [
+    "Stählerner Wille",
+    "Will of Steel"
+   ],
+   "MaxHitpointsUpgrade": [
+    "Trefferpunkte",
+    "Hitpoints"
+   ],
+   "AttackRangeUpgrade": [
+    "Angriffsreichweite",
+    "Attack Range"
+   ],
+   "HitpointDamage": [
+    "Schaden pro Schuss",
+    "Damage per shot"
+   ],
+   "LineOfSightRangeUpgrade": [
+    "Sichtweite",
+    "Vision Range"
+   ],
+   "SelfHealUpgrade": [
+    "Selbstreparatur",
+    "Self-Repair"
+   ],
+   "SelfHealPausedTimeIfAttackedUpgrade": [
+    "Aktive Heilung",
+    "Active Healing"
+   ],
+   "HealRadiusUpgrade": [
+    "Reparaturradius",
+    "Repair Radius"
+   ],
+   "HealPerMinuteUpgrade": [
+    "Reparaturgeschwindigkeit",
+    "Repair Speed"
+   ],
+   "HealBuildingsPerMinuteUpgrade": [
+    "Reparaturgeschwindigkeit",
+    "Repair Speed"
+   ],
+   "AccuracyUpgrade": [
+    "Präzision",
+    "Accuracy"
+   ],
+   "PierSpeedUpgrade": [
+    "Verladegeschwindigkeit",
+    "Loading Speed"
+   ],
+   "DamageReceiveFactor": [
+    "Schaden durch Schiffe",
+    "Damage from Ships"
+   ],
+   "MoraleDamage": [
+    "Moralverlust",
+    "Morale Loss"
+   ],
+   "IncidentArcticIllnessIncreaseUpgrade": [
+    "Risiko für Arktische Grippe",
+    "Arctic Flu Chance"
+   ],
+   "HeatRangeUpgrade": [
+    "Reichweite",
+    "Range"
+   ],
+   "ForwardSpeedUpgrade": [
+    "Bewegungsgeschwindigkeit",
+    "Movement Speed"
+   ],
+   "IgnoreDamageFactorUpgrade": [
+    "Schadens-Verlangsamung",
+    "Damage Slowdown"
+   ],
+   "LoadingSpeedUpgrade": [
+    "Verladegeschwindigkeit",
+    "Loading Speed"
+   ],
+   "IgnoreWeightFactorUpgrade": [
+    "Fracht-Verlangsamung",
+    "Cargo Slowdown"
+   ],
+   "MaintainanceUpgrade": [
+    "Wartungskosten",
+    "Maintenance Cost"
+   ],
+   "ActiveTradePriceInPercent": [
+    "Handelspreise",
+    "Trade Prices"
+   ]
+  },
+  "rarity": {
+   "common": [
+    "Gewöhnlich",
+    "Common"
+   ],
+   "uncommon": [
+    "Ungewöhnlich",
+    "Uncommon"
+   ],
+   "rare": [
+    "Selten",
+    "Rare"
+   ],
+   "epic": [
+    "Episch",
+    "Epic"
+   ],
+   "legendary": [
+    "Legendär",
+    "Legendary"
+   ],
+   "narrative": [
+    "Charakter-Item",
+    "Character Item"
+   ]
+  },
+  "expedition": {
+   "Might": [
+    "Gefechtskunde",
+    "Naval Power"
+   ],
+   "Faith": [
+    "Glaube",
+    "Faith"
+   ],
+   "Diplomacy": [
+    "Redegabe",
+    "Diplomacy"
+   ],
+   "Hunting": [
+    "Jagdglück",
+    "Hunting"
+   ],
+   "Medicine": [
+    "Heilkunst",
+    "Medicine"
+   ],
+   "Melee": [
+    "Kampfkraft",
+    "Force"
+   ],
+   "Navigation": [
+    "Navigation",
+    "Navigation"
+   ],
+   "Crafting": [
+    "Geschick",
+    "Crafting"
+   ],
+   "PerkFormerPirate": [
+    "Ehemaliger Pirat",
+    "Former Pirate"
+   ],
+   "PerkMale": [
+    "Männlich",
+    "Male"
+   ],
+   "PerkFemale": [
+    "Weiblich",
+    "Female"
+   ],
+   "PerkZoologist": [
+    "Zoologe",
+    "Zoologist"
+   ],
+   "PerkHypnotist": [
+    "Hypnotiseur",
+    "Hypnotist"
+   ],
+   "PerkAnthropologist": [
+    "Anthropologe",
+    "Anthropologist"
+   ],
+   "PerkArcheologist": [
+    "Archäologe",
+    "Archaeologist"
+   ],
+   "PerkEntertainer": [
+    "Unterhalter",
+    "Entertainer"
+   ],
+   "PerkPolyglot": [
+    "Sprachkundiger",
+    "Polyglot"
+   ],
+   "PerkJackOfAllTraits": [
+    "Verwandlungskünstler",
+    "Jack of all Traits"
+   ]
+  }
+ },
+ "files": [
+  {
+   "file": "items.json",
+   "bytes": 928326,
+   "sha1": "a7904b7bf980"
+  },
+  {
+   "file": "buildings.json",
+   "bytes": 465285,
+   "sha1": "1666fae7b640"
+  },
+  {
+   "file": "names.json",
+   "bytes": 726287,
+   "sha1": "13fd91a6de39"
+  },
+  {
+   "file": "items-raw.json",
+   "bytes": 918547,
+   "sha1": "927bd10f20f4"
+  },
+  {
+   "file": "buildings-raw.json",
+   "bytes": 1679569,
+   "sha1": "823e92592912"
+  }
+ ]
+}

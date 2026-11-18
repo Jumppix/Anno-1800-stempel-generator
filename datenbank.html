@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Datenbank · Anno-1800-Hilfe</title>
+  </head>
+  <body class="site">
+    <main class="db">
+      <section class="db-list">
+        <nav class="db-tabs">
+          <button id="tab-buildings" class="active" type="button" data-i18n="db.tab.buildings"></button>
+          <button id="tab-items" type="button" data-i18n="db.tab.items"></button>
+        </nav>
+        <div id="db-filters" class="db-filters"></div>
+        <div id="db-count" class="db-count" data-i18n="db.loading"></div>
+        <div id="db-rows" class="db-rows"></div>
+      </section>
+      <section id="db-detail" class="db-detail">
+        <p class="db-empty" data-i18n="db.pick"></p>
+      </section>
+    </main>
+    <script type="module" src="/src/db/page.ts"></script>
+  </body>
+</html>

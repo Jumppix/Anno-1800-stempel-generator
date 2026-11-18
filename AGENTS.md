@@ -23,6 +23,8 @@ npm run dev       # lokaler Dev-Server, Basis /
 npm run build     # tsc + Vite; Pflichtprüfung nach Änderungen
 npm run preview   # Produktionsbuild lokal
 npm run check     # Solver-Regressionstest + Invarianten (scripts/check-solver.mjs)
+npm run build-db  # Spieldatenbank public/db neu erzeugen (Rohdaten: bash scripts/data/fetch-sources.sh)
+npm run check-db  # Prüfbericht der Datenbank (Gegenprobe Rechner, Stadtplaner-Werte)
 ```
 
 Node 22+ wird in GitHub Actions verwendet. `package-lock.json` nicht
@@ -43,6 +45,14 @@ unnötig verändern.
 
 ## Code-Landkarte
 
+- Hilfeseite (mehrere Seiten, `vite.config.js` `build.rollupOptions.input`): `index.html` Startseite
+  (`src/start.ts`), `datenbank.html` (`src/db/page.ts`), `planer.html` (bisheriges Werkzeug, `src/main.ts`).
+  Gemeinsamer Rahmen `src/site.ts`/`src/site.css` (Navigation, Sprachumschalter, Fanprojekt-Hinweis),
+  Sprachen `src/i18n.ts` (de/en, `data-i18n`; der Stadtplaner ist noch nur deutsch).
+- Spieldatenbank (Plan: `docs/PLAN_Datenbank.md`): `scripts/data/build-db.mjs` erzeugt `public/db/*.json`
+  und `public/db/icons/*.webp` (via `scripts/data/shrink-icons.py`, Pillow) aus `research/raw/`
+  (nicht im Repo; `scripts/data/fetch-sources.sh`). `public/db` ist erzeugt, wird aber committet
+  (Rohdaten fehlen in CI). Prüfbericht `scripts/data/check-db.mjs`.
 - `src/main.ts`: UI, Import, Zustand, `update()`/`rebuildOutputs()`, Export,
   Randstrecken.
 - `src/buildings.ts`: Gebäudetypen (Größe, Radius, GUID, Farbe).
@@ -132,7 +142,9 @@ unnötig verändern.
 7. **Vite-Basis:** nicht hart auf `/` setzen; GitHub Pages braucht
    `/<repo>/`. Die Logik in `vite.config.js` beibehalten.
 8. **Keine Secrets / generierten Dateien committen:** `.env*`,
-   `node_modules/`, `dist/`, Caches sind ignoriert.
+   `node_modules/`, `dist/`, Caches sind ignoriert. Ausnahme: `public/db/` (Datenbank,
+   aus Rohdaten erzeugt, die nicht im Repository liegen). Roh-Spieldateien (`research/raw/`)
+   nie committen.
 
 ## Änderungs-Workflow
 

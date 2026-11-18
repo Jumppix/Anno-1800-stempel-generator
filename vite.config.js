@@ -8,6 +8,16 @@ const base = process.env.GITHUB_ACTIONS === 'true' && repo ? `/${repo}/` : '/';
 
 export default defineConfig({
   base,
+  // Mehrere Seiten: Startseite, Datenbank, Stadtplaner/Stempel-Werkzeug.
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        datenbank: 'datenbank.html',
+        planer: 'planer.html',
+      },
+    },
+  },
   // Module-Worker (alle Worker werden mit type: 'module' gestartet); nötig,
   // damit der Pipeline-Worker HiGHS nur bei Bedarf nachladen kann.
   worker: { format: 'es' },

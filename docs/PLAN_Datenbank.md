@@ -100,3 +100,25 @@ Quelle, Spielversion.
 3. **Deutsch und Englisch umschaltbar:** Spielnamen aus beiden Textdateien,
    Oberflächentexte über eine Übersetzungstabelle, Sprachwahl gespeichert im Browser.
    Gilt später für die ganze Seite (auch den Stadtplaner).
+
+## 6. Stand (18.11.2026)
+
+Gebaut, solange die Spieldateien des Nutzers noch fehlen (Grundlage: anno-toolkit-Abzug):
+
+- **Seitenaufbau:** Startseite, Datenbank, Stadtplaner unter `planer.html`; Navigation,
+  Sprachumschalter de/en, Fanprojekt-Hinweis.
+- **D2/D3 (vorläufig):** 1.396 Gebäude (Kategorie, Region, DLC, Größe/Radius/Reichweite aus
+  Anno Designer, Baukosten, Unterhalt, Produktion, Versorgung, Item-Plätze, Wohnen, Ausbau) und
+  1.455 Items (Platz, Seltenheit, Art, Preis, Effekte mit Spieltext-Beschriftung, Zielgebäude
+  inkl. aufgelöster Gruppen, Expedition). 2.105 Icons als WebP 64 px (5,7 MB).
+- **D4 (Grundversion):** Suche, Filter (Kategorie/Region/DLC bzw. Platz/Seltenheit/Effekt/DLC),
+  Detailansicht, Verweise Item ↔ Gebäude, „Items, die dieses Gebäude beeinflussen“, Rohwerte.
+- **Prüfbericht** (`npm run check-db`): Zykluszeit = Anno-1800-Rechner bei 126/126
+  Produktionsgebäuden; Stadtplaner-Werte (Größen, Radien) stimmen; Reichweiten-Spielwerte ×1,40–1,42
+  = Pflaster-Kacheln des Stadtplaners.
+
+Offen, wartet auf `assets.xml`/`templates.xml` des Nutzers:
+- Einträge mit `BaseAssetGUID` (fehlen im Abzug), Vorlagen-Standardwerte (79 Zykluszeiten,
+  Kosten von 504 Gebäuden, Regionen einzelner Gebäude), Freischaltbedingungen.
+- Bevölkerungsstufen/Bedürfnisse/Verbrauch, Herkunft der Items (Händler, Expeditionen),
+  Sets (Zoo/Museum).
