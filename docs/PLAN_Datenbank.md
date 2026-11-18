@@ -182,3 +182,18 @@ Ergebnis nachher: 0 Fälle mit höherem Ausstoß bei ihnen, 78 gleich, 442 bei u
 (dort verfolgen ihre Setups oft andere Ziele, z. B. Zusatzwaren oder günstige Items).
 Offen: Ministerium für Arbeit (+60 % in Ministeriumsreichweite, mehrere Stufen-Varianten),
 Zeitung, „Qualifizierte Arbeitskräfte“/„Landbesitzreform“ (Palast-Zusatzwaren je Fabrik).
+
+## 8. Spieldateien des Nutzers eingebunden (18.11.2026)
+
+- `assets.xml` + Texte aus **data33.rda** (11.11.2024, 104.190 Assets), `templates.xml` aus
+  **data27.rda**; `properties.xml` bisher nur in der Fassung von 2019 (Standard-Kostenliste und
+  Zykluszeit 30 s – beides unverändert gültig; `Industrializable`-Standard fehlt dort).
+- `scripts/data/convert-game.py`: XML → JSON wie anno-toolkit, **556 BaseAssetGUID-Einträge
+  aufgelöst**, Vorlagen-/Standardwerte für FactoryBase, Cost (inkl. geerbter Listeneinträge),
+  Industrializable, PublicService, Powerplant, ItemContainer, Residence7, ModuleOwner,
+  Maintenance, Building eingemischt.
+- Ergebnis: 1.501 statt 1.388 Gebäude; **0 Produktionsgebäude ohne Zykluszeit** (vorher 83),
+  218/218 = Anno-1800-Rechner; **0 Gebäude mit unbekannten Kosten** (vorher 318); Monumente
+  ohne Strombonus (Vorlage `BoostedByIndustrialization 0`, vorher falsch angenommen);
+  Handelskammer Neue Welt (101284) bekannt → Stempel-Download auch für die Neue Welt (Feldweg).
+- Offen: aktuelle `properties.xml` (Strom-Standard für Farmen), Enbesa-Stempel (Regionspfad).

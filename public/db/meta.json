@@ -1,5 +1,5 @@
 {
- "built": "2026-11-18T15:37:23.018Z",
+ "built": "2026-11-18T18:00:51.378Z",
  "workforce": [
   1010052,
   1010115,
@@ -18,11 +18,18 @@
  ],
  "sources": [
   {
+   "name": "Spieldateien (data33.rda, 11.11.2024)",
+   "url": "https://www.ubisoft.com/game/anno/1800",
+   "commit": null,
+   "license": "© Ubisoft",
+   "use": "assets.xml (inkl. abgeleiteter Einträge), Texte de/en"
+  },
+  {
    "name": "anno-toolkit (jansepke)",
    "url": "https://github.com/jansepke/anno-toolkit",
    "commit": "617efabc571d853c152f853d3b6cb0b4a0cb1015",
    "license": "MIT",
-   "use": "assets.xml als JSON, Texte, Icons"
+   "use": "Icons"
   },
   {
    "name": "Anno1800Calculator (NiHoel)",
@@ -40,13 +47,12 @@
   }
  ],
  "counts": {
-  "items": 1502,
-  "buildings": 1388,
-  "names": 6131,
-  "icons": 2118
+  "items": 1504,
+  "buildings": 1501,
+  "names": 6199,
+  "icons": 2131
  },
  "limits": [
-  "Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).",
   "Standardwerte der Vorlagen (templates.xml) fehlen: nicht angegebene Felder sind unbekannt, nicht 0.",
   "Geerbte Baukosten sind nur dort aufgelöst, wo alle Kostenlisten der Vorlage die Standardfolge Münzen, Bretter, Ziegel, Stahlträger, Fenster, Stahlbeton haben (markiert als abgeleitet)."
  ],
@@ -173,8 +179,8 @@
     "Removed Input"
    ],
    "SpecialUnitHappinessThresholdUpgrade": [
-    "Verringert die Zufriedenheit, die erforderlich ist, um zu rufen.",
-    "Reduces the happiness necessary for the to respond to calls."
+    "Verringert die Zufriedenheit, die erforderlich ist, um )], 1) AT(0)]) Text] zu rufen.",
+    "Reduces the happiness necessary for the )], 1) AT(0)]) Text] to respond to calls."
    ],
    "BlockHostileTakeover": [
     "Übernahme blockieren",
@@ -189,8 +195,8 @@
     "Construction cost"
    ],
    "AddAssemblyOptions": [
-    "Fügt die Möglichkeit zu, dass Folgendes gebaut wird",
-    "Adds the ability to construct ."
+    "Fügt die Möglichkeit zu, dass Folgendes gebaut wird: )]) AddAssemblyOptionsFormatted].",
+    "Adds the ability to construct )]) AddAssemblyOptionsFormatted]."
    ],
    "BaseDamageUpgrade": [
     "Schaden pro Schuss",
@@ -409,33 +415,33 @@
  "files": [
   {
    "file": "items.json",
-   "bytes": 957759,
-   "sha1": "4ca98f41d1f6"
+   "bytes": 958716,
+   "sha1": "1eaac78e7421"
   },
   {
    "file": "buildings.json",
-   "bytes": 471817,
-   "sha1": "dacfec2ec982"
+   "bytes": 526835,
+   "sha1": "857b64251545"
   },
   {
    "file": "names.json",
-   "bytes": 737644,
-   "sha1": "fa9748980119"
+   "bytes": 745915,
+   "sha1": "b4f34adb6e1c"
   },
   {
    "file": "info.json",
-   "bytes": 61085,
-   "sha1": "58b9dca8bab7"
+   "bytes": 61336,
+   "sha1": "9591566c7a76"
   },
   {
    "file": "items-raw.json",
-   "bytes": 1365703,
-   "sha1": "d39bfeccb28c"
+   "bytes": 1469485,
+   "sha1": "d693bfbfa6e0"
   },
   {
    "file": "buildings-raw.json",
-   "bytes": 1828023,
-   "sha1": "dd9b11eb1c75"
+   "bytes": 2262350,
+   "sha1": "370cf7a73f29"
   }
  ]
 }

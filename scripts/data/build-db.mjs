@@ -19,8 +19,19 @@ import { join } from 'node:path';
 const ROOT = new URL('../..', import.meta.url).pathname;
 const RAW = join(ROOT, 'research/raw');
 const TK = join(RAW, 'anno-toolkit');
-const ASSETS = join(TK, 'data/anno/assets');
-const TEXTS = join(TK, 'data/anno/texts');
+// Hauptquelle: Spieldateien des Nutzers (scripts/data/convert-game.py → research/raw/game),
+// sonst der anno-toolkit-Abzug. Icons kommen immer aus dem anno-toolkit.
+const GAME = join(RAW, 'game');
+const FROM_GAME = existsSync(join(GAME, 'assets'));
+const ASSETS = FROM_GAME ? join(GAME, 'assets') : join(TK, 'data/anno/assets');
+const TEXTS = FROM_GAME ? join(GAME, 'texts') : join(TK, 'data/anno/texts');
+const GAME_INFO = (() => {
+  try {
+    return JSON.parse(readFileSync(join(GAME, 'source.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+})();
 const CALC = join(RAW, 'Anno1800Calculator/js/params.js');
 const PRESETS = join(ROOT, 'research/presets.json');
 const OUT = join(ROOT, 'public/db');
@@ -343,7 +354,8 @@ for (const rec of byGuid.values()) {
   if (!name) continue;
   const p = presets.get(rec.g);
   // Region: Spielangabe; fehlt sie (Vorlagen-Standard), aus der Vorlage bzw. der Arbeitskraft ableiten.
-  const regions = isObj(v.Building) && v.Building.AssociatedRegions
+  // Standard der Eigenschaft („Meta;Moderate;…“ = überall) gilt als „nicht angegeben“.
+  const regions = isObj(v.Building) && v.Building.AssociatedRegions && !String(v.Building.AssociatedRegions).includes('Meta')
     ? String(v.Building.AssociatedRegions).split(';').map((r) => REGION[r] ?? r)
     : /_Arctic$/.test(rec.t)
       ? ['arctic']
@@ -561,13 +573,16 @@ const meta = {
   built: new Date().toISOString(),
   workforce,
   sources: [
-    { name: 'anno-toolkit (jansepke)', url: 'https://github.com/jansepke/anno-toolkit', commit: commit(TK), license: 'MIT', use: 'assets.xml als JSON, Texte, Icons' },
+    ...(FROM_GAME
+      ? [{ name: `Spieldateien (${GAME_INFO?.archive ?? 'maindata'}, ${GAME_INFO?.date ?? 'aktuell'})`, url: 'https://www.ubisoft.com/game/anno/1800', commit: null, license: '© Ubisoft', use: 'assets.xml (inkl. abgeleiteter Einträge), Texte de/en' }]
+      : []),
+    { name: 'anno-toolkit (jansepke)', url: 'https://github.com/jansepke/anno-toolkit', commit: commit(TK), license: 'MIT', use: FROM_GAME ? 'Icons' : 'assets.xml als JSON, Texte, Icons' },
     { name: 'Anno1800Calculator (NiHoel)', url: 'https://github.com/NiHoel/Anno1800Calculator', commit: commit(join(RAW, 'Anno1800Calculator')), license: 'MIT', use: 'Gegenprobe Produktion (t/min), DLC-Zuordnung' },
     { name: 'Anno Designer Presets', url: 'https://github.com/AnnoDesigner/anno-designer', commit: null, license: 'MIT', use: 'Grundfläche, Einflussradius/-reichweite' },
   ],
   counts: { items: items.length, buildings: buildings.length, names: Object.keys(names).length, icons: iconsUsed.size },
   limits: [
-    'Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).',
+    ...(FROM_GAME ? [] : ['Einträge, die ihre Werte über BaseAssetGUID von einem anderen Eintrag erben, fehlen (anno-toolkit übernimmt sie nicht).']),
     'Standardwerte der Vorlagen (templates.xml) fehlen: nicht angegebene Felder sind unbekannt, nicht 0.',
     'Geerbte Baukosten sind nur dort aufgelöst, wo alle Kostenlisten der Vorlage die Standardfolge Münzen, Bretter, Ziegel, Stahlträger, Fenster, Stahlbeton haben (markiert als abgeleitet).',
   ],

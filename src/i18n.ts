@@ -208,7 +208,7 @@ const DICT: Record<string, [string, string]> = {
     'Computed automatically (road rows + connecting road, all offsets and rotations). Warehouses and power are not included.',
   ],
   'prod.stamp': ['Stempel herunterladen', 'Download stamp'],
-  'prod.stampOnlyOw': ['Stempel-Download vorerst nur für die Alte Welt.', 'Stamp download for the Old World only for now.'],
+  'prod.stampOnlyOw': ['Stempel-Download vorerst nur für Alte und Neue Welt.', 'Stamp download for the Old and New World only for now.'],
   'prod.applyCount': ['Anzahl {n} übernehmen', 'Use count {n}'],
   'prod.kind.farm': ['Farm mit Feldern – Anzahl selbst eintragen', 'Farm with fields – enter count yourself'],
   'prod.kind.mine': ['Mine – hängt von den Vorkommen ab', 'Mine – depends on deposits'],

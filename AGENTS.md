@@ -57,7 +57,10 @@ unnötig verändern.
   Sprachen `src/i18n.ts` (de/en, `data-i18n`; der Stadtplaner ist noch nur deutsch).
 - Spieldatenbank (Plan: `docs/PLAN_Datenbank.md`): `scripts/data/build-db.mjs` erzeugt `public/db/*.json`
   und `public/db/icons/*.webp` (via `scripts/data/shrink-icons.py`, Pillow) aus `research/raw/`
-  (nicht im Repo; `scripts/data/fetch-sources.sh`). `public/db` ist erzeugt, wird aber committet
+  (nicht im Repo; `scripts/data/fetch-sources.sh`). Hauptquelle sind die Spieldateien des Nutzers:
+  `python3 -I scripts/data/convert-game.py <ordner>` wandelt assets.xml (data33.rda), templates.xml
+  (data27.rda), properties.xml und texts_*.xml nach `research/raw/game` um (BaseAssetGUID aufgelöst,
+  Vorlagen-/Standardwerte eingemischt); ohne diesen Ordner fällt build-db auf den anno-toolkit-Abzug zurück. `public/db` ist erzeugt, wird aber committet
   (Rohdaten fehlen in CI). Prüfbericht `scripts/data/check-db.mjs`. Bauphasen (Monumente) über
   `Monument.UpgradeTarget` (`ph`); geerbte Kosten nur bei Standard-Kostenfolge abgeleitet (`inf`).
 - `src/main.ts`: UI, Import, Zustand, `update()`/`rebuildOutputs()`, Export,

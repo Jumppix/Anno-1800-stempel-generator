@@ -32,6 +32,11 @@ interface RowState {
 const REGIONS = ['ow', 'nw', 'arctic', 'africa'] as const;
 type Region = (typeof REGIONS)[number];
 const TRADE_UNION = 1010516;
+/** Handelskammer und Straße je Region für den Stempel (Neue Welt: Feldweg). */
+const STAMP_REGION: Partial<Record<string, { hk: number; street: number; key: 'ow' | 'nw' }>> = {
+  ow: { hk: 1010516, street: STREET_GUIDS.paved, key: 'ow' },
+  nw: { hk: 101284, street: STREET_GUIDS.dirt, key: 'nw' },
+};
 const STORE = 'anno-prod-state';
 
 let db: Db;
@@ -336,7 +341,7 @@ function openLayout(b: Building): void {
     <rect x="-2" y="-2" width="4" height="4" rx=".3" fill="#5c4a1d" stroke="#d9b36c" stroke-width=".12"/>
     <image href="${DB_BASE}icons/${db.names[TRADE_UNION]?.[2] ?? ''}" x="-1.4" y="-1.4" width="2.8" height="2.8"/>
   </svg>`;
-  const canStamp = b.reg?.includes('ow');
+  const canStamp = !!STAMP_REGION[b.reg?.[0] ?? ''];
   const body = openModal(
     `<h2>${esc(t('prod.layoutTitle', { b: pick(b.n) }))}</h2>
      <p>${esc(t('prod.layoutInfo', { n: L.n, r: R, roads: L.r.length }))}</p>
@@ -362,12 +367,13 @@ function downloadStamp(
   rects: Array<{ x: number; y: number; w: number; h: number; turns: number }>,
   roads: Array<[number, number]>,
 ): void {
+  const sr = STAMP_REGION[b.reg?.[0] ?? ''] ?? (STAMP_REGION.ow as { hk: number; street: number; key: 'ow' | 'nw' });
   const items: StampBuilding[] = [
-    { guid: TRADE_UNION, x: -2, y: -2, w: 4, h: 4, turns: 0 },
+    { guid: sr.hk, x: -2, y: -2, w: 4, h: 4, turns: 0 },
     ...rects.map((r) => ({ guid: b.g, x: r.x, y: r.y, w: r.w, h: r.h, turns: r.turns })),
   ];
-  const streets: StampStreet[] = roads.map(([x, y]) => ({ x, y, guid: STREET_GUIDS.paved }));
-  const bytes = buildGenericStamp(items, 'ow', streets);
+  const streets: StampStreet[] = roads.map(([x, y]) => ({ x, y, guid: sr.street }));
+  const bytes = buildGenericStamp(items, sr.key, streets);
   const name = `HK_${(b.n.en || b.n.de).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '')}_${rects.length}`;
   const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/octet-stream' }));
   const a = document.createElement('a');
