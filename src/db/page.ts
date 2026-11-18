@@ -99,14 +99,61 @@ const nameOfGuid = (g: number): string => {
   return n ? (getLang() === 'de' ? n[0] : n[1]) || n[0] : `#${g}`;
 };
 
-/** Verweis auf eine GUID: Link zum Eintrag (falls vorhanden) mit Icon. */
+/**
+ * Verweis auf eine GUID: nur das Icon (plus Menge o. Ä.), der Name steht im
+ * Tooltip (Maus darüber oder antippen). Ohne Icon wird der Name gezeigt.
+ * Link zum Eintrag, falls es ihn in der Datenbank gibt.
+ */
 function chip(g: number, extra = ''): string {
   const n = names[g];
-  const label = `${esc(nameOfGuid(g))}${extra ? ` ${esc(extra)}` : ''}`;
-  const ic = n?.[2] ? img(n[2]) : '';
+  const name = nameOfGuid(g);
+  const ic = n?.[2];
   const href = buildingBy.has(g) ? `#b=${g}` : itemBy.has(g) ? `#i=${g}` : '';
-  const cls = `chip${ic ? '' : ' plain'}`;
-  return href ? `<a class="${cls}" href="${href}">${ic}${label}</a>` : `<span class="${cls}">${ic}${label}</span>`;
+  const body = ic ? `${img(ic)}${extra ? `<span>${esc(extra)}</span>` : ''}` : `${esc(name)}${extra ? ` ${esc(extra)}` : ''}`;
+  const cls = `chip${ic ? (extra ? '' : ' icon-only') : ' plain'}`;
+  const tip = `data-tip="${esc(name)}" aria-label="${esc(name)}${extra ? ` ${esc(extra)}` : ''}"`;
+  return href ? `<a class="${cls}" href="${href}" ${tip}>${body}</a>` : `<span class="${cls}" tabindex="0" ${tip}>${body}</span>`;
+}
+
+/** Tooltip für [data-tip]: beim Überfahren und beim Antippen/Klicken. */
+function setupTooltip(): void {
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.hidden = true;
+  document.body.append(tip);
+  let pinned: HTMLElement | null = null;
+  const show = (el: HTMLElement): void => {
+    tip.textContent = el.dataset.tip ?? '';
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    tip.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+    tip.style.top = `${r.top - tip.offsetHeight - 6 < 4 ? r.bottom + 6 : r.top - tip.offsetHeight - 6}px`;
+  };
+  const hide = (): void => {
+    tip.hidden = true;
+    pinned = null;
+  };
+  document.addEventListener('mouseover', (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
+    if (el) show(el);
+    else if (!pinned) tip.hidden = true;
+  });
+  document.addEventListener('focusin', (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
+    if (el) show(el);
+  });
+  document.addEventListener('click', (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
+    if (el && el.tagName !== 'A') {
+      if (pinned === el) hide();
+      else {
+        show(el);
+        pinned = el;
+      }
+    } else hide();
+  });
+  window.addEventListener('scroll', hide, true);
 }
 
 const amounts = (list?: Amount[], inactive = false): string =>
@@ -287,7 +334,7 @@ function fmtEffect(e: Effect): string {
   const list = Array.isArray(e.v) ? (e.v as Array<Record<string, number>>) : null;
   if (e.k === 'AdditionalOutput' && list) {
     return `${label} ${list
-      .map((o) => chip(o.Product, `${o.Amount && o.Amount !== 1 ? `×${num(o.Amount)} ` : ''}(${o.AdditionalOutputCycle && o.AdditionalOutputCycle > 1 ? t('d.every', { n: o.AdditionalOutputCycle }) : t('d.everyOne')})`))
+      .map((o) => chip(o.Product, `${o.Amount && o.Amount !== 1 ? `×${num(o.Amount)} ` : ''}${o.AdditionalOutputCycle && o.AdditionalOutputCycle > 1 ? t('d.every', { n: o.AdditionalOutputCycle }) : t('d.everyOne')}`))
       .join('')}`;
   }
   if (e.k === 'ReplaceInputs' && list) {
@@ -476,6 +523,7 @@ function fromHash(): void {
 
 async function main(): Promise<void> {
   mountSite('db');
+  setupTooltip();
   try {
     await load();
   } catch (err) {

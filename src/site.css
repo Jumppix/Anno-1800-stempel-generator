@@ -417,8 +417,36 @@ a.tile:hover {
   padding-left: 9px;
 }
 
-a.chip:hover {
+a.chip:hover,
+.chip[data-tip]:hover {
   border-color: var(--gold);
+}
+
+.chip[data-tip] {
+  cursor: pointer;
+}
+
+.chip.icon-only {
+  padding: 2px;
+}
+
+.chip.icon-only img {
+  width: 26px;
+  height: 26px;
+}
+
+.tip {
+  position: fixed;
+  z-index: 50;
+  max-width: 280px;
+  background: #0b1822;
+  color: var(--text);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 
 .fx {
