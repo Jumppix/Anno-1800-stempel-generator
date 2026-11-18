@@ -89,8 +89,14 @@ Quelle, Spielversion.
   (Panorama, Clipping, 149-Bauern-Regel, Zwischenfall-Schwellen …), Nutzer prüft im Spiel.
 - Danach: Guides (Baumaterial-Insel, Gelehrten-Insel, Produktion in HK-Reichweite).
 
-## 5. Offene Fragen an den Nutzer
+## 5. Entscheidungen des Nutzers
 
-1. Kannst du die Dateien aus deiner Installation auslesen (Windows, RDA Explorer)?
-2. Sollen Spiel-Icons angezeigt werden?
-3. Namen nur deutsch oder deutsch und englisch?
+1. Rohdaten: Nutzer liest die Dateien mit dem RDA Explorer aus (Anleitung im Chat);
+   bis dahin anno-toolkit-Abzug. Wegen der Größe von `assets.xml` zuerst
+   `templates.xml` (gezippt), `assets.xml` nur falls nötig.
+2. **Mit Spiel-Icons** (wie Anno Designer/Calculator; Seite ist öffentlich
+   erreichbar → Hinweis „Fanprojekt, Anno 1800 © Ubisoft, nicht offiziell“ im Fuß).
+   Icons liegen im Spiel als `.dds` und werden beim Aufbereiten in PNG umgewandelt.
+3. **Deutsch und Englisch umschaltbar:** Spielnamen aus beiden Textdateien,
+   Oberflächentexte über eine Übersetzungstabelle, Sprachwahl gespeichert im Browser.
+   Gilt später für die ganze Seite (auch den Stadtplaner).
