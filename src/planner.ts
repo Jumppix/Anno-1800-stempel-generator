@@ -14,7 +14,7 @@ import { FARMER_HOUSE, lookup, STREET_GUIDS } from './catalog';
 import { BLOCKED, BRIDGE, extendRoads, FREE, greedyFill, HOUSE, pruneBridges, realignLanes, replaceRoadStubs, ROAD, SERVICE, touchesRoad, WATER, type FillResult, type FillState } from './fill';
 import { placePostBoxes, type PostReport } from './post';
 import { compact, type CompactOptions, type CompactResult } from './compact';
-import { placeServices, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
+import { placeServices, SERVICE_SPECS, type PlacedService, type ServiceOptions, type ServiceReport } from './services';
 import { thinCrossRoads, type ThinOptions, type ThinReport } from './thin';
 import { insertCrossRoads, type InsertReport } from './codesign';
 import type { LandMask, OverlapPenalty } from './solver';
@@ -627,6 +627,92 @@ export function compactCity(
   greedyFill(s);
   result.gained += s.houses.length - before;
   return { city: stateToCity(s, city, townHalls), result };
+}
+
+/**
+ * M5: Nachverdichtung mit Einwohnerziel, nachdem Läden, Kraftwerke und
+ * Straßen feststehen. Jeder mögliche Hausplatz wird mit geschätzten
+ * Einwohnern bewertet: Grundwert + Rathaus-Items im Radius 20 + je Art der
+ * Versorgung, die ihn über die Straße erreicht (Werte wie in services.ts).
+ * Rathäuser bleiben fest, Straßen werden nicht verkürzt.
+ */
+export function compactValued(
+  mask: LandMask,
+  city: CityPlan,
+  options: { deadline: number; seed?: number; rangeBonus?: Partial<Record<string, number>> },
+): { city: CityPlan; result: CompactResult } {
+  const s = cityToState(mask, city);
+  const { w, h, cell } = s;
+  const isWay = (v: number): boolean => v === ROAD || v === BRIDGE;
+  // Erreichbarkeit je Versorgungsart: Straßenkacheln mit Abstand ≤ Reichweite.
+  const reach = new Map<string, Uint8Array>();
+  for (const spec of SERVICE_SPECS) {
+    const list = (city.services ?? []).filter((sv) => sv.kind === spec.kind);
+    if (!list.length) continue;
+    const range = (lookup(spec.guid).roadRange ?? 0) + (options.rangeBonus?.[spec.kind] ?? 0);
+    if (!range) continue;
+    const dist = new Uint16Array(w * h);
+    const queue: number[] = [];
+    for (const sv of list) {
+      for (let x = sv.x - 1; x <= sv.x + sv.w; x++) {
+        for (let y = sv.y - 1; y <= sv.y + sv.h; y++) {
+          const edge = x === sv.x - 1 || x === sv.x + sv.w || y === sv.y - 1 || y === sv.y + sv.h;
+          const corner = (x === sv.x - 1 || x === sv.x + sv.w) && (y === sv.y - 1 || y === sv.y + sv.h);
+          if (!edge || corner || x < 0 || y < 0 || x >= w || y >= h) continue;
+          const i = y * w + x;
+          if (isWay(cell[i]) && !dist[i]) {
+            dist[i] = 1;
+            queue.push(i);
+          }
+        }
+      }
+    }
+    for (let q = 0; q < queue.length; q++) {
+      const i = queue[q];
+      if (dist[i] >= range) continue;
+      const x = i % w;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (j < 0 || j >= w * h || dist[j] || !isWay(cell[j])) continue;
+        dist[j] = dist[i] + 1;
+        queue.push(j);
+      }
+    }
+    const ok = new Uint8Array(w * h);
+    for (let i = 0; i < ok.length; i++) if (dist[i]) ok[i] = 1;
+    reach.set(spec.kind, ok);
+  }
+  const specs = SERVICE_SPECS.filter((sp) => reach.has(sp.kind) && !sp.optional);
+  const inTownHall = (x: number, y: number): boolean =>
+    city.townHalls.some((t) => Math.hypot(x + 1.5 - (t.x + 2), y + 1.5 - (t.y + 2)) <= 20 + 1e-9);
+  const weightAt = (x: number, y: number): number => {
+    const th = inTownHall(x, y);
+    let v = 225 + (th ? 31 : 0);
+    for (const sp of specs) {
+      const ok = reach.get(sp.kind) as Uint8Array;
+      let hit = false;
+      for (let d = 0; d < 3 && !hit; d++) {
+        hit =
+          (y > 0 && ok[(y - 1) * w + x + d] === 1) ||
+          (y + 3 < h && ok[(y + 3) * w + x + d] === 1) ||
+          (x > 0 && ok[(y + d) * w + x - 1] === 1) ||
+          (x + 3 < w && ok[(y + d) * w + x + 3] === 1);
+      }
+      if (hit) v += sp.value + (th ? sp.itemValue : 0);
+    }
+    return v;
+  };
+  const townHalls = city.townHalls.map((t) => ({ x: t.x, y: t.y }));
+  const result = compact(s, townHalls, {
+    deadline: options.deadline,
+    seed: options.seed,
+    weightAt,
+    fixedTownHalls: true,
+    keepRoads: true,
+  });
+  const before = s.houses.length;
+  greedyFill(s);
+  result.gained += s.houses.length - before;
+  return { city: { ...stateToCity(s, city, townHalls), services: city.services }, result };
 }
 
 /**

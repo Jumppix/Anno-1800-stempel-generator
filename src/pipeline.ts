@@ -15,6 +15,7 @@ import { addBridges, searchFill, type Orientation } from './fill';
 import { optimizeLevels, type LevelMode, type LevelResult } from './levels';
 import {
   compactCity,
+  compactValued,
   finishPlan,
   improveRoads,
   planFromFill,
@@ -66,6 +67,8 @@ export interface PassInput {
   serviceRounds?: number;
   /** Exakten Löser (HiGHS) für die Ladenplatzierung nutzen (Standard aus). */
   exact?: boolean;
+  /** M5: Nachverdichtung nach Einwohnern am Ende (ms, 0 = aus; Standard aus – kein messbarer Gewinn). */
+  valueCompactMs?: number;
 }
 
 export interface PassResult {
@@ -79,6 +82,8 @@ export interface PassResult {
   compactGained: number;
   thin: ThinReport | null;
   insert: InsertReport | null;
+  /** M5: Nachverdichtung nach Einwohnern (Häuser-Bilanz, Einwohner-Gewinn, übernommen?). */
+  valueCompact: { gained: number; residents: number; accepted: boolean } | null;
   ms: number;
 }
 
@@ -246,6 +251,24 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
       lv = levels(city, 2);
     }
   }
+  // 7b. M5: Nachverdichtung mit Einwohnerziel (Läden, Straßen und Rathäuser fest);
+  //     übernommen nur, wenn die Stufen-Rechnung danach mehr Einwohner ergibt.
+  let valueCompact: PassResult['valueCompact'] = null;
+  const vcMs = input.valueCompactMs ?? 0;
+  if (services && vcMs > 0) {
+    emit({ kind: 'step', label: 'Nachverdichtung nach Einwohnern' });
+    const r = compactValued(mask, city, { deadline: performance.now() + vcMs, seed: 31 + input.seed * 7349 + input.lines });
+    if (r.result.improvements > 0) {
+      const cand: CityPlan = { ...r.city, removedHouses: city.removedHouses };
+      const lvc = levels(cand, 5);
+      const accepted = lvc.residents > lv.residents;
+      valueCompact = { gained: r.result.gained, residents: lvc.residents - lv.residents, accepted };
+      if (accepted) {
+        city = cand;
+        lv = lvc;
+      }
+    } else valueCompact = { gained: 0, residents: 0, accepted: false };
+  }
   snap(city, lv.planned);
 
   // 8. Briefkästen
@@ -286,6 +309,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     compactGained,
     thin,
     insert,
+    valueCompact,
     ms: performance.now() - t0,
   };
 }

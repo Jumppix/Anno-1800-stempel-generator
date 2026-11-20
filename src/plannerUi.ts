@@ -660,7 +660,11 @@ export class PlannerUi {
     items.push(
       `Gewählter Durchlauf ${label} (${Math.round(r.ms / 1000)} s)${r.compactGained ? ` · Nachverdichtung +${r.compactGained} Häuser` : ''}${
         r.insert ? ` · Querstraßen nach Bedarf: ${r.insert.inserted} eingefügt (−${r.insert.housesLost} Häuser)` : ''
-      }${r.thin ? ` · ausgedünnt: ${r.thin.segments} Stücke, +${r.thin.gained} Häuser` : ''}`,
+      }${r.thin ? ` · ausgedünnt: ${r.thin.segments} Stücke, +${r.thin.gained} Häuser` : ''}${
+        r.valueCompact?.accepted
+          ? ` · Nachverdichtung nach Einwohnern: +${num(Math.round(r.valueCompact.residents))} Einwohner (${r.valueCompact.gained >= 0 ? '+' : ''}${r.valueCompact.gained} Häuser)`
+          : ''
+      }`,
     );
     return items;
   }

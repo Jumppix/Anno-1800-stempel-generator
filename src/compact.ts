@@ -42,6 +42,15 @@ export interface CompactOptions {
   /** Einwohnerwert je Haus und je Haus im Rathausradius (Item-Bonus). */
   houseValue?: number;
   coverValue?: number;
+  /**
+   * Wert eines Hauses mit linker oberer Kachel (x, y), z. B. geschätzte
+   * Einwohner nach Versorgung und Rathaus (M5). Ersetzt houseValue/coverValue.
+   */
+  weightAt?: (x: number, y: number) => number;
+  /** Rathäuser nicht verschieben (nach der Versorgung). */
+  fixedTownHalls?: boolean;
+  /** Straßen am Ende nicht verkürzen (Lagerwege der Versorgung bleiben). */
+  keepRoads?: boolean;
   onProgress?: (gained: number) => void;
 }
 
@@ -157,9 +166,10 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
     return best;
   };
 
-  /** Wert der Häuser im Fenster: Häuser × HV + abgedeckte × CV. */
-  const valueOf = (list: ReadonlyArray<{ x: number; y: number }>): number =>
-    list.reduce((sum, hs) => sum + HV + (coveredByAny(hs) ? CV : 0), 0);
+  /** Wert eines Hauses: eigene Bewertung oder HV + CV im Rathausradius. */
+  const weight = options.weightAt ?? ((x: number, y: number): number => HV + (coveredByAny({ x, y }) ? CV : 0));
+  /** Wert der Häuser im Fenster. */
+  const valueOf = (list: ReadonlyArray<{ x: number; y: number }>): number => list.reduce((sum, hs) => sum + weight(hs.x, hs.y), 0);
 
   const tryWindow = (win: Window): void => {
     result.windows++;
@@ -173,8 +183,7 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
     let bestHouses: Array<[number, number]> | null = null;
     let bestRoad = -1;
     let bestRh: { index: number; x: number; y: number } | null = null;
-    const val = (list: Array<[number, number]>): number =>
-      list.reduce((sum, [x, y]) => sum + HV + (coveredByAny({ x, y }) ? CV : 0), 0);
+    const val = (list: Array<[number, number]>): number => list.reduce((sum, [x, y]) => sum + weight(x, y), 0);
 
     const evaluate = (rh: { index: number; x: number; y: number } | null, outsideDelta: number, effort: number): void => {
       const consider = (pack: Array<[number, number]>, road: number): void => {
@@ -218,7 +227,7 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
     evaluate(null, 0, 1);
 
     // Rathäuser ganz im Fenster: verschieben probieren.
-    townHalls.forEach((t, ti) => {
+    if (!options.fixedTownHalls) townHalls.forEach((t, ti) => {
       if (t.x < win.x0 || t.y < win.y0 || t.x + 4 > win.x1 || t.y + 4 > win.y1) return;
       const ox = t.x;
       const oy = t.y;
@@ -310,7 +319,7 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
   });
   const buildWindows = (): void => {
     windows.length = 0;
-    for (const t of townHalls) windows.push(clamp(t.x - MOVE - 3, t.y - MOVE - 3, t.x + MOVE + 7, t.y + MOVE + 7));
+    if (!options.fixedTownHalls) for (const t of townHalls) windows.push(clamp(t.x - MOVE - 3, t.y - MOVE - 3, t.x + MOVE + 7, t.y + MOVE + 7));
     const label = labelComponents(w, h, (i) => cell[i] === FREE);
     const boxes = new Map<number, { x0: number; y0: number; x1: number; y1: number; n: number }>();
     for (let i = 0; i < cell.length; i++) {
@@ -361,7 +370,9 @@ export function compact(s: FillState, townHalls: TownHallPos[], options: Compact
       effortScale = level;
     }
   }
-  result.gained += replaceRoadStubs(s);
-  pruneRoads(s);
+  if (!options.keepRoads) {
+    result.gained += replaceRoadStubs(s);
+    pruneRoads(s);
+  }
   return result;
 }

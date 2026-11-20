@@ -898,7 +898,7 @@ der Test-Pipeline über mehrere Seeds gegen den Stand davor gemessen.
   Zeitlimit; Lagerhäuser danach wie bisher.
 - Vergleich gierig+lokale Suche gegen exakt; Fallback auf die bisherige Lösung.
 
-**M5 – Nachverdichtung mit echtem Einwohnerziel (mittel–groß)**
+**M5 – Nachverdichtung mit echtem Einwohnerziel (mittel–groß)** ✓ umgesetzt, Ergebnis: kein messbarer Gewinn – daher aus (`PassInput.valueCompactMs`, Standard 0). `compactValued` in `planner.ts`: nach Versorgung und Querstraßen jeder Hausplatz bewertet mit 225 + Rathaus-Items (31) + je Versorgungsart, die ihn über die Straße erreicht (`SERVICE_SPECS`-Werte, Reichweite per BFS ab den Gebäuden); `compact.ts` mit `weightAt`, festen Rathäusern und ohne Straßenkürzung; übernommen nur bei mehr Einwohnern nach erneuter Stufen-Rechnung. Messung 6 Seeds (6er/12er): **0 zusätzliche Häuser** in allen Läufen, Einwohner −546 … +712 (±0,07 % = Streuung der Stufen-Optimierung). Ursache: Versorgung bereits nahezu vollständig (Kaufhaus 98 %, Strom 99 %), die Bewertung je Haus unterscheidet die Plätze kaum. Die zweite Ausbaustufe (Fenster mitsamt Läden/Rathäusern neu setzen) verspricht aus demselben Grund wenig; weiterer Gewinn eher über M6 (richtige Spielwerte).
 - Fenster räumen/neu belegen bewertet nicht mehr nur Häuserzahl + Rathaus,
   sondern geschätzte Einwohner je Haus: geplante Stufe, Rathaus-Items,
   Versorgung durch die festen Gebäude, Panorama-Näherung.
