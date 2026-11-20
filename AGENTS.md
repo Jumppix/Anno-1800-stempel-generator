@@ -50,7 +50,7 @@ unnötig verändern.
   (`src/start.ts`), `datenbank.html` (`src/db/page.ts`, Typen/Laden `src/db/data.ts`, Palast/Regionalministerium `src/db/palace.ts` (aktive Effekte, `modsFor`; Daten `public/db/palace.json`), Infofenster beim Überfahren `src/db/hovercard.ts` – `data-card="<GUID>"` für Items, Gebäude, Waren (inkl. Münzen/Arbeitskraft), Bevölkerungsstufen, Zielgruppen und DLCs; Zusatzdaten `public/db/info.json`: Waren, Bevölkerung mit Bedürfnissen, Zielgruppen; auch auf der Produktionsseite), `produktion.html`
   (`src/prod/page.ts`: Produktion & Handelskammer nach Vorbild annolayouts.de; Rechenkern `src/prod/calc.ts`
   – Produktivität/Strom/Clipping/Arbeitskraft, `bestSetup`; Packer `src/prod/layout.ts` – meiste Gebäude
-  je HK-Radius mit Straßennetz; Vorberechnung `scripts/data/build-prod.mjs`), `planer.html` (bisheriges
+  je HK-Radius mit Straßennetz; Vorberechnung `scripts/data/build-prod.mjs`), `baumaterial.html` (Guide Baumaterialinsel: `src/guide/page.ts` Rechner/Karten, Inhalte `src/guide/material.ts`), `planer.html` (bisheriges
   Werkzeug, `src/main.ts`).
   Gemeinsamer Rahmen `src/site.ts`/`src/site-frame.css` (Navigation, Sprachumschalter, Palast-Einstellungen für die ganze Seite `src/palaceSettings.ts`, Fanprojekt-Hinweis;
   auch im Stadtplaner, dort ohne Fußzeile/Sprachwahl), Seitenstile `src/site.css` (Start/Datenbank),

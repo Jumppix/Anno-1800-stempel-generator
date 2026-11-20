@@ -23,12 +23,12 @@ rechnet unsere Datenbank/unser Rechner selbst nach. Das Video wird auf der Seite
 | --- | --- | --- | --- | --- |
 | Sägewerk + Papadikas, Harkers Drechselbank, Feras | 350 % | 15,0 (+5 Holzfurnier) | 51 | 765 |
 | Fensterfabrik + Papadikas, Drechselbank, Möbeltischler | 330 % | 3,33 | 28 | 93 |
-| Ziegelei + Polier, Gerhard, Feras | 300 % | 3,0 (+0,6 Stahlträger) | 28 | 84 |
+| Ziegelei + Polier, Gerhard der Architekt, Feras | 290 % | 3,0 (+0,6 Stahlträger) | 28 | 84 |
 | Betonwerk + Polier, Gerhard, Thorne | 300 % | 3,0 (+0,6 Stahlträger, +1,5 Holzfurnier) | 23 | 69 |
 | Stahlwerk + Bechamelbirne, Zanchi, Angela | 310 % | 4,29 | 14 | 60 |
 | Hochofen + Angela, Bechamelbirne, Feras | 310 % | 6,67 | 24 | 160 |
 | Holzfäller + Ursula, Schneidewerkzeug, Druidensichel | 220 % | 10,0 | 38 | 380 |
-| Eisenmine + Verrückte Viktoria, Malching | 235 % | 10,0 (+10 Öl, +1,7 Gold) | (an Vorkommen gebunden) | – |
+| Eisenmine + Verrückte Viktoria, Malching | 235 % | 70,0 (davon 60 von Viktoria; +10 Öl, +1,7 Gold; 20 Dynamit) | (an Vorkommen gebunden) | – |
 | Hochrad-Werkhalle + The Cutting Edge, Dario, Bruno | 290 % | 6,0 | 20 | 120 |
 
 Die Video-Zahlen (z. B. „20 Sägewerke ≈ 326 t Bretter“) liegen in derselben Größenordnung; die
@@ -80,6 +80,19 @@ Offen: „Verrückte Viktoria“ Dynamit-Bedarf je Mine.
 4. B4 gemischte Layouts + Stempel.
 5. B5/B6 je nach Datenlage (Speicherstadt-Tausch in den Spieldateien prüfen).
 
+**Korrekturen (20.11.2026):** Die erste Tabelle hatte bei der Ziegelei das falsche „Gerhard“
+(Gerhard Fuchs statt Gerhard der Architekt) und bei der Eisenmine fehlte Viktorias Zusatz-Eisen
+(ForceProductSameAsFactoryOutput: 12 je 2 Zyklen). Der Rechner zählt Zusatzware derselben Art jetzt
+zum Ausstoß; Items, die das Erzvorkommen durch eine Ware ersetzen, werden nicht automatisch vorgeschlagen.
+
 ## 4. Stand
 - Plan erstellt; Gegenprobe der Video-Cluster mit dem Rechner (Tabelle oben).
 - Palast & Regionalministerium umgesetzt (20.11.2026).
+- B2 + B3 als erste Fassung umgesetzt: `baumaterial.html` (`src/guide/page.ts`, Inhalte `src/guide/material.ts`):
+  Auf einen Blick, Rechner (Zielmengen → ganze Kette per Fixpunkt inkl. Nebenprodukte, Handelskammern,
+  Arbeitskraft, Unterhalt, Pflicht-Strom, Öl-Bilanz, Import/Überschuss; Kohle-Quelle, Import-Auswahl,
+  Zulieferer-Items, Strom, Clipping, Palast seitenweit), 8 Handelskammer-Gruppen mit Video-Items und
+  Live-Werten (4. Platz bei Gewerkschaftsförderung), Kapitel Insel/Start, Strom & Öl, Speicherstadt,
+  Verteilung. Texte zunächst nur deutsch.
+- Offen: gemischte HK-Layouts/Stempel (B4), Speicherstadt-Tausch (B5), Schiffe je Route (B6),
+  Items je Gruppe selbst wählen, Viktorias Dynamit-Verbrauch im Spiel bestätigen.

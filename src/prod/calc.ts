@@ -60,6 +60,9 @@ export interface ItemFx {
   wfType?: number;
 }
 
+/** Rohstoffvorkommen (Eingang der Minen). */
+export const DEPOSIT_GOOD = 1591;
+
 /** Platzhalter für „Zusatzware = eigene Ware“ (ForceProductSameAsFactoryOutput). */
 export const SAME_AS_OUTPUT = -1;
 
@@ -239,7 +242,9 @@ export function bestSetup(
   workforceSet: ReadonlySet<number>,
   slots = SLOTS,
 ): Item[] | null {
-  let pool = candidates.filter((i) => isUseful(itemFx(i)));
+  // Items, die das Erzvorkommen durch eine Ware ersetzen (Verrückte Viktoria: Dynamit),
+  // schaffen neuen Bedarf – nicht automatisch vorschlagen, nur von Hand wählbar.
+  let pool = candidates.filter((i) => isUseful(itemFx(i)) && !itemFx(i).replace.some((r) => r.from === DEPOSIT_GOOD));
   if (kind === 'noLegendary') pool = pool.filter((i) => i.r !== 'legendary');
   if (!pool.length) return kind === 'max' ? [] : null;
   const per = slots > 3 ? 10 : 14;

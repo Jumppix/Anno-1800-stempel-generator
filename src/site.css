@@ -1309,3 +1309,391 @@ body.site .bname:hover b {
 .pal-edit:hover {
   border-color: var(--gold);
 }
+
+/* Guide: Baumaterialinsel */
+.guide {
+  flex: 1;
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 20px 20px 30px;
+}
+
+.gd-head h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+
+.gd-head .lead {
+  color: var(--muted);
+  margin: 0 0 8px;
+  max-width: 90ch;
+}
+
+.gd-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+
+.gd-toc a {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.gd-toc a:hover {
+  border-color: var(--gold);
+}
+
+.gd-sec {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 16px 0;
+  scroll-margin-top: 12px;
+}
+
+.gd-sec h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  color: var(--gold);
+}
+
+.gd-text ul,
+.gd-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  max-width: 100ch;
+}
+
+.gd-named,
+.gd-good {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.gd-good {
+  margin-right: 10px;
+}
+
+.gd-goods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+
+.gd-final {
+  gap: 8px 18px;
+  margin-bottom: 12px;
+}
+
+.gd-final .ic {
+  width: 30px;
+  height: 30px;
+}
+
+/* Rechner */
+.gd-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+
+.gd-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.gd-target > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gd-target input {
+  width: 78px;
+}
+
+.gd-target small {
+  color: var(--muted);
+}
+
+.guide input[type="number"],
+.guide select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 7px;
+  font: inherit;
+  max-width: 100%;
+}
+
+.gd-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.gd-opt,
+.gd-chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.gd-imports summary {
+  cursor: pointer;
+  color: var(--gold);
+  margin: 4px 0 6px;
+}
+
+.gd-chks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 4px 12px;
+  padding: 4px 0 8px;
+}
+
+.gd-sum {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.gd-sum > div {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gd-sum span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gd-sum b {
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.gd-wf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 4px 0 10px;
+  color: var(--muted);
+}
+
+.gd-wf .gd-good b {
+  color: var(--text);
+}
+
+.gd-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.gd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.gd-table th,
+.gd-table td {
+  text-align: left;
+  vertical-align: middle;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.gd-table th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--card);
+}
+
+.gd-table td.num {
+  white-space: nowrap;
+}
+
+.gd-table td small,
+.gd-vals small {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.gd-table .sic {
+  width: 26px;
+  height: 26px;
+  margin-right: 2px;
+}
+
+.gd-tag {
+  color: var(--muted);
+}
+
+.gd-flows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.gd-flows h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Handelskammer-Gruppen */
+.gd-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.gd-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  scroll-margin-top: 12px;
+}
+
+.gd-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.gd-card > p {
+  margin: 8px 0;
+  max-width: 100ch;
+  color: var(--text);
+}
+
+.gd-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gd-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 10px 3px 4px;
+}
+
+.gd-item .sic {
+  width: 30px;
+  height: 30px;
+}
+
+.gd-item.r-rare { border-color: #3e5495; }
+.gd-item.r-epic { border-color: #8a4f8b; }
+.gd-item.r-legendary { border-color: #c76936; }
+.gd-item.extra { border-style: dashed; }
+
+.gd-item small {
+  color: var(--muted);
+}
+
+.gd-bline {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding: 8px 0;
+}
+
+.gd-bname {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gd-bname small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gd-vals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px 12px;
+}
+
+.gd-vals > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+
+.gd-vals > span > small:first-child {
+  flex-basis: 100%;
+}
+
+.gd-tips {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.gd-foot {
+  margin-top: 8px;
+}
+
+@media (max-width: 700px) {
+  .guide {
+    padding: 14px 16px 24px;
+  }
+
+  .gd-bline {
+    grid-template-columns: 1fr;
+  }
+}
