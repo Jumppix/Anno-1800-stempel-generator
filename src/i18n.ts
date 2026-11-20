@@ -290,8 +290,8 @@ const DICT: Record<string, [string, string]> = {
     'Set once – applies across the whole site (production & trade union, city planner) and is kept in your browser.',
   ],
   'pal.usedBy': [
-    'Produktion & Handelskammer: dort wählen, ob die Gebäude auf der Palastinsel oder bei einem Regionalministerium stehen. Stadtplaner: plant ein Regionalministerium mit dem oben gewählten Ministerium (Wohlfahrt: Reichweite öffentlicher Gebäude, Stadtweites Netz: Kraftwerke).',
-    'Production & trade union: choose there whether the buildings are on the palace island or at a local department. City planner: plans a local department with the ministry chosen above (Welfare: public building range, City-wide web: power plants).',
+    'Produktion & Handelskammer: dort wählen, ob die Gebäude auf der Palastinsel oder bei einem Regionalministerium stehen. Stadtplaner: plant ein Regionalministerium mit dem oben gewählten Ministerium (Wohlfahrt: Reichweite öffentlicher Gebäude, Stadtweites Netz: Kraftwerke; Verwaltung: Arbeitskraft je Rathaus, Freigeisterreform: 4. Rathaus-Item).',
+    'Production & trade union: choose there whether the buildings are on the palace island or at a local department. City planner: plans a local department with the ministry chosen above (Welfare: public building range, City-wide web: power plants; City Affairs: workforce per town hall, Freethinkers: 4th town-hall item).',
   ],
   'pal.edit': ['Palast-Einstellungen …', 'Palace settings …'],
   'pal.fx.socket': ['+{n} Item-Platz in der Handelskammer', '+{n} item slot in the trade union'],

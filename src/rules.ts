@@ -4,7 +4,7 @@
 
 import type { BuildingKind, Tier } from './catalog';
 
-export type Ministry = 'none' | 'welfare' | 'labour';
+export type Ministry = 'none' | 'welfare' | 'labour' | 'city';
 
 export type Policy =
   | 'none'
@@ -19,7 +19,13 @@ export type Policy =
   | 'skilledLabour'
   | 'galvanicGrants'
   | 'factoryInspections'
-  | 'unionSubsidies';
+  | 'unionSubsidies'
+  // Verwaltung
+  | 'cellarRepurposing'
+  | 'sustainableEating'
+  | 'scienceFairs'
+  | 'freethinkers'
+  | 'townHallReform';
 
 // Namen, Werte und Freischaltung aus den Spieldateien (Palast-Asset 249947,
 // public/db/palace.json; Prüfung: npm run check-db). Reichweiten sind Spielwerte
@@ -46,6 +52,11 @@ export const POLICIES: readonly PolicyInfo[] = [
   { id: 'galvanicGrants', ministry: 'labour', name: 'Förderung des Galvanismus', effect: '+50 % Strombonus', unlock: 3850, guid: 269196 },
   { id: 'factoryInspections', ministry: 'labour', name: 'Fabrikinspektionen', effect: '−50 % Arbeitskraft', unlock: 5200, guid: 269194 },
   { id: 'unionSubsidies', ministry: 'labour', name: 'Gewerkschaftsförderung', effect: '+1 Item-Platz in Handelskammern', unlock: 6750, guid: 269197 },
+  { id: 'cellarRepurposing', ministry: 'city', name: 'Umfunktionierung der Kellerräume', effect: 'Rathaus-Lager +200', unlock: 700, guid: 269172 },
+  { id: 'sustainableEating', ministry: 'city', name: 'Initiative für maßvolle Ernährung', effect: '−30 % Verbrauch einiger Waren im Rathausradius', unlock: 700, guid: 273691 },
+  { id: 'scienceFairs', ministry: 'city', name: 'Wissenschaftsmessen', effect: '+1 Einfluss je Ingenieurshaus im Rathausradius', unlock: 2700, guid: 269174 },
+  { id: 'freethinkers', ministry: 'city', name: 'Freigeisterreform', effect: '+1 Item-Platz in Rathäusern', unlock: 3850, guid: 269175 },
+  { id: 'townHallReform', ministry: 'city', name: 'Rathausreform', effect: '+200 Attraktivität je Rathaus', unlock: 5950, guid: 269176 },
 ];
 
 export interface RuleConfig {
@@ -71,6 +82,12 @@ export interface RuleConfig {
   tierMode: 'groups' | 'stamp';
   /** Rathaus-Items (Zofe, Lieferdienst, Saint D'Artois) in allen Rathäusern. */
   townHallItems: boolean;
+  /**
+   * 4. Rathaus-Item (Freigeisterreform): Einwohner je erfülltem Bedürfnis (+3
+   * Päpstliches Papier, +2 Vorschriften zur Empfängnisverhütung, +1 Interruptus),
+   * 0 = keins. Wirkt nur in Rathäusern im Bereich des Ministeriums.
+   */
+  fourthItem: number;
   /**
    * Kaugummi und Violinen werden nicht produziert, sondern nur über den
    * Lieferdienst „Blauer Himmel“ verteilt: Häuser im Rathausradius bekommen
@@ -202,6 +219,7 @@ export const DEFAULT_RULES: RuleConfig = {
   welfareForInstitutions: false,
   tierMode: 'groups',
   townHallItems: true,
+  fourthItem: 3,
   deliveryGoods: false,
   mail: 'all',
   consumptionReduction: 68,
@@ -427,6 +445,8 @@ export interface HouseSupply {
   services: Partial<Record<BuildingKind, boolean>>;
   universityFactor: number;
   townHall: boolean;
+  /** Rathaus mit 4. Item-Platz (Freigeisterreform, im Ministeriumsbereich). */
+  townHall4?: boolean;
   hasRoad: boolean;
 }
 
@@ -514,13 +534,58 @@ export function itemBonuses(
   return list;
 }
 
+/**
+ * 4. Rathaus-Item (Spieldaten): Päpstliches Papier zur pränatalen Präservation
+ * (191817, +3), Vorschriften zur Empfängnisverhütung (191816, +2),
+ * Interruptus-Gesetzeszusatz (191815, +1) – je Bedürfnis aus Fleischkonserven,
+ * Universität, Kaffee, Glühbirnen, Sekt, Dampfwagen, Schokolade … (wie Saint D'Artois).
+ */
+export const FOURTH_ITEMS: ReadonlyArray<{ guid: number; name: string; perNeed: number }> = [
+  { guid: 191817, name: 'Päpstliches Papier zur pränatalen Präservation', perNeed: 3 },
+  { guid: 191816, name: 'Vorschriften zur Empfängnisverhütung', perNeed: 2 },
+  { guid: 191815, name: 'Interruptus-Gesetzeszusatz', perNeed: 1 },
+];
+
+export function fourthItemBonuses(tier: SkyTier, perNeed: number): Array<{ label: string; residents: number; kind?: BuildingKind; via?: BuildingKind }> {
+  if (perNeed <= 0) return [];
+  if (tier === 'engineer') {
+    return [
+      { label: 'Universität', residents: perNeed, kind: 'university' },
+      { label: 'Fleischkonserven', residents: perNeed },
+      { label: 'Kaffee', residents: perNeed },
+      { label: 'Glühbirnen', residents: perNeed },
+    ];
+  }
+  return ['Kaffee', 'Glühbirnen', 'Sekt', 'Schokolade', 'Dampfwagen'].map((label) => ({ label, residents: perNeed }));
+}
+
+/**
+ * Ministerium für Verwaltung (Spieldaten, Basiseffekt 249961): „+50
+ * Inselarbeitskräfte pro Rathaus“ für Bauern, Arbeiter, Handwerker und
+ * Ingenieure, je Prestige-Stufe +10 (Stufe 25: +300).
+ */
+export function cityWorkforcePerTownHall(rules: Pick<RuleConfig, 'ministry' | 'prestige'>): number {
+  if (rules.ministry !== 'city') return 0;
+  return 50 + 10 * Math.min(25, Math.max(0, Math.round(rules.prestige)));
+}
+
+/** Arbeitskraft-Bedarf von Stadtgebäuden (Spieldaten, Unterhalt). */
+export const WORKFORCE_NEED: Readonly<Record<number, { artisan?: number; engineer?: number; worker?: number }>> = {
+  135100: { artisan: 240 }, // Kaufhaus
+  135099: { artisan: 240 }, // Einrichtungshaus
+  134629: { artisan: 240 }, // Drogerie
+  117547: { engineer: 250 }, // Gasbetriebenes Kraftwerk
+  100780: { engineer: 150 }, // Kraftwerk (Öl)
+  3741: { worker: 50 }, // Postamt
+};
+
 /** Einwohner eines Hochhauses aus Schicht, Stufe, Panorama-Stärke und Versorgung. */
 export function skyscraperResidents(
   tier: SkyTier,
   level: SkyLevel,
   panorama: number,
   supply: HouseSupply,
-  rules: Pick<RuleConfig, 'townHallItems' | 'deliveryGoods' | 'missingGoods' | 'lifestyleGoods'>,
+  rules: Pick<RuleConfig, 'townHallItems' | 'deliveryGoods' | 'missingGoods' | 'lifestyleGoods'> & { fourthItem?: number },
 ): { residents: number; itemBonus: number; lifestyle: number; missing: BuildingKind[]; missingGoods: string[] } {
   const table = SKYSCRAPER_RESIDENTS[tier][level] ?? SKYSCRAPER_RESIDENTS[tier][3] ?? [0, 0, 0, 0, 0, 0];
   let n = table[Math.max(0, Math.min(5, panorama))];
@@ -567,7 +632,8 @@ export function skyscraperResidents(
   }
   let bonus = 0;
   if (items) {
-    for (const b of itemBonuses(tier, level)) {
+    const fourth = supply.townHall4 ? (rules.fourthItem ?? 0) : 0;
+    for (const b of [...itemBonuses(tier, level), ...fourthItemBonuses(tier, fourth)]) {
       if (b.kind === 'university') bonus += b.residents * supply.universityFactor;
       else if (b.kind) bonus += supply.services[b.kind] ? b.residents : 0;
       else if (b.via) bonus += delivered(b.via) && hasGood(b.label) ? b.residents : 0;

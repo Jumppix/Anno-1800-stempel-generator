@@ -6,6 +6,7 @@ import { CATALOG_LIST, type BuildingKind } from './catalog';
 import { adjacentRoads, cityFromStamp, RoadSearch, type City, type CityBuilding } from './city';
 import {
   cityWideWebBonus,
+  cityWorkforcePerTownHall,
   DEFAULT_RULES,
   GOOD_NEEDS,
   localDepartmentRange,
@@ -104,6 +105,7 @@ export class CityUi {
   private readonly info = el<HTMLElement>('#city-info');
   private readonly palaceInfo = el<HTMLElement>('#rule-palace');
   private readonly items = el<HTMLInputElement>('#rule-items');
+  private readonly fourth = el<HTMLSelectElement>('#rule-fourth');
   private readonly delivery = el<HTMLInputElement>('#rule-delivery');
   private readonly mail = el<HTMLSelectElement>('#rule-mail');
   private readonly reduction = el<HTMLInputElement>('#rule-reduction');
@@ -158,7 +160,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.tierMode, this.items, this.delivery, this.mail, this.reduction]) {
+    for (const input of [this.tierMode, this.items, this.fourth, this.delivery, this.mail, this.reduction]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.layerSelect.addEventListener('change', () => {
@@ -269,6 +271,7 @@ export class CityUi {
       welfareForInstitutions: false,
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'groups',
       townHallItems: this.items.checked,
+      fourthItem: Math.max(0, Math.min(3, Number(this.fourth.value) || 0)),
       deliveryGoods: this.delivery.checked,
       mail: (this.mail.value || 'all') as RuleConfig['mail'],
       consumptionReduction: Math.min(90, Math.max(0, Number(this.reduction.value) || 0)),
@@ -291,6 +294,10 @@ export class CityUi {
     ];
     if (r.ministry === 'welfare') parts.push(`öffentliche Gebäude +${welfareBonus(r)} (Universität, Bankhaus, Varieté, Clubhaus, Kraftwerke u. a.; nicht Feuerwache/Polizei/Hospital/Läden)`);
     if (r.ministry === 'labour') parts.push('Ministerium für Arbeit wirkt nur auf Produktion (siehe Produktion & Handelskammer)');
+    if (r.ministry === 'city') {
+      parts.push(`je Rathaus im Bereich +${num(cityWorkforcePerTownHall(r))} Bauern, Arbeiter, Handwerker und Ingenieure`);
+      if (r.policy === 'freethinkers') parts.push(`4. Rathaus-Item: +${r.fourthItem} je Bedürfnis`);
+    }
     const web = cityWideWebBonus(r);
     if (web) parts.push(`Kraftwerke zusätzlich +${web}`);
     this.ruleInfo.textContent = parts.join(' · ');
@@ -466,6 +473,19 @@ export class CityUi {
       }</strong></div>`,
       `<div><span>davon durch Post</span><strong>${num(t.mail.residents)}</strong></div>`,
     ];
+    // Arbeitskraft: Bedarf der Läden/Kraftwerke gegen das Ministerium für Verwaltung
+    const wf = t.workforce;
+    if (wf.artisan || wf.engineer) {
+      const from = wf.perTownHall * wf.townHalls;
+      const line = (label: string, need: number): string => {
+        const rest = need - from;
+        return `<div><span>${label} (Bedarf / Verwaltung)</span><strong>${num(need)} / ${num(from)}${
+          rest > 0 ? ` <small class="neg">−${num(rest)} Pendler</small>` : need ? ' <small class="pos">✓</small>' : ''
+        }</strong></div>`;
+      };
+      rows.push(line('Handwerker', wf.artisan), line('Ingenieure', wf.engineer));
+      if (wf.perTownHall) rows.push(`<div><span>Rathäuser im Ministeriumsbereich</span><strong>${num(wf.townHalls)} × ${num(wf.perTownHall)}</strong></div>`);
+    }
     if (t.skyscrapers) {
       rows.push(
         `<div class="wide"><span>Panorama (Anzahl je Stärke)</span><strong class="small">${t.panorama

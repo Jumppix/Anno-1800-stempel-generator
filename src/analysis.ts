@@ -21,6 +21,8 @@ import {
   universityFactor,
   welfareApplies,
   welfareBonus,
+  cityWorkforcePerTownHall,
+  WORKFORCE_NEED,
   type RuleConfig,
 } from './rules';
 
@@ -52,6 +54,8 @@ export interface ResidenceInfo {
   /** Lieferdienst-Waren, die fehlen (nur bei „Kaugummi/Violinen nur über Lieferdienst“). */
   missingGoods: string[];
   townHall: number | null;
+  /** Rathaus mit 4. Item-Platz (Verwaltung + Freigeisterreform, im Ministeriumsbereich). */
+  townHall4: boolean;
   post: number | null;
   /** Panorama-Wert vor Begrenzung und Stärke 0–5 (nur Hochhäuser). */
   panoramaValue: number;
@@ -106,6 +110,11 @@ export interface Analysis {
     mail: { production: number; need: number; share: number; residents: number };
     panorama: number[];
     unknown: number;
+    /**
+     * Arbeitskraft: Bedarf der Stadtgebäude und Beitrag des Ministeriums für
+     * Verwaltung (je Rathaus im Ministeriumsbereich, für jede Stufe).
+     */
+    workforce: { artisan: number; engineer: number; worker: number; perTownHall: number; townHalls: number };
   };
 }
 
@@ -160,6 +169,7 @@ export function analyzeCity(
       universityFactor: 0,
       missingGoods: [],
       townHall: null,
+      townHall4: false,
       post: null,
       panoramaValue: 0,
       panoramaParts: { lower: 0, sameOrHigher: 0, variety: 0 },
@@ -216,13 +226,16 @@ export function analyzeCity(
   // --- Kreisradien: Rathaus und Post (Mittelpunkt im Radius, ≤)
   const townHalls = city.buildings.filter((b) => b.entry.kind === 'townHall');
   const posts = city.buildings.filter((b) => b.entry.kind === 'postOffice' || b.entry.kind === 'postBox');
+  const freethinkers = rules.ministry === 'city' && rules.policy === 'freethinkers';
   for (const r of residences) {
     for (const t of townHalls) {
       if (dist(r.building, t) <= (t.entry.radius ?? 0) + 1e-9) {
-        r.townHall = t.index;
-        break;
+        // Rathaus im Ministeriumsbereich bevorzugen (4. Item-Platz)
+        if (r.townHall === null || (freethinkers && inMinistry[t.index] && !inMinistry[r.townHall])) r.townHall = t.index;
+        if (!freethinkers || inMinistry[t.index]) break;
       }
     }
+    r.townHall4 = freethinkers && r.townHall !== null && inMinistry[r.townHall] === 1;
     for (const p of posts) {
       if (dist(r.building, p) <= (p.entry.radius ?? 0) + 1e-9) {
         r.post = p.index;
@@ -289,7 +302,7 @@ export function analyzeCity(
       r.tier,
       r.level,
       r.panorama,
-      { services: r.services, universityFactor: r.universityFactor, townHall: r.townHall !== null, hasRoad: r.hasRoad },
+      { services: r.services, universityFactor: r.universityFactor, townHall: r.townHall !== null, townHall4: r.townHall4, hasRoad: r.hasRoad },
       rules,
     );
     r.residents = res.residents;
@@ -391,6 +404,17 @@ export function analyzeCity(
       mail: { production: mailProd, need: mailNeed, share: mailShare, residents: mailResidents },
       panorama,
       unknown,
+      workforce: (() => {
+        const need = { artisan: 0, engineer: 0, worker: 0 };
+        for (const b of city.buildings) {
+          const w = WORKFORCE_NEED[b.guid];
+          if (!w) continue;
+          need.artisan += w.artisan ?? 0;
+          need.engineer += w.engineer ?? 0;
+          need.worker += w.worker ?? 0;
+        }
+        return { ...need, perTownHall: cityWorkforcePerTownHall(rules), townHalls: townHalls.filter((t) => inMinistry[t.index]).length };
+      })(),
     },
   };
 }

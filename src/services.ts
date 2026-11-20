@@ -114,7 +114,8 @@ export interface ServiceOptions {
    * Kraftwerk …) und ggf. Stadtweites Netz (Kraftwerke). Läden sind nicht
    * betroffen.
    */
-  ministry?: { range: number; welfare: number; web: number };
+  /** `townHalls`: Ministerium für Verwaltung – möglichst viele Rathäuser in Reichweite. */
+  ministry?: { range: number; welfare: number; web: number; townHalls?: boolean };
   /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
   keepRoads?: boolean;
   /**
@@ -655,12 +656,23 @@ export function placeServices(
   if (options.ministry && options.ministry.range > 0) {
     const mr = options.ministry.range;
     let best: { c: Candidate; value: number } | null = null;
+    // Verwaltung: Wert = Häuser im Radius der erreichten Rathäuser (4. Item, Arbeitskraft je Rathaus)
+    const thRings = options.ministry.townHalls ? townHalls.map((t) => ring(t.x, t.y, 4, 4)) : [];
+    const thHouses = options.ministry.townHalls
+      ? townHalls.map((t) => s.houses.filter((hs) => Math.hypot(hs.x + 1 - (t.x + 1.5), hs.y + 1 - (t.y + 1.5)) <= 20 + 1e-9).length)
+      : [];
     for (const c of candidatesFor(MINISTRY_GUID)) {
       bfs(c.starts, mr);
       let n = 0;
       s.houses.forEach((_, k) => {
         if (isAlive(k) && !c.houses.includes(k) && reached(houseRing[k])) n++;
       });
+      if (options.ministry.townHalls) {
+        n = 0;
+        thRings.forEach((r, i) => {
+          if (reached(r)) n += thHouses[i] + 10;
+        });
+      }
       const value = n * 3 - c.cost;
       if ((!best || value > best.value) && stillValid(c)) best = { c, value };
     }

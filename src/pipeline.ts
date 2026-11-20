@@ -51,7 +51,7 @@ export interface PassInput {
   goal: number;
   deliveryGoods: boolean;
   townHallItems: boolean;
-  ministry?: { range: number; welfare: number; web: number };
+  ministry?: { range: number; welfare: number; web: number; townHalls?: boolean };
   airport?: { harbor: { x: number; y: number } | null };
   production?: ProductionOptions;
   levelMode: LevelMode;

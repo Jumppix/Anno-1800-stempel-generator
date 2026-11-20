@@ -1234,3 +1234,12 @@ body:not([data-view='result']) .stage-layer {
 .progress-detail .muted {
   color: var(--muted);
 }
+
+#city-stats small.neg {
+  color: #e08a7a;
+  font-weight: 500;
+}
+
+#city-stats small.pos {
+  color: #7fc48a;
+}

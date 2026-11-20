@@ -119,7 +119,7 @@ export function cityPalaceRules(
   const key = s.regional.ministry;
   const unlock = data?.ministries.find((m) => m.k === key)?.at ?? MINISTRY_UNLOCK[key];
   const unlocked = s.attr >= unlock;
-  const ministry: Ministry = !unlocked ? 'none' : key === 'Service' ? 'welfare' : key === 'Productivity' ? 'labour' : 'none';
+  const ministry: Ministry = !unlocked ? 'none' : key === 'Service' ? 'welfare' : key === 'Productivity' ? 'labour' : key === 'City' ? 'city' : 'none';
   const pol = POLICIES.find((p) => p.guid === s.regional.decree && p.ministry === ministry && s.attr >= p.unlock);
   return { palaceWings: s.wings, prestige: prestigeOf(s.attr, data), ministry, policy: pol?.id ?? 'none' };
 }

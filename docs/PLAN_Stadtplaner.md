@@ -977,3 +977,18 @@ Lösungen nach Spieldaten:
    brauchen eine Handelskammer (Radius 15) bei den Läden.
 4. Eigene Handwerkerhäuser kosten Wohnfläche (lohnt kaum gegenüber Hochhäusern).
 Den Forenbeitrag des Rekordbauers konnte diese Sitzung nicht erneut lesen (Abruf blockiert).
+
+**Umsetzung (20.11.2026):** Ministerium „Verwaltung“ im Stadtplaner (Palast-Dialog → Regionalministerium:
+Ministerium für Verwaltung). `rules.ts`: Ministry `city`, Richtlinien der Verwaltung (GUIDs aus dem
+Palast-Asset), `cityWorkforcePerTownHall` (50 + 10 je Prestige), `WORKFORCE_NEED` (Läden 240 Handwerker,
+Kraftwerk 150 / Gaskraftwerk 250 Ingenieure, Postamt 50 Arbeiter), `FOURTH_ITEMS`/`fourthItemBonuses`
+(4. Rathaus-Item, Auswahl `#rule-fourth`, Standard Päpstliches Papier +3). `analysis.ts`: Häuser
+bevorzugen ein Rathaus im Ministeriumsbereich; `townHall4` nur dort; `totals.workforce` (Bedarf gegen
+Rathäuser im Bereich × Arbeitskraft je Rathaus) – Anzeige „Handwerker/Ingenieure (Bedarf / Verwaltung)“
+mit Rest über Pendlerkai. `services.ts`: Ministerium für Verwaltung wird so platziert, dass möglichst
+viele Rathäuser (gewichtet mit ihren Häusern) in Reichweite liegen.
+Messung Insel 2 (6er, Seeds 1/2): Verwaltung + Freigeisterreform 794.000 / 794.900 gegen Wohlfahrt
+789.500 / 788.200 (+≈ 5.600). Nur rund ein Drittel der 25 Rathäuser liegt in der Reichweite des
+Regionalministeriums (≈ 95 Pflasterkacheln) – mit allen Rathäusern wären es ≈ 811.700.
+Hinweis: „Rathausreform“ (+200 Attraktivität je Rathaus) ist nicht der 4. Platz – das ist die
+„Freigeisterreform“; je Ministerium ist nur eine Richtlinie aktiv.

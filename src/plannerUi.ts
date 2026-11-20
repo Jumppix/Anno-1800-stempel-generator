@@ -266,7 +266,7 @@ export class PlannerUi {
       ? prod.map((r) => `${r.count}× ${CLIPPABLE.find((c) => c.guid === r.guid)?.name ?? r.guid}`).join(', ')
       : 'keine';
     const r = this.cityUi.currentRules();
-    const ministry = r.ministry === 'welfare' ? 'Wohlfahrt' : r.ministry === 'labour' ? 'Arbeit' : 'ohne Ministerium';
+    const ministry = r.ministry === 'welfare' ? 'Wohlfahrt' : r.ministry === 'labour' ? 'Arbeit' : r.ministry === 'city' ? 'Verwaltung' : 'ohne Ministerium';
     el<HTMLElement>('#sum-rules').textContent = `${ministry} · Zeitung −${
       el<HTMLInputElement>('#rule-reduction').value || 0
     } %`;
@@ -567,10 +567,10 @@ export class PlannerUi {
   }
 
   /** Regionalministerium (Reichweite, Wohlfahrt, Stadtweites Netz) aus den Regeln. */
-  private ministryOption(): { range: number; welfare: number; web: number } | undefined {
+  private ministryOption(): { range: number; welfare: number; web: number; townHalls?: boolean } | undefined {
     const rules = this.cityUi.currentRules();
     return el<HTMLInputElement>('#plan-ministry').checked && rules.ministry !== 'none'
-      ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules) }
+      ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules), townHalls: rules.ministry === 'city' }
       : undefined;
   }
 

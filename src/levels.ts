@@ -132,6 +132,7 @@ export function optimizeLevels(
       services: r.services,
       universityFactor: r.universityFactor,
       townHall: r.townHall !== null,
+      townHall4: r.townHall4,
       hasRoad: r.hasRoad,
     };
     STATES.forEach((st, s) => {
