@@ -9,10 +9,7 @@ import { mountSite } from '../site';
 import { DB_BASE, loadDb, loadPalace, rarityRank, type Building, type Db, type Item, type MinistryKey, type PalaceData } from '../db/data';
 import {
   activeEffects,
-  decreeUnlocked,
-  DEFAULT_PALACE,
   FACTORY_INSPECTIONS_DECREE,
-  ministryUnlocked,
   modsFor,
   NO_MODS,
   paragonLevel,
@@ -20,6 +17,7 @@ import {
   type PalaceMods,
   type PalaceState,
 } from '../db/palace';
+import { getPalaceSettings, onPalaceSettings, openPalaceDialog, prodPalaceState, setPalaceSettings } from '../palaceSettings';
 import { setupHoverCards } from '../db/hovercard';
 import { evaluate, itemFx, isUseful, slotsFor, SETUP_KINDS, SLOTS, type ProdResult, type SetupKind } from './calc';
 import { buildGenericStamp, type StampBuilding, type StampStreet } from '../stamp';
@@ -60,8 +58,8 @@ let workforceSet: Set<number>;
 let region: Region = 'ow';
 let query = '';
 let clip = false;
-/** Palast und Regionalministerium (Ministerium für Arbeit/Handel, Richtlinien). */
-let palace: PalaceState = structuredClone(DEFAULT_PALACE);
+/** Palast und Regionalministerium: seitenweite Einstellungen (src/palaceSettings.ts). */
+let palace: PalaceState = prodPalaceState();
 let palaceData: PalaceData | null = null;
 let palaceEffects: ActiveEffect[] = [];
 const modsCache = new Map<number, PalaceMods>();
@@ -75,6 +73,7 @@ const modsOf = (b: Building): PalaceMods => {
   return m;
 };
 const refreshPalace = (): void => {
+  palace = prodPalaceState(getPalaceSettings());
   modsCache.clear();
   palaceEffects = palaceData ? activeEffects(db, palaceData, palace) : [];
 };
@@ -115,9 +114,6 @@ function loadState(): void {
     const r = localStorage.getItem(`${STORE}-region`);
     if (r && (REGIONS as readonly string[]).includes(r)) region = r as Region;
     clip = localStorage.getItem(`${STORE}-clip`) === '1';
-    const pal = localStorage.getItem(`${STORE}-palace`);
-    if (pal) palace = { ...structuredClone(DEFAULT_PALACE), ...(JSON.parse(pal) as Partial<PalaceState>) };
-    else if (localStorage.getItem(`${STORE}-union`) === '0') palace.decrees = {}; // alte Einstellung ohne Gewerkschaftsförderung
   } catch {
     /* ignorieren */
   }
@@ -127,7 +123,6 @@ function saveState(): void {
     localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(state)));
     localStorage.setItem(`${STORE}-region`, region);
     localStorage.setItem(`${STORE}-clip`, clip ? '1' : '0');
-    localStorage.setItem(`${STORE}-palace`, JSON.stringify(palace));
   } catch {
     /* ignorieren */
   }
@@ -321,45 +316,10 @@ function renderPalace(): void {
     return;
   }
   const lvl = paragonLevel(d, palace.attr);
-  const ministries = d.ministries;
-  const decreeSelect = (k: MinistryKey): string => {
-    const m = ministries.find((x) => x.k === k);
-    if (!m) return '';
-    const locked = !ministryUnlocked(m, palace);
-    const cur = palace.decrees[k] ?? 0;
-    return `<label class="pal-field"><span>${m.i ? `<img class="ic" src="${DB_BASE}icons/${m.i}" alt="" />` : ''}${esc(t('pal.decreeOf', { m: pick(m.n) }))}${
-      locked ? ` <small class="bad">${esc(t('pal.lockedFrom', { n: num(m.at, 0) }))}</small>` : ''
-    }</span>
-      <select data-pal-decree="${k}" ${locked ? 'disabled' : ''}>
-        <option value="0">${esc(t('pal.none'))}</option>
-        ${m.decrees
-          .map(
-            (dc) =>
-              `<option value="${dc.g}" ${dc.g === cur ? 'selected' : ''} ${decreeUnlocked(dc, palace) ? '' : 'disabled'}>${esc(pick(dc.n))} (${esc(
-                t('pal.from', { n: num(dc.at, 0) }),
-              )})</option>`,
-          )
-          .join('')}
-      </select></label>`;
-  };
-  const ministrySelect = `<label class="pal-field"><span>${esc(t('pal.ministry'))}</span><select data-pal="ministry">${ministries
-    .map(
-      (m) =>
-        `<option value="${m.k}" ${m.k === palace.ministry ? 'selected' : ''} ${ministryUnlocked(m, palace) ? '' : 'disabled'}>${esc(pick(m.n))} (${esc(
-          t('pal.from', { n: num(m.at, 0) }),
-        )})${PROD_MINISTRIES.includes(m.k) ? '' : ` – ${esc(t('pal.noProd'))}`}</option>`,
-    )
-    .join('')}</select></label>`;
   const groups = palaceGroups();
   const prodGroups = groups.filter((g) => PROD_MINISTRIES.some((k) => g.key.startsWith(`${k}:`)) && palaceFxText(g.list));
   const active = prodGroups
-    .map((g) => {
-      const fx = palaceFxText(g.list);
-      return fx
-        ? `<li>${g.icon ? `<img class="ic" src="${DB_BASE}icons/${g.icon}" alt="" />` : ''}<b>${esc(g.label)}</b> ${fx}</li>`
-        : '';
-    })
-    .filter(Boolean)
+    .map((g) => `<li>${g.icon ? `<img class="ic" src="${DB_BASE}icons/${g.icon}" alt="" />` : ''}<b>${esc(g.label)}</b> ${palaceFxText(g.list)}</li>`)
     .join('');
   const sumText =
     palace.loc === 'none'
@@ -372,14 +332,9 @@ function renderPalace(): void {
         <label class="pal-field"><span>${esc(t('pal.loc'))}</span><select data-pal="loc">
           ${(['none', 'palace', 'regional'] as const).map((l) => `<option value="${l}" ${palace.loc === l ? 'selected' : ''}>${esc(t(`pal.loc.${l}`))}</option>`).join('')}
         </select></label>
-        <label class="pal-field"><span>${esc(t('pal.attr'))}</span><input type="number" data-pal="attr" min="0" max="99999" step="50" value="${palace.attr}" /></label>
-        <span class="pal-field pal-prestige">${esc(t('pal.prestige', { n: lvl }))}<small>${esc(t('pal.prestigeInfo', { a: num(d.paragon.first, 0), b: num(d.paragon.step, 0) }))}</small></span>
+        <span class="pal-field pal-prestige">${esc(t('pal.attrShort', { n: num(palace.attr, 0) }))} · ${esc(t('pal.prestige', { n: lvl }))}</span>
+        <button type="button" class="pal-edit" data-act="pal-edit">${esc(t('pal.edit'))}</button>
       </div>
-      ${
-        palace.loc === 'none'
-          ? ''
-          : `<div class="pal-row">${palace.loc === 'regional' ? `${ministrySelect}${decreeSelect(palace.ministry)}` : PROD_MINISTRIES.map(decreeSelect).join('')}</div>`
-      }
       ${active ? `<ul class="pal-active">${active}</ul>` : palace.loc === 'none' ? '' : `<p class="note">${esc(t('pal.noneActive'))}</p>`}
       ${region !== 'ow' ? `<p class="note bad">${esc(t('pal.owOnly'))}</p>` : ''}
       <p class="note">${esc(t(palace.loc === 'regional' ? 'pal.noteRegional' : 'pal.notePalace'))} ${esc(t('pal.note'))}</p>
@@ -570,16 +525,15 @@ async function main(): Promise<void> {
   clipBox.checked = clip;
   refreshPalace();
   renderPalace();
-  $('#prod-palace').addEventListener('change', (e) => {
-    const el = e.target as HTMLInputElement | HTMLSelectElement;
-    const key = el.dataset.pal;
-    const dk = el.dataset.palDecree as MinistryKey | undefined;
-    if (key === 'loc') palace.loc = el.value as PalaceState['loc'];
-    else if (key === 'attr') palace.attr = Math.max(0, Math.min(99999, Math.round(Number(el.value) || 0)));
-    else if (key === 'ministry') palace.ministry = el.value as MinistryKey;
-    else if (dk) palace.decrees = { ...palace.decrees, [dk]: Number(el.value) || 0 };
-    else return;
-    saveState();
+  const palEl = $('#prod-palace');
+  palEl.addEventListener('change', (e) => {
+    const el = e.target as HTMLSelectElement;
+    if (el.dataset.pal === 'loc') setPalaceSettings({ prod: el.value as PalaceState['loc'] });
+  });
+  palEl.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-act="pal-edit"]')) void openPalaceDialog();
+  });
+  onPalaceSettings(() => {
     refreshPalace();
     renderPalace();
     renderGroups();

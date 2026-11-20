@@ -169,7 +169,7 @@ const DICT: Record<string, [string, string]> = {
     'Je Produktionsgebäude die besten Handelskammer-Items (drei berechnete Vorschläge, per Klick änderbar), Strom, Produktivität, Ausstoß und Arbeitskraft – für ein Gebäude und für alle Gebäude einer Handelskammer.',
     'Per production building the best trade-union items (three computed suggestions, click to change), electricity, productivity, output and workforce – for one building and for all buildings of a trade union.',
   ],
-  'prod.clip': ['Geclippt (Item-Effekte ×2)', 'Clipped (item effects ×2)'],
+  'prod.clip': ['Geclippt (Item- und Palast-Effekte ×2)', 'Clipped (item and palace effects ×2)'],
   // Palast & Regionalministerium
   'pal.title': ['Palast & Regionalministerium', 'Palace & Local Department'],
   'pal.loc': ['Wirkung durch', 'Effect from'],
@@ -199,10 +199,27 @@ const DICT: Record<string, [string, string]> = {
     'A local department applies one ministry and one of its policies (not on the palace island, at most one per island).',
   ],
   'pal.note': [
-    'Ministerium für Arbeit und seine Richtlinien wirken über die Handelskammern in Straßenreichweite des Palasts/Ministeriums auf Gebäude im Handelskammer-Radius (15); Küstenreformen über Hafenmeisterei (20) bzw. Speicherstadt (30). Freischaltung und Werte aus den Spieldateien. Palast-Effekte werden beim Clipping nicht verdoppelt (Annahme).',
-    'The Ministry of Labour and its policies act through trade unions within street range of the palace/department on buildings in the trade-union radius (15); Coastal reforms via harbourmaster (20) or Speicherstadt (30). Unlocks and values from the game files. Palace effects are not doubled by clipping (assumption).',
+    'Ministerium für Arbeit und seine Richtlinien wirken über die Handelskammern in Straßenreichweite des Palasts/Ministeriums auf Gebäude im Handelskammer-Radius (15); Küstenreformen über Hafenmeisterei (20) bzw. Speicherstadt (30). Freischaltung und Werte aus den Spieldateien. Geclippt zählen Ministerium für Arbeit und seine Richtlinien doppelt (wie Items, sie kommen über beide Handelskammern).',
+    'The Ministry of Labour and its policies act through trade unions within street range of the palace/department on buildings in the trade-union radius (15); Coastal reforms via harbourmaster (20) or Speicherstadt (30). Unlocks and values from the game files. When clipped, the Ministry of Labour and its policies count twice (like items, they arrive via both trade unions).',
   ],
   'pal.fx.eb': ['Strombonus', 'Power bonus'],
+  'pal.button': ['Palast', 'Palace'],
+  'pal.attrShort': ['Attraktivität {n}', 'attractiveness {n}'],
+  'pal.wings': ['Palastflügel', 'Palace wings'],
+  'pal.rangeInfo': [
+    'Reichweite Pflaster: Palast ≈ {p}, Regionalministerium ≈ {r} (Spielwert Feldweg {b} + {w} je Flügel)',
+    'Paved range: palace ≈ {p}, local department ≈ {r} (game value dirt road {b} + {w} per wing)',
+  ],
+  'pal.decree': ['Richtlinie', 'Policy'],
+  'pal.globalLead': [
+    'Einmal einstellen – gilt auf der ganzen Seite (Produktion & Handelskammer, Stadtplaner) und bleibt im Browser gespeichert.',
+    'Set once – applies across the whole site (production & trade union, city planner) and is kept in your browser.',
+  ],
+  'pal.usedBy': [
+    'Produktion & Handelskammer: dort wählen, ob die Gebäude auf der Palastinsel oder bei einem Regionalministerium stehen. Stadtplaner: plant ein Regionalministerium mit dem oben gewählten Ministerium (Wohlfahrt: Reichweite öffentlicher Gebäude, Stadtweites Netz: Kraftwerke).',
+    'Production & trade union: choose there whether the buildings are on the palace island or at a local department. City planner: plans a local department with the ministry chosen above (Welfare: public building range, City-wide web: power plants).',
+  ],
+  'pal.edit': ['Palast-Einstellungen …', 'Palace settings …'],
   'pal.fx.socket': ['+{n} Item-Platz in der Handelskammer', '+{n} item slot in the trade union'],
   'pal.fx.extra': ['Zusatzware jede {n}. Produktion:', 'Extra good every {n}th production:'],
   'slot.Palace': ['Palast', 'Palace'],

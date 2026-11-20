@@ -31,19 +31,21 @@ export interface PolicyInfo {
   effect: string;
   /** Attraktivität der Palastinsel, ab der die Richtlinie freigeschaltet ist. */
   unlock: number;
+  /** GUID der Richtlinie (EffectContainer im Palast-Asset). */
+  guid: number;
 }
 
 export const POLICIES: readonly PolicyInfo[] = [
-  { id: 'aspirationalFinance', ministry: 'welfare', name: 'Verbesserung der Finanzen', effect: '+50 Münzen je versorgtem Haus (Universität, Varieté, Kraftwerk, Bankhaus; Handwerker/Ingenieure)', unlock: 1750 },
-  { id: 'artsPatronage', ministry: 'welfare', name: 'Förderung der Künste', effect: '+3 Attraktivität je Handwerker-/Ingenieurshaus in Varieté-Reichweite', unlock: 1750 },
-  { id: 'cityWideWeb', ministry: 'welfare', name: 'Stadtweites Netz', effect: 'Kraftwerke +15 Reichweite (Pflaster +22)', unlock: 2700 },
-  { id: 'socialWelfare', ministry: 'welfare', name: 'Wohlfahrt der Arbeiter', effect: '+5 Zufriedenheit aus öffentlichen Diensten', unlock: 4500 },
-  { id: 'lateLicence', ministry: 'welfare', name: 'Verlängerte Ausschankzeiten', effect: '−20 % Getränkebedarf in Reichweite von Wirtshaus/Varieté/Clubhaus/Funkturm', unlock: 5950 },
-  { id: 'landReform', ministry: 'labour', name: 'Landbesitzreform', effect: 'Zusatzware jede 2. Produktion (Farmen)', unlock: 1350 },
-  { id: 'skilledLabour', ministry: 'labour', name: 'Qualifizierte Arbeitskräfte', effect: 'Zusatzware jede 3. Produktion (Schwerindustrie)', unlock: 1350 },
-  { id: 'galvanicGrants', ministry: 'labour', name: 'Förderung des Galvanismus', effect: '+50 % Strombonus', unlock: 3850 },
-  { id: 'factoryInspections', ministry: 'labour', name: 'Fabrikinspektionen', effect: '−50 % Arbeitskraft', unlock: 5200 },
-  { id: 'unionSubsidies', ministry: 'labour', name: 'Gewerkschaftsförderung', effect: '+1 Item-Platz in Handelskammern', unlock: 6750 },
+  { id: 'aspirationalFinance', ministry: 'welfare', name: 'Verbesserung der Finanzen', effect: '+50 Münzen je versorgtem Haus (Universität, Varieté, Kraftwerk, Bankhaus; Handwerker/Ingenieure)', unlock: 1750, guid: 269141 },
+  { id: 'artsPatronage', ministry: 'welfare', name: 'Förderung der Künste', effect: '+3 Attraktivität je Handwerker-/Ingenieurshaus in Varieté-Reichweite', unlock: 1750, guid: 269142 },
+  { id: 'cityWideWeb', ministry: 'welfare', name: 'Stadtweites Netz', effect: 'Kraftwerke +15 Reichweite (Pflaster +22)', unlock: 2700, guid: 269143 },
+  { id: 'socialWelfare', ministry: 'welfare', name: 'Wohlfahrt der Arbeiter', effect: '+5 Zufriedenheit aus öffentlichen Diensten', unlock: 4500, guid: 273680 },
+  { id: 'lateLicence', ministry: 'welfare', name: 'Verlängerte Ausschankzeiten', effect: '−20 % Getränkebedarf in Reichweite von Wirtshaus/Varieté/Clubhaus/Funkturm', unlock: 5950, guid: 279497 },
+  { id: 'landReform', ministry: 'labour', name: 'Landbesitzreform', effect: 'Zusatzware jede 2. Produktion (Farmen)', unlock: 1350, guid: 269193 },
+  { id: 'skilledLabour', ministry: 'labour', name: 'Qualifizierte Arbeitskräfte', effect: 'Zusatzware jede 3. Produktion (Schwerindustrie)', unlock: 1350, guid: 279501 },
+  { id: 'galvanicGrants', ministry: 'labour', name: 'Förderung des Galvanismus', effect: '+50 % Strombonus', unlock: 3850, guid: 269196 },
+  { id: 'factoryInspections', ministry: 'labour', name: 'Fabrikinspektionen', effect: '−50 % Arbeitskraft', unlock: 5200, guid: 269194 },
+  { id: 'unionSubsidies', ministry: 'labour', name: 'Gewerkschaftsförderung', effect: '+1 Item-Platz in Handelskammern', unlock: 6750, guid: 269197 },
 ];
 
 export interface RuleConfig {

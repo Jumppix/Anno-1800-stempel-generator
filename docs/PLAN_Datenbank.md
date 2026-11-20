@@ -222,7 +222,14 @@ Palast-Effekte als Einträge mit Platz „Palast“ (`pal`: Ministerium, Richtli
   Gewerkschaftsförderung schließen sich auf einer Insel aus (gleiches Ministerium).
 - Produktionsseite: Schalter „Palast & Regionalministerium“ (Ort, Attraktivität → Freischaltung und
   Prestige, Richtlinien Arbeit/Handel); Rechnung `src/db/palace.ts` (`modsFor`) + `evaluate(..., { palace })`;
-  Vorschläge `setupsFI` für Fabrikinspektionen. Palast-Effekte werden beim Clipping nicht verdoppelt (Annahme, ungeprüft).
+  Vorschläge `setupsFI` für Fabrikinspektionen. **Clipping:** Effekte, die über die Handelskammern kommen
+  (Ministerium für Arbeit und seine Richtlinien), zählen doppelt wie Items (Nutzer: Basiseffekt 60 % → 120 %;
+  Richtlinien über dieselbe Weiterleitung, im Spiel noch zu bestätigen).
+- **Seitenweite Einstellungen** (`src/palaceSettings.ts`, Knopf „🏛 Palast“ im Seitenkopf): Attraktivität,
+  Palastflügel, Richtlinie je Ministerium im Palast, Regionalministerium (Ministerium + Richtlinie);
+  gespeichert unter `anno-palace-settings`, Änderungen gehen per Ereignis an Produktion und Stadtplaner
+  (auch andere Tabs). Produktion wählt nur noch „Wirkung durch“ (Palast/Regionalministerium/keins);
+  der Stadtplaner plant ein Regionalministerium mit dem dort gewählten Ministerium (`cityPalaceRules`).
 - Stadtplaner: Wohlfahrt/Stadtweites Netz stimmen mit den Spieldaten überein; die Option „Wohlfahrt auch
   für Feuerwehr/Polizei/Hospital“ entfällt (Spieldaten: nicht im Ziel-Pool).
 - Offen: Reichweite des Regionalministeriums (nicht in den Daten; Stadtplaner: halbe Palastreichweite),

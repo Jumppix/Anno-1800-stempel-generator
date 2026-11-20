@@ -52,7 +52,7 @@ unnötig verändern.
   – Produktivität/Strom/Clipping/Arbeitskraft, `bestSetup`; Packer `src/prod/layout.ts` – meiste Gebäude
   je HK-Radius mit Straßennetz; Vorberechnung `scripts/data/build-prod.mjs`), `planer.html` (bisheriges
   Werkzeug, `src/main.ts`).
-  Gemeinsamer Rahmen `src/site.ts`/`src/site-frame.css` (Navigation, Sprachumschalter, Fanprojekt-Hinweis;
+  Gemeinsamer Rahmen `src/site.ts`/`src/site-frame.css` (Navigation, Sprachumschalter, Palast-Einstellungen für die ganze Seite `src/palaceSettings.ts`, Fanprojekt-Hinweis;
   auch im Stadtplaner, dort ohne Fußzeile/Sprachwahl), Seitenstile `src/site.css` (Start/Datenbank),
   Sprachen `src/i18n.ts` (de/en, `data-i18n`; der Stadtplaner ist noch nur deutsch).
 - Spieldatenbank (Plan: `docs/PLAN_Datenbank.md`): `scripts/data/build-db.mjs` erzeugt `public/db/*.json`

@@ -1,7 +1,8 @@
 // Produktion mit Handelskammer-Items: Werte je Setup und beste Item-Kombinationen.
 //
 // Formel wie annolayouts.de: Produktivität = 100 % + Σ Item-Produktivität
-// (geclippt ×2) + 100 % Strom (Gebäude mit Strombonus, Strom an oder per Item);
+// (geclippt ×2) + Palast (über Handelskammern, geclippt ×2) + 100 % Strom
+// (Gebäude mit Strombonus, Strom an oder per Item);
 // Zykluszeit = ⌊Basis · 100 / Produktivität⌋; Arbeitskraft = Basis · (1 + Σ %/100) ≥ 0.
 import type { Building, Item } from '../db/data';
 import type { PalaceMods } from '../db/palace';
@@ -15,8 +16,8 @@ export interface ProdOptions {
   /** Geclippt: Gebäude von zwei Handelskammern erreicht, Item-Effekte doppelt. */
   clip: boolean;
   /**
-   * Palast/Regionalministerium (Ministerium für Arbeit, Richtlinien). Wird nicht
-   * vom Clipping verdoppelt: derselbe Effekt kommt von jeder Handelskammer.
+   * Palast/Regionalministerium (Ministerium für Arbeit, Richtlinien). Der Anteil,
+   * der über die Handelskammern kommt (`palace.union`), zählt beim Clipping doppelt.
    */
   palace?: PalaceMods;
 }
@@ -131,13 +132,15 @@ export function evaluate(b: Building, items: readonly Item[], opts: ProdOptions,
     for (const p of fx.remove) if (b.in?.some((i) => i.p === p)) removed.push(p);
   }
   const pal = opts.palace;
+  // Geclippt: der über Handelskammern weitergeleitete Anteil kommt von beiden Kammern
+  const palClip = pal && opts.clip ? pal.union : undefined;
   if (pal) {
-    prod += pal.prod;
-    wf += pal.wf;
+    prod += pal.prod + (palClip?.prod ?? 0);
+    wf += pal.wf + (palClip?.wf ?? 0);
   }
   const powered = !!b.pow && (opts.power || powerItem !== undefined);
   const works = b.pow !== 'req' || powered;
-  if (b.eb && powered) prod += 100 + (pal?.eb ?? 0);
+  if (b.eb && powered) prod += 100 + (pal?.eb ?? 0) + (palClip?.eb ?? 0);
   prod = Math.max(prod, 1);
   const cycle = base ? Math.floor((base * 100) / prod) : null;
   const outAmount = b.out?.[0]?.a ?? 1;
@@ -145,7 +148,7 @@ export function evaluate(b: Building, items: readonly Item[], opts: ProdOptions,
   for (const [, fx] of fxs) {
     for (const e of fx.extra) extra.set(e.p, (extra.get(e.p) ?? 0) + (cyclesPerMin / e.every) * e.amount * k);
   }
-  for (const e of pal?.extra ?? []) extra.set(e.p, (extra.get(e.p) ?? 0) + (cyclesPerMin / e.every) * e.amount);
+  for (const e of [...(pal?.extra ?? []), ...(palClip?.extra ?? [])]) extra.set(e.p, (extra.get(e.p) ?? 0) + (cyclesPerMin / e.every) * e.amount);
   const workforce = (b.mt ?? [])
     .filter((m) => workforceSet.has(m.p))
     .map((m) => ({ p: wfType ?? m.p, a: Math.max(0, Math.round(m.a * (1 + wf / 100))) }));

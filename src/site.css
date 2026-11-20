@@ -1248,3 +1248,18 @@ body.site .bname:hover b {
 .d-table td .chip {
   margin: 1px 2px;
 }
+
+.pal-edit {
+  background: var(--panel);
+  color: var(--gold);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.pal-edit:hover {
+  border-color: var(--gold);
+}

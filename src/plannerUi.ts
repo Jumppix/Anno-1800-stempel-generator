@@ -249,6 +249,7 @@ export class PlannerUi {
     // Kurzinfo in den Gruppen-Überschriften aktuell halten.
     this.runButton.closest('section')?.addEventListener('change', () => this.updateSummaries());
     this.updateSummaries();
+    document.addEventListener('city-rules-changed', () => this.updateSummaries());
     this.refreshIsland();
   }
 
@@ -264,8 +265,9 @@ export class PlannerUi {
     el<HTMLElement>('#sum-prod').textContent = prod.length
       ? prod.map((r) => `${r.count}× ${CLIPPABLE.find((c) => c.guid === r.guid)?.name ?? r.guid}`).join(', ')
       : 'keine';
-    const ministry = el<HTMLSelectElement>('#rule-ministry');
-    el<HTMLElement>('#sum-rules').textContent = `${ministry.selectedOptions[0]?.textContent ?? ''} · Zeitung −${
+    const r = this.cityUi.currentRules();
+    const ministry = r.ministry === 'welfare' ? 'Wohlfahrt' : r.ministry === 'labour' ? 'Arbeit' : 'ohne Ministerium';
+    el<HTMLElement>('#sum-rules').textContent = `${ministry} · Zeitung −${
       el<HTMLInputElement>('#rule-reduction').value || 0
     } %`;
   }

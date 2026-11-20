@@ -96,11 +96,17 @@ export interface PalaceMods {
   extra: Array<{ p: number; every: number; amount: number }>;
   /** Zusätzliche Sockel in der Handelskammer. */
   sockets: number;
+  /**
+   * Anteil, der über die Handelskammern kommt (Ministerium für Arbeit und seine
+   * Richtlinien): wirkt beim Clipping doppelt wie Items (Angabe des Nutzers für
+   * den Basiseffekt; Richtlinien laufen über dieselbe Weiterleitung).
+   */
+  union: { prod: number; wf: number; eb: number; extra: Array<{ p: number; every: number; amount: number }> };
   /** Beteiligte Effekte (für Hinweise). */
   sources: ActiveEffect[];
 }
 
-export const NO_MODS: PalaceMods = { prod: 0, wf: 0, eb: 0, extra: [], sockets: 0, sources: [] };
+export const NO_MODS: PalaceMods = { prod: 0, wf: 0, eb: 0, extra: [], sockets: 0, sources: [], union: { prod: 0, wf: 0, eb: 0, extra: [] } };
 
 const num = (v: unknown): number => {
   if (typeof v === 'number') return v;
@@ -121,32 +127,40 @@ export function inPalaceRegion(db: Db, data: PalaceData, b: Building): boolean {
  */
 export function modsFor(db: Db, data: PalaceData, effects: readonly ActiveEffect[], b: Building, tradeUnion = 1010516): PalaceMods {
   if (!inPalaceRegion(db, data, b)) return NO_MODS;
-  const m: PalaceMods = { prod: 0, wf: 0, eb: 0, extra: [], sockets: 0, sources: [] };
+  const m: PalaceMods = { prod: 0, wf: 0, eb: 0, extra: [], sockets: 0, sources: [], union: { prod: 0, wf: 0, eb: 0, extra: [] } };
   for (const e of effects) {
     const onBuilding = e.item.tgx.includes(b.g);
     const onUnion = e.item.tgx.includes(tradeUnion);
     if (!onBuilding && !onUnion) continue;
+    // Über Handelskammern weitergeleitet → beim Clipping doppelt
+    const viaUnion = !!e.item.pal?.via?.some((v) => v.x.includes(tradeUnion));
     let used = false;
     for (const f of e.fx) {
       if (onBuilding) {
         switch (f.k) {
           case 'ProductivityUpgrade':
             m.prod += num(f.v);
+            if (viaUnion) m.union.prod += num(f.v);
             used = true;
             break;
           case 'WorkforceAmountUpgrade':
             m.wf += num(f.v);
+            if (viaUnion) m.union.wf += num(f.v);
             used = true;
             break;
           case 'ElectricityBoostUpgrade':
             if (b.eb) {
               m.eb += num(f.v);
+              if (viaUnion) m.union.eb += num(f.v);
               used = true;
             }
             break;
           case 'AdditionalOutput':
             for (const o of Array.isArray(f.v) ? (f.v as Array<Record<string, number>>) : []) {
-              if (typeof o.Product === 'number') m.extra.push({ p: o.Product, every: o.AdditionalOutputCycle || 1, amount: o.Amount || 1 });
+              if (typeof o.Product !== 'number') continue;
+              const x = { p: o.Product, every: o.AdditionalOutputCycle || 1, amount: o.Amount || 1 };
+              m.extra.push(x);
+              if (viaUnion) m.union.extra.push(x);
               used = true;
             }
             break;

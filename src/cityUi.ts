@@ -14,12 +14,13 @@ import {
   POLICIES,
   welfareBonus,
   type GoodNeed,
-  type Ministry,
-  type Policy,
   type RuleConfig,
   type TierEdits,
 } from './rules';
 import { Camera } from './camera';
+import { loadPalace, type PalaceData } from './db/data';
+import { pick } from './i18n';
+import { cityPalaceRules, getPalaceSettings, onPalaceSettings, openPalaceDialog } from './palaceSettings';
 import { buildGenericStamp } from './stamp';
 import { decodeStampFull } from './stampReader';
 import { catalogTestLayout, demoCityLayout } from './testStamps';
@@ -88,6 +89,7 @@ export class CityUi {
   private city: City | null = null;
   private analysis: Analysis | null = null;
   private rules: RuleConfig = { ...DEFAULT_RULES };
+  private palaceData: PalaceData | null = null;
   private layer: Layer = 'overview';
   private view: View | null = null;
   private resByIndex = new Map<number, ResidenceInfo>();
@@ -100,10 +102,7 @@ export class CityUi {
 
   private readonly fileInput = el<HTMLInputElement>('#city-file');
   private readonly info = el<HTMLElement>('#city-info');
-  private readonly wings = el<HTMLInputElement>('#rule-wings');
-  private readonly prestige = el<HTMLInputElement>('#rule-prestige');
-  private readonly ministry = el<HTMLSelectElement>('#rule-ministry');
-  private readonly policy = el<HTMLSelectElement>('#rule-policy');
+  private readonly palaceInfo = el<HTMLElement>('#rule-palace');
   private readonly items = el<HTMLInputElement>('#rule-items');
   private readonly delivery = el<HTMLInputElement>('#rule-delivery');
   private readonly mail = el<HTMLSelectElement>('#rule-mail');
@@ -134,10 +133,14 @@ export class CityUi {
     /** Wird aufgerufen, wenn ein Stempel/Plan geladen wurde (Ansicht wechseln). */
     private readonly onShow: () => void = () => undefined,
   ) {
-    this.wings.value = String(this.rules.palaceWings);
-    this.prestige.value = String(this.rules.prestige);
-    this.ministry.value = this.rules.ministry;
-    this.fillPolicies();
+    // Palast/Regionalministerium: seitenweite Einstellungen (Dialog im Seitenkopf)
+    this.rules = { ...this.rules, ...cityPalaceRules() };
+    void loadPalace().then((data) => {
+      this.palaceData = data;
+      this.applyPalace();
+    });
+    onPalaceSettings(() => this.applyPalace());
+    el<HTMLButtonElement>('#rule-palace-edit').addEventListener('click', () => void openPalaceDialog());
     this.fillLayers();
     this.setupGoods();
 
@@ -155,14 +158,9 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.wings, this.prestige, this.tierMode, this.items, this.delivery, this.mail, this.reduction]) {
+    for (const input of [this.tierMode, this.items, this.delivery, this.mail, this.reduction]) {
       input.addEventListener('change', () => this.readRules());
     }
-    this.ministry.addEventListener('change', () => {
-      this.fillPolicies();
-      this.readRules();
-    });
-    this.policy.addEventListener('change', () => this.readRules());
     this.layerSelect.addEventListener('change', () => {
       this.layer = this.layerSelect.value as Layer;
       this.draw();
@@ -193,14 +191,10 @@ export class CityUi {
     this.updatePanel();
   }
 
-  private fillPolicies(): void {
-    const ministry = this.ministry.value as Ministry;
-    const options = POLICIES.filter((p) => p.ministry === ministry);
-    this.policy.innerHTML = ['<option value="none">keine</option>']
-      .concat(options.map((p) => `<option value="${p.id}" title="${p.effect}">${p.name} (ab ${num(p.unlock)})</option>`))
-      .join('');
-    this.policy.disabled = ministry === 'none';
-    if (options.some((p) => p.id === this.rules.policy)) this.policy.value = this.rules.policy;
+  /** Palast-Einstellungen übernehmen (Regionalministerium der Stadt). */
+  private applyPalace(): void {
+    this.readRules();
+    document.dispatchEvent(new CustomEvent('city-rules-changed'));
   }
 
   private fillLayers(): void {
@@ -271,10 +265,7 @@ export class CityUi {
   private readRules(): void {
     this.rules = {
       ...this.rules,
-      palaceWings: Math.max(0, Math.round(Number(this.wings.value) || 0)),
-      prestige: Math.min(25, Math.max(0, Math.round(Number(this.prestige.value) || 0))),
-      ministry: this.ministry.value as Ministry,
-      policy: (this.policy.value || 'none') as Policy,
+      ...cityPalaceRules(getPalaceSettings(), this.palaceData),
       welfareForInstitutions: false,
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'groups',
       townHallItems: this.items.checked,
@@ -288,6 +279,12 @@ export class CityUi {
 
   private updateRuleInfo(): void {
     const r = this.rules;
+    const ps = getPalaceSettings();
+    const reg = this.palaceData?.ministries.find((m) => m.k === ps.regional.ministry);
+    const pol = POLICIES.find((p) => p.id === r.policy);
+    this.palaceInfo.textContent = `Regionalministerium: ${reg ? pick(reg.n) : ps.regional.ministry}${
+      r.ministry === 'none' && reg && ps.attr < reg.at ? ` (gesperrt, ab ${num(reg.at)} Attraktivität)` : ''
+    }${pol ? ` · ${pol.name}` : ''} · Flügel ${r.palaceWings} · Prestige ${r.prestige} (Attraktivität ${num(ps.attr)})`;
     const parts = [
       `Palast ${palaceRange(r)}`,
       `Regionalministerium ${localDepartmentRange(r)} Straßenkacheln`,
