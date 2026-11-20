@@ -86,6 +86,9 @@ const setupTable = (b: Building): ProdData['setups'] =>
       ? prod.setupsFI
       : prod.setups;
 const state = new Map<number, RowState>();
+/** Eingeklappte Gruppen (Region:Arbeitskraft-GUID). */
+const collapsed = new Set<string>();
+const groupKey = (k: number): string => `${region}:${k}`;
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector(sel) as T;
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
@@ -114,6 +117,7 @@ function loadState(): void {
     const r = localStorage.getItem(`${STORE}-region`);
     if (r && (REGIONS as readonly string[]).includes(r)) region = r as Region;
     clip = localStorage.getItem(`${STORE}-clip`) === '1';
+    for (const k of JSON.parse(localStorage.getItem(`${STORE}-collapsed`) ?? '[]') as string[]) collapsed.add(k);
   } catch {
     /* ignorieren */
   }
@@ -123,6 +127,7 @@ function saveState(): void {
     localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(state)));
     localStorage.setItem(`${STORE}-region`, region);
     localStorage.setItem(`${STORE}-clip`, clip ? '1' : '0');
+    localStorage.setItem(`${STORE}-collapsed`, JSON.stringify([...collapsed]));
   } catch {
     /* ignorieren */
   }
@@ -164,6 +169,15 @@ function renderRegions(): void {
   ).join('');
 }
 
+/** Knopf „Alle ein-/aufklappen“: Beschriftung nach dem Zustand der sichtbaren Gruppen. */
+function renderFold(): void {
+  const secs = [...document.querySelectorAll<HTMLElement>('.prod-group')];
+  const anyOpen = secs.some((x) => !x.classList.contains('collapsed'));
+  const btn = $<HTMLButtonElement>('#prod-fold');
+  btn.textContent = `${anyOpen ? '▸' : '▾'} ${t(anyOpen ? 'prod.allClose' : 'prod.allOpen')}`;
+  btn.hidden = !secs.length;
+}
+
 function renderGroups(): void {
   const q = query.trim().toLowerCase();
   const list = productionBuildings().filter((b) => {
@@ -182,12 +196,16 @@ function renderGroups(): void {
   const keys = [...groups.keys()].sort((a, b) => (order.indexOf(a) + 100 * +(a === 0)) - (order.indexOf(b) + 100 * +(b === 0)));
   if (!keys.length) {
     $('#prod-groups').innerHTML = `<p class="db-empty">${esc(t('db.count', { n: 0 }))}</p>`;
+    renderFold();
     return;
   }
   $('#prod-groups').innerHTML = keys
     .map((k) => {
       const rows = (groups.get(k) as Building[]).sort((a, b) => pick(a.n).localeCompare(pick(b.n)));
-      return `<section class="prod-group"><h2>${k ? `${icon(k, 'gic')} ${esc(nameOf(k).replace(/[-\u2011]?\s*Arbeitsk\S*/i, '').replace(/\s*Workforce/i, ''))}` : esc(t('prod.noWorkforce'))}<span class="sum">${rows.length}</span></h2>
+      const closed = collapsed.has(groupKey(k));
+      return `<section class="prod-group${closed ? ' collapsed' : ''}" data-group="${k}"><h2><button type="button" class="grp-toggle" data-act="group" aria-expanded="${!closed}" data-tip="${esc(
+        t(closed ? 'prod.groupOpen' : 'prod.groupClose'),
+      )}"><span class="chev" aria-hidden="true">▾</span>${k ? `${icon(k, 'gic')} ${esc(nameOf(k).replace(/[-\u2011]?\s*Arbeitsk\S*/i, '').replace(/\s*Workforce/i, ''))}` : esc(t('prod.noWorkforce'))}<span class="sum">${rows.length}</span></button></h2>
         <div class="prod-table">
           <div class="prod-row prod-th">
             <span>${esc(t('prod.col.building'))}</span><span>${esc(t('prod.col.count'))}</span><span>${esc(t('prod.col.items'))}</span>
@@ -198,6 +216,7 @@ function renderGroups(): void {
         </div></section>`;
     })
     .join('');
+  renderFold();
 }
 
 function rowHtml(b: Building): string {
@@ -564,6 +583,17 @@ async function main(): Promise<void> {
     q.focus();
     renderGroups();
   });
+  $('#prod-fold').addEventListener('click', () => {
+    const secs = [...document.querySelectorAll<HTMLElement>('.prod-group')];
+    const close = secs.some((x) => !x.classList.contains('collapsed'));
+    for (const sec of secs) {
+      const key = groupKey(Number(sec.dataset.group ?? 0));
+      if (close) collapsed.add(key);
+      else collapsed.delete(key);
+    }
+    saveState();
+    renderGroups();
+  });
   clipBox.addEventListener('change', () => {
     clip = clipBox.checked;
     saveState();
@@ -573,6 +603,20 @@ async function main(): Promise<void> {
   const groupsEl = $('#prod-groups');
   groupsEl.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
+    const toggle = target.closest<HTMLElement>('[data-act="group"]');
+    if (toggle) {
+      const sec = toggle.closest<HTMLElement>('.prod-group');
+      const key = groupKey(Number(sec?.dataset.group ?? 0));
+      if (collapsed.has(key)) collapsed.delete(key);
+      else collapsed.add(key);
+      const closed = collapsed.has(key);
+      sec?.classList.toggle('collapsed', closed);
+      toggle.setAttribute('aria-expanded', String(!closed));
+      toggle.dataset.tip = t(closed ? 'prod.groupOpen' : 'prod.groupClose');
+      saveState();
+      renderFold();
+      return;
+    }
     const row = target.closest<HTMLElement>('.prod-row[data-g]');
     const b = row ? db.buildingBy.get(Number(row.dataset.g)) : undefined;
     if (!b) return;

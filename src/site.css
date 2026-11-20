@@ -764,6 +764,52 @@ body.site a.ph-name:hover {
   font-size: 13px;
 }
 
+.grp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  padding: 2px 4px 2px 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.grp-toggle .chev {
+  display: inline-block;
+  width: 14px;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+
+.prod-group.collapsed .grp-toggle .chev {
+  transform: rotate(-90deg);
+}
+
+.prod-group.collapsed .prod-table {
+  display: none;
+}
+
+.prod-group.collapsed h2 {
+  margin-bottom: 0;
+}
+
+.prod-fold {
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.prod-fold:hover {
+  color: var(--text);
+  border-color: var(--gold);
+}
+
 .gic {
   width: 26px;
   height: 26px;

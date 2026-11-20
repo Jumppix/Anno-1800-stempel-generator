@@ -98,7 +98,7 @@ const named = (g: number, extra = ''): string => `<span class="hc-named">${ic(g)
 const amountRow = (list: Array<{ p: number; a: number }> | undefined): string =>
   list?.length ? `<div class="hc-amounts">${list.map((a) => `<span>${ic(a.p)}${num(a.a, 0)}</span>`).join('')}</div>` : '';
 
-function listNames(gs: number[], max = 4): string {
+function listNames(gs: number[], max = Infinity): string {
   const shown = gs.slice(0, max).map((g) => `<b>${esc(nameOf(g))}</b>`);
   const rest = gs.length - max;
   const and = getLang() === 'de' ? ' und ' : ' and ';
@@ -147,7 +147,6 @@ function effectLines(it: Item): string {
     } else if ((e.k === 'GenPool' || e.k === 'AddAssemblyOptions' || e.k === 'OverrideSpecialistPool') && Array.isArray(e.v)) {
       lines.push(`<div class="hc-fx"><span class="hc-sym">•</span>${esc(label(e.k))}</div><div class="hc-sub-line">${(e.v as number[])
         .filter((g) => typeof g === 'number')
-        .slice(0, 6)
         .map((g) => named(g))
         .join(' ')}</div>`);
     } else if (e.k === 'ReplacingWorkforce' && typeof e.v === 'number') {
@@ -215,10 +214,8 @@ function buildingCard(b: Building): string {
 // ------------------------------------------------------------------ Ware
 const COINS = 1010017;
 const capSec = (cap: string, body: string): string => (body ? `<div class="hc-sec"><div class="hc-cap">${esc(cap)}</div>${body}</div>` : '');
-const namedList = (gs: number[], max = 8): string =>
-  gs.length
-    ? `<div class="hc-list">${gs.slice(0, max).map((x) => named(x)).join('')}${gs.length > max ? `<span class="hc-note">${esc(t('hc.more', { n: gs.length - max }))}</span>` : ''}</div>`
-    : '';
+/** Alle Einträge; passt das Fenster nicht auf den Bildschirm, kürzt `fitCard` beim Anzeigen. */
+const namedList = (gs: number[]): string => (gs.length ? `<div class="hc-list">${gs.map((x) => named(x)).join('')}</div>` : '');
 const uniqBuildings = (bs: Building[]): number[] => {
   const seen = new Set<string>();
   return bs.filter((b) => (seen.has(b.n.de) ? false : (seen.add(b.n.de), true))).map((b) => b.g);
@@ -273,10 +270,9 @@ function productCard(g: number): string {
     const seen = new Set<string>();
     const rows = top
       .filter((x) => (seen.has(x.b.n.de) ? false : (seen.add(x.b.n.de), true)))
-      .slice(0, 6)
       .map((x) => `<div class="hc-split">${named(x.b.g)}<b>${num(x.a, 0)}</b></div>`)
       .join('');
-    body += capSec(t(g === COINS || info.wf ? 'hc.upkeepIn' : 'hc.upkeepGood', { n: seen.size >= 6 ? upkeep.length : seen.size }), rows);
+    body += capSec(t(g === COINS || info.wf ? 'hc.upkeepIn' : 'hc.upkeepGood', { n: seen.size }), `<div class="hc-rows">${rows}</div>`);
   }
   if (costN) body += `<div class="hc-sec hc-note">${esc(t('hc.costIn', { n: costN }))}</div>`;
   if (needs.length) body += capSec(t('hc.needOf'), needs.map((n) => needLine(n, true)).join(''));
@@ -295,15 +291,15 @@ function populationCard(g: number): string {
     <div class="hc-sec">${pop.res ? `<div class="hc-split"><span>${esc(t('hc.house'))}</span>${named(pop.res)}</div>` : ''}${
       pop.max ? `<div class="hc-split"><span>${esc(t('d.residents'))}</span><b>${num(pop.max, 0)}</b></div>` : ''
     }${pop.out.map((o) => `<div class="hc-split"><span>${esc(t('hc.gives'))}</span>${named(o.p)}</div>`).join('')}</div>
-    ${capSec(t('hc.basicNeeds'), basic.slice(0, 10).map(line).join(''))}
-    ${capSec(t('hc.luxuryNeeds'), luxury.slice(0, 10).map(line).join(''))}
-    ${capSec(t('hc.bonusNeeds'), bonus.slice(0, 10).map(line).join(''))}
+    ${capSec(t('hc.basicNeeds'), basic.map(line).join(''))}
+    ${capSec(t('hc.luxuryNeeds'), luxury.map(line).join(''))}
+    ${capSec(t('hc.bonusNeeds'), bonus.map(line).join(''))}
     <div class="hc-sec hc-note">${esc(t('hc.perThousand'))}</div>`;
 }
 
 function poolCard(g: number): string {
   const members = db.info.pools[g] ?? [];
-  return `${head(g, nameOf(g), esc(t('hc.group', { n: members.length })))}${capSec(t('hc.members'), namedList(members, 14))}`;
+  return `${head(g, nameOf(g), esc(t('hc.group', { n: members.length })))}${capSec(t('hc.members'), namedList(members))}`;
 }
 
 function dlcCard(g: number): string {
@@ -337,7 +333,42 @@ export function setupHoverCards(data: Db): void {
   let current: HTMLElement | null = null;
   let timer = 0;
 
+  /**
+   * Alles zeigen, solange es auf den Bildschirm passt: erst breiter werden
+   * (Listen fließen in mehr Spalten), erst danach lange Listen kürzen.
+   */
+  const fitCard = (): void => {
+    const maxH = window.innerHeight - 16;
+    const maxW = window.innerWidth - 16;
+    card.style.width = '';
+    if (card.classList.contains('simple') || card.scrollHeight <= maxH) return;
+    for (const w of [440, 560, 720, 900]) {
+      card.style.width = `${Math.min(w, maxW)}px`;
+      if (card.scrollHeight <= maxH || w >= maxW) break;
+    }
+    // Immer noch zu hoch: die längste Liste schrittweise kürzen („und N weitere“)
+    const lists = [...card.querySelectorAll<HTMLElement>('.hc-list, .hc-rows')];
+    const hidden = new Map<HTMLElement, number>();
+    let guard = 2000;
+    while (card.scrollHeight > maxH && guard-- > 0) {
+      const visible = (l: HTMLElement): HTMLElement[] => [...l.children].filter((c) => !c.classList.contains('hc-cut') && !c.classList.contains('hc-more')) as HTMLElement[];
+      const longest = lists.map((l) => [l, visible(l)] as const).filter(([, v]) => v.length > 3).sort((a, b) => b[1].length - a[1].length)[0];
+      if (!longest) break;
+      const [list, vis] = longest;
+      vis[vis.length - 1].classList.add('hc-cut');
+      const n = (hidden.get(list) ?? 0) + 1;
+      hidden.set(list, n);
+      let more = list.querySelector<HTMLElement>(':scope > .hc-more');
+      if (!more) {
+        more = document.createElement('span');
+        more.className = 'hc-note hc-more';
+        list.append(more);
+      }
+      more.textContent = t('hc.more', { n });
+    }
+  };
   const place = (el: HTMLElement): void => {
+    fitCard();
     const r = el.getBoundingClientRect();
     const w = card.offsetWidth;
     const h = card.offsetHeight;
