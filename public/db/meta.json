@@ -1,5 +1,5 @@
 {
- "built": "2026-11-18T18:00:51.378Z",
+ "built": "2026-11-20T08:22:52.055Z",
  "workforce": [
   1010052,
   1010115,
@@ -47,9 +47,9 @@
   }
  ],
  "counts": {
-  "items": 1504,
+  "items": 1534,
   "buildings": 1501,
-  "names": 6199,
+  "names": 6247,
   "icons": 2131
  },
  "limits": [
@@ -415,8 +415,8 @@
  "files": [
   {
    "file": "items.json",
-   "bytes": 958716,
-   "sha1": "1eaac78e7421"
+   "bytes": 986805,
+   "sha1": "f9206272f0fd"
   },
   {
    "file": "buildings.json",
@@ -425,18 +425,23 @@
   },
   {
    "file": "names.json",
-   "bytes": 745915,
-   "sha1": "b4f34adb6e1c"
+   "bytes": 752745,
+   "sha1": "6f193c360329"
   },
   {
    "file": "info.json",
-   "bytes": 61336,
-   "sha1": "9591566c7a76"
+   "bytes": 62542,
+   "sha1": "806ab0067fb1"
+  },
+  {
+   "file": "palace.json",
+   "bytes": 16595,
+   "sha1": "3d9786bca252"
   },
   {
    "file": "items-raw.json",
-   "bytes": 1469485,
-   "sha1": "d693bfbfa6e0"
+   "bytes": 1490011,
+   "sha1": "ccf3aa20901a"
   },
   {
    "file": "buildings-raw.json",

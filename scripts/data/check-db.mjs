@@ -85,6 +85,46 @@ console.log(`info   Strom erforderlich: ${buildings.filter((b) => b.pow === 'req
   console.log(`info   ${withSetup}/${Object.keys(prod.setups).length} Produktionsgebäude mit Item-Vorschlag`);
 }
 
+// 2b. Palast & Regionalministerium (Spieldaten, Paläste der Macht)
+{
+  let palace = null;
+  try {
+    palace = load('palace.json');
+  } catch {
+    /* fehlt */
+  }
+  check('Palast: palace.json vorhanden', !!palace);
+  if (palace) {
+    const itemBy = new Map(items.map((i) => [i.g, i]));
+    const M = Object.fromEntries(palace.ministries.map((m) => [m.k, m]));
+    check('Palast: 5 Ministerien mit je 5 Richtlinien', palace.ministries.length === 5 && palace.ministries.every((m) => m.decrees.length === 5));
+    const missing = palace.ministries.flatMap((m) => [...m.base, ...m.decrees.flatMap((d) => d.b)]).filter((g) => !itemBy.get(g)?.pal);
+    check('Palast: alle Effekte als Palast-Einträge in items.json', missing.length === 0, missing.join(', '));
+    check('Palast: 25 Prestige-Stufen je Ministerium', palace.ministries.every((m) => m.para.length === 25));
+    const fxv = (fx, k) => {
+      const v = fx.find((e) => e.k === k)?.v;
+      return typeof v === 'number' ? v : v?.v;
+    };
+    const labour = M.Productivity;
+    const base = itemBy.get(labour?.base[0]);
+    check('Ministerium für Arbeit: +10 % Produktivität, Prestige 25: +60 %', fxv(base?.fx ?? [], 'ProductivityUpgrade') === 10 && fxv(labour.para[24][0], 'ProductivityUpgrade') === 60);
+    const dec = (k, name) => M[k]?.decrees.find((d) => d.n.de === name);
+    const fi = dec('Productivity', 'Fabrikinspektionen');
+    check('Fabrikinspektionen: −50 % Arbeitskraft ab 5.200', fi?.at === 5200 && fxv(itemBy.get(fi.b[0])?.fx ?? [], 'WorkforceAmountUpgrade') === -50);
+    const us = dec('Productivity', 'Gewerkschaftsförderung');
+    check('Gewerkschaftsförderung: +1 Sockel je Handelskammer ab 6.750', us?.at === 6750 && fxv(itemBy.get(us.b[0])?.fx ?? [], 'SocketCountUpgrade') === 1 && itemBy.get(us.b[0])?.tgx.includes(1010516));
+    const gal = dec('Productivity', 'Förderung des Galvanismus');
+    check('Förderung des Galvanismus: +50 % Strombonus ab 3.850', gal?.at === 3850 && fxv(itemBy.get(gal.b[0])?.fx ?? [], 'ElectricityBoostUpgrade') === 50);
+    const via = items.filter((i) => i.pal?.m === 'Productivity' && i.pal.via).every((i) => i.pal.via.every((v) => v.r === 15 && v.x.length === 1 && v.x[0] === 1010516));
+    check('Arbeits-Effekte nur über Handelskammern der Alten Welt (Radius 15)', via);
+    const regs = palace.buildings.map((g) => byGuid.get(g)?.reg?.join('/'));
+    check('Palast und Regionalministerium nur in der Alten Welt', regs.every((r) => r === 'ow'), regs.join(', '));
+    const welfare = itemBy.get(M.Service?.base[0]);
+    console.log(`info   Wohlfahrt: öffentliche Gebäude +${fxv(welfare?.fx ?? [], 'PublicServiceFullSatisfactionDistance')} Reichweite (Spielwert), Prestige 25: +${fxv(M.Service.para[24][0], 'PublicServiceFullSatisfactionDistance')}; Ziele: ${welfare?.tgx.length} Gebäude`);
+    console.log(`info   Palast-Reichweite: ${palace.range.base} + ${palace.range.perWing} je Flügel (Spielwert); Prestige ab ${palace.paragon.first}, je ${palace.paragon.step}`);
+  }
+}
+
 // 3. Lücken
 const noSize = buildings.filter((b) => !b.sz && b.c !== 'ornament' && b.c !== 'module');
 console.log(`info   ${noSize.length} Gebäude (ohne Zierde/Module) ohne Grundfläche im Anno Designer`);

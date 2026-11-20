@@ -218,11 +218,102 @@ const ITEM_TEMPLATES = {
   CultureBuff: 'Palace',
 };
 const BUFF_TEMPLATES = new Set(['GuildhouseBuff', 'TownhallBuff', 'HarbourOfficeBuff', 'CultureBuff']);
-// Palast-Erlasse/Ministerien: EffectContainer mit Palast-Icon verweisen auf die Buff-Assets.
-const palaceEffects = new Set();
-for (const rec of byTemplate.get('EffectContainer') ?? []) {
-  if (!/3dicons\/palace\//.test(rec.v.Standard?.IconFilename ?? '')) continue;
-  for (const e of arr(rec.v.EffectContainer?.Effects?.Item)) if (typeof e?.Effect === 'number') palaceEffects.add(e.Effect);
+// ---------------------------------------------------------------- Palast
+// Palast (Paläste der Macht): fünf Ministerien mit Basiseffekt (Prestige-Stufen)
+// und je fünf Richtlinien. Viele Effekte laufen über eine Weiterleitung
+// (ForwardBuff): Ziel ist ein Gebäude (z. B. Handelskammer der Alten Welt), das
+// den eigentlichen Effekt in seinem Radius weitergibt. Hier wird die Kette
+// EffectContainer → ForwardBuff → Buff vollständig aufgelöst.
+const palaceRec = (byTemplate.get('Palace') ?? [])[0];
+/** Endgültige Buffs eines Effekts mit Überbringer (Gebäude/Pool + Radius). */
+function resolvePalaceEffect(g, via = []) {
+  const rec = byGuid.get(g);
+  if (!rec) return [];
+  if (rec.t === 'EffectContainer') return arr(rec.v.EffectContainer?.Effects?.Item).flatMap((e) => resolvePalaceEffect(e?.Effect, via));
+  if (rec.t === 'ForwardBuff') {
+    const fw = rec.v.EffectForward ?? {};
+    const carriers = arr(rec.v.ItemEffect?.EffectTargets?.Item).map((t) => ({ g: t.GUID, r: fw.ForwardEffectRange }));
+    return resolvePalaceEffect(fw.ForwardEffect, [...via, ...carriers]);
+  }
+  return [{ g, via }];
+}
+const attrLevels = { Ordinary: 0 };
+for (const [k, v] of Object.entries(byTemplate.get('AttractivenessFeature')?.[0]?.v?.AttractivenessFeature?.AttractivenessLevel ?? {})) {
+  attrLevels[k] = v?.AttractivenessThreshold ?? 0;
+}
+/** Buff-GUID → Palast-Zuordnung (Ministerium, Richtlinie, Freischaltung, Überbringer). */
+const palaceMeta = new Map();
+const palace = { ministries: [] };
+if (palaceRec) {
+  const P = palaceRec.v.Palace ?? {};
+  palace.levels = attrLevels;
+  palace.paragon = { first: P.AttractivenessRequiredForFirstParagonLevel, step: P.AttractivenessRequiredForAnyAdditionalParagonLevel };
+  palace.range = { base: P.BaseStreetRange, perWing: P.AdditionalStreetRangePerModule };
+  palace.buildings = [ref(palaceRec.g), ...(byTemplate.get('PalaceMinistry') ?? []).map((r) => ref(r.g))];
+  const addMeta = (list, m) => {
+    for (const { g, via } of list) {
+      const prev = palaceMeta.get(g);
+      if (prev) {
+        for (const v of via) if (!prev.via.some((x) => x.g === v.g)) prev.via.push(v);
+      } else palaceMeta.set(g, { ...m, via: [...via] });
+    }
+  };
+  for (const [k, M] of Object.entries(P.BaseMinistryEffect ?? {})) {
+    const at = attrLevels[M.AttractivenessThreshold] ?? 0;
+    const base = resolvePalaceEffect(M.BaseEffect);
+    addMeta(base, { m: k, d: 0, t: 0, at });
+    // Prestige-Stufen: je Stufe ein eigener Effekt (gleiche Ziele, stärkere Werte)
+    const para = arr(M.ParagonEffects?.Item).map((e) =>
+      resolvePalaceEffect(e.Effect).map(({ g }) => {
+        const out = [];
+        for (const [grp, block] of Object.entries(byGuid.get(g)?.v ?? {})) {
+          if (!grp.endsWith('Upgrade') || !isObj(block)) continue;
+          for (const [key, raw] of Object.entries(block)) {
+            if (IGNORED_EFFECTS.has(key)) continue;
+            const val = norm(raw, key);
+            if (val !== undefined) out.push({ k: key, v: val });
+          }
+        }
+        return out;
+      }),
+    );
+    const baseRec = byGuid.get(M.BaseEffect);
+    const decrees = [];
+    for (const [tier, D] of Object.entries(P.MinistryDecree?.[k]?.Decree ?? {})) {
+      const dAt = attrLevels[D.AttractivenessThreshold] ?? 0;
+      const buffs = resolvePalaceEffect(D.EffectContainer);
+      const t = Number(tier.match(/\d+/)?.[0] ?? 0);
+      addMeta(buffs, { m: k, d: D.EffectContainer, t, at: dAt });
+      const dRec = byGuid.get(D.EffectContainer);
+      decrees.push({
+        g: ref(D.EffectContainer),
+        n: nameOf(dRec),
+        i: icon(dRec?.v?.Standard?.IconFilename),
+        t,
+        at: dAt,
+        lv: D.AttractivenessThreshold,
+        b: [...new Set(buffs.map((x) => x.g))],
+      });
+    }
+    palace.ministries.push({
+      k,
+      n: txt(M.MinistryName),
+      i: icon(baseRec?.v?.Standard?.IconFilename),
+      at,
+      lv: M.AttractivenessThreshold,
+      base: [...new Set(base.map((x) => x.g))],
+      para,
+      decrees,
+    });
+  }
+}
+console.log(`  Palast: ${palace.ministries.length} Ministerien, ${palace.ministries.reduce((s, m) => s + m.decrees.length, 0)} Richtlinien, ${palaceMeta.size} Effekte`);
+/** Palast-Zuordnung eines Buffs für items.json (Überbringer mit Namen). */
+function palaceItemMeta(g) {
+  const m = palaceMeta.get(g);
+  if (!m) return undefined;
+  const via = m.via.map((x) => ({ g: ref(x.g), r: x.r, x: expandTargets(x.g).map(ref) }));
+  return { m: m.m, d: m.d ? ref(m.d) : 0, t: m.t, at: m.at, via: via.length ? via : undefined };
 }
 console.log('Items …');
 const items = [];
@@ -231,7 +322,7 @@ for (const [tmpl, defSlot] of Object.entries(ITEM_TEMPLATES)) {
   for (const rec of byTemplate.get(tmpl) ?? []) {
     const v = rec.v;
     const isBuff = BUFF_TEMPLATES.has(tmpl);
-    if (isBuff && !palaceEffects.has(rec.g)) continue;
+    if (isBuff && !palaceMeta.has(rec.g)) continue;
     if ((!isObj(v.Item) && !isBuff) || IGNORED_ITEMS.has(rec.g)) continue;
     const item = isObj(v.Item) ? v.Item : {};
     const slot = isBuff ? defSlot : item.Allocation ?? defSlot;
@@ -244,7 +335,7 @@ for (const [tmpl, defSlot] of Object.entries(ITEM_TEMPLATES)) {
       for (const [k, raw] of Object.entries(block)) {
         if (IGNORED_EFFECTS.has(k)) continue;
         let val = norm(raw, k);
-        if (k === 'GenPool' && rewardPools.has(raw)) {
+        if ((k === 'GenPool' || k === 'OverrideSpecialistPool') && rewardPools.has(raw)) {
           val = arr(rewardPools.get(raw).v.RewardPool?.ItemsPool?.Item).map((p) => ref(p.ItemLink));
         }
         if (k === 'ReplacingWorkforce') ref(raw);
@@ -277,6 +368,7 @@ for (const [tmpl, defSlot] of Object.entries(ITEM_TEMPLATES)) {
       ex: exp.length ? exp : undefined,
       dlc,
       act: v.ItemAction && v.ItemAction !== '' ? true : undefined,
+      pal: isBuff ? palaceItemMeta(rec.g) : undefined,
     });
     itemsRaw[rec.g] = norm(stripNoise(v));
   }
@@ -543,7 +635,7 @@ for (const [k, id] of Object.entries(RARITY_LABELS)) {
 // ---------------------------------------------------------------- Schreiben
 // Nur eigene Ausgaben ersetzen (prod.json von build-prod bleibt erhalten).
 rmSync(ICONS_OUT, { recursive: true, force: true });
-for (const f of ['items.json', 'buildings.json', 'names.json', 'info.json', 'items-raw.json', 'buildings-raw.json', 'meta.json']) rmSync(join(OUT, f), { force: true });
+for (const f of ['items.json', 'buildings.json', 'names.json', 'info.json', 'palace.json', 'items-raw.json', 'buildings-raw.json', 'meta.json']) rmSync(join(OUT, f), { force: true });
 mkdirSync(ICONS_OUT, { recursive: true });
 // Icons als WebP 64 px (Pillow nötig: pip install pillow)
 const pairsFile = join(OUT, '_icons.json');
@@ -562,6 +654,7 @@ const files = [
   write('buildings.json', buildings),
   write('names.json', names),
   write('info.json', { goods, population, pools: targetPools }),
+  write('palace.json', palace),
   write('items-raw.json', itemsRaw),
   write('buildings-raw.json', buildingsRaw),
 ];

@@ -265,6 +265,11 @@ CPU-Kernen, die schon genutzt werden. Später denkbar für Massenberechnungen
 ## 10. Recherchierte Werte (Anno-1800-Wiki, per MediaWiki-API gelesen)
 
 ### Palast / Regionalministerium
+- **Abgleich mit den Spieldateien (20.11.2026):** Freischaltungen, Wohlfahrt +10 (+2 je Prestige,
+  max. +60), Stadtweites Netz +15 und Prestige-Regeln stimmen; Palastreichweite im Spiel 50 + 2 je
+  Flügel (Feldweg). Wohlfahrt wirkt auf Marktplatz, Wirtshaus, Kirche, Schule, Varieté, Universität,
+  Clubhaus, Bankhaus, Funkturm und Kraftwerke – **nicht** auf Feuerwache/Polizei/Hospital/Läden
+  (Option dafür entfernt). Details: PLAN_Datenbank.md Abschnitt 9.
 - Regionalministerium (Local Department): 5×8, **Straßenreichweite = halbe
   Palastreichweite**; genau **ein** Ministerium und **eine** Richtlinie aktiv;
   wirkt auf Gebäude in seiner Straßenreichweite. Passiver Effekt richtet sich

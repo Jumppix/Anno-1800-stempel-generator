@@ -4,17 +4,21 @@
 // (geclippt ×2) + 100 % Strom (Gebäude mit Strombonus, Strom an oder per Item);
 // Zykluszeit = ⌊Basis · 100 / Produktivität⌋; Arbeitskraft = Basis · (1 + Σ %/100) ≥ 0.
 import type { Building, Item } from '../db/data';
+import type { PalaceMods } from '../db/palace';
 
 export const COINS = 1010017;
 export const SLOTS = 3;
-/** Palast-Erlass „Gewerkschaftsförderung“: +1 Sockel in jeder Handelskammer. */
-export const UNION_SUBSIDIES = 269202;
 
 export interface ProdOptions {
   /** Strom vorhanden (Kraftwerk in Reichweite). */
   power: boolean;
   /** Geclippt: Gebäude von zwei Handelskammern erreicht, Item-Effekte doppelt. */
   clip: boolean;
+  /**
+   * Palast/Regionalministerium (Ministerium für Arbeit, Richtlinien). Wird nicht
+   * vom Clipping verdoppelt: derselbe Effekt kommt von jeder Handelskammer.
+   */
+  palace?: PalaceMods;
 }
 
 export interface ProdResult {
@@ -126,9 +130,14 @@ export function evaluate(b: Building, items: readonly Item[], opts: ProdOptions,
     for (const r of fx.replace) if (b.in?.some((i) => i.p === r.from)) replaced.push(r);
     for (const p of fx.remove) if (b.in?.some((i) => i.p === p)) removed.push(p);
   }
+  const pal = opts.palace;
+  if (pal) {
+    prod += pal.prod;
+    wf += pal.wf;
+  }
   const powered = !!b.pow && (opts.power || powerItem !== undefined);
   const works = b.pow !== 'req' || powered;
-  if (b.eb && powered) prod += 100;
+  if (b.eb && powered) prod += 100 + (pal?.eb ?? 0);
   prod = Math.max(prod, 1);
   const cycle = base ? Math.floor((base * 100) / prod) : null;
   const outAmount = b.out?.[0]?.a ?? 1;
@@ -136,6 +145,7 @@ export function evaluate(b: Building, items: readonly Item[], opts: ProdOptions,
   for (const [, fx] of fxs) {
     for (const e of fx.extra) extra.set(e.p, (extra.get(e.p) ?? 0) + (cyclesPerMin / e.every) * e.amount * k);
   }
+  for (const e of pal?.extra ?? []) extra.set(e.p, (extra.get(e.p) ?? 0) + (cyclesPerMin / e.every) * e.amount);
   const workforce = (b.mt ?? [])
     .filter((m) => workforceSet.has(m.p))
     .map((m) => ({ p: wfType ?? m.p, a: Math.max(0, Math.round(m.a * (1 + wf / 100))) }));

@@ -33,16 +33,18 @@ rechnet unsere Datenbank/unser Rechner selbst nach. Das Video wird auf der Seite
 
 Die Video-Zahlen (z. B. „20 Sägewerke ≈ 326 t Bretter“) liegen in derselben Größenordnung; die
 gemischten Cluster des Videos teilen sich einen HK-Radius, deshalb sind seine Mengen je HK kleiner.
-Unklar/zu prüfen: Höhe der „Fabrikinspektion“, „Verrückte Viktoria“ +Dynamit-Bedarf je Mine,
-Arbeitskraft-Rest bei Stahlwerk (Rechner: 10 Arbeiter ohne Erlass).
+Geprüft (Spieldaten): „Fabrikinspektionen“ = −50 % Arbeitskraft, frei ab 5.200 Attraktivität der
+Palaststadt, wirkt über Handelskammern der Alten Welt; Regionalministerium nur in der Alten Welt.
+Stahlwerk mit Bechamelbirne/Zanchi/Angela + Fabrikinspektionen → 0 Arbeitskraft (wie im Video).
+Offen: „Verrückte Viktoria“ Dynamit-Bedarf je Mine.
 
 ## 2. Bausteine
 
 ### B1 – Daten ergänzen (Voraussetzung)
-- Regionalministerium-Erlässe (u. a. Fabrikinspektion) in die Datenbank aufnehmen (wie Palast-Erlässe).
+- ✓ Palast/Regionalministerium vollständig in der Datenbank, Schalter auf der Produktionsseite
+  (siehe PLAN_Datenbank.md Abschnitt 9).
 - Ketten-Daten: Rohstoff → Zwischenprodukt → Baumaterial (aus `in`/`out` der Gebäude, schon vorhanden).
 - Speicherstadt-Tauschgeschäfte (Ware → Ware, Mengen) aus den Spieldateien ziehen, falls vorhanden.
-- Rechner um gemeinsame HK-Wirkung „Arbeitskraft-Erlass“ erweitern.
 
 ### B2 – Guide-Seite `baumaterial.html` (Text + Live-Werte)
 - Navigation wie die übrigen Seiten, de/en, Hover-Infos für alle Items/Waren/Gebäude.
@@ -80,3 +82,4 @@ Arbeitskraft-Rest bei Stahlwerk (Rechner: 10 Arbeiter ohne Erlass).
 
 ## 4. Stand
 - Plan erstellt; Gegenprobe der Video-Cluster mit dem Rechner (Tabelle oben).
+- Palast & Regionalministerium umgesetzt (20.11.2026).

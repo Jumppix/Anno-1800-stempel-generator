@@ -643,6 +643,108 @@ body.site a.ph-name:hover {
   cursor: pointer;
 }
 
+.prod-palace {
+  margin: 10px 0 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.prod-palace summary {
+  cursor: pointer;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.prod-palace summary .sum {
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.pal-body {
+  padding-top: 8px;
+}
+
+.pal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.pal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.pal-field > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pal-field .ic,
+.pal-active .ic {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+
+.pal-field select,
+.pal-field input {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  max-width: 100%;
+}
+
+.pal-field input {
+  width: 120px;
+}
+
+.pal-prestige {
+  align-self: center;
+  color: var(--text);
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.pal-active {
+  margin: 4px 0 6px;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.pal-active li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pal-active li .ic + b {
+  color: var(--text);
+}
+
+.pal-badge {
+  margin-left: 4px;
+  font-size: 12px;
+  cursor: help;
+}
+
 .prod-group {
   margin: 0 0 22px;
 }
@@ -1101,4 +1203,48 @@ body.site .bname:hover b {
   .prod-row .cell-i {
     grid-column: 1 / -1;
   }
+}
+
+/* Palast: Ministerien, Richtlinien, Prestige-Stufen (Datenbank) */
+.d-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 15px;
+  margin: 14px 0 6px;
+  color: var(--text);
+}
+
+.d-sub .ic,
+.d-table .ic {
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+}
+
+.d-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 4px 0 8px;
+  display: block;
+  overflow-x: auto;
+}
+
+.d-table th,
+.d-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.d-table th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.d-table td .chip {
+  margin: 1px 2px;
 }

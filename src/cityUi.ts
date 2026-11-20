@@ -104,7 +104,6 @@ export class CityUi {
   private readonly prestige = el<HTMLInputElement>('#rule-prestige');
   private readonly ministry = el<HTMLSelectElement>('#rule-ministry');
   private readonly policy = el<HTMLSelectElement>('#rule-policy');
-  private readonly institutions = el<HTMLInputElement>('#rule-institutions');
   private readonly items = el<HTMLInputElement>('#rule-items');
   private readonly delivery = el<HTMLInputElement>('#rule-delivery');
   private readonly mail = el<HTMLSelectElement>('#rule-mail');
@@ -156,7 +155,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.wings, this.prestige, this.institutions, this.tierMode, this.items, this.delivery, this.mail, this.reduction]) {
+    for (const input of [this.wings, this.prestige, this.tierMode, this.items, this.delivery, this.mail, this.reduction]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.ministry.addEventListener('change', () => {
@@ -276,7 +275,7 @@ export class CityUi {
       prestige: Math.min(25, Math.max(0, Math.round(Number(this.prestige.value) || 0))),
       ministry: this.ministry.value as Ministry,
       policy: (this.policy.value || 'none') as Policy,
-      welfareForInstitutions: this.institutions.checked,
+      welfareForInstitutions: false,
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'groups',
       townHallItems: this.items.checked,
       deliveryGoods: this.delivery.checked,
@@ -293,7 +292,8 @@ export class CityUi {
       `Palast ${palaceRange(r)}`,
       `Regionalministerium ${localDepartmentRange(r)} Straßenkacheln`,
     ];
-    if (r.ministry === 'welfare') parts.push(`öffentliche Gebäude +${welfareBonus(r)}`);
+    if (r.ministry === 'welfare') parts.push(`öffentliche Gebäude +${welfareBonus(r)} (Universität, Bankhaus, Varieté, Clubhaus, Kraftwerke u. a.; nicht Feuerwache/Polizei/Hospital/Läden)`);
+    if (r.ministry === 'labour') parts.push('Ministerium für Arbeit wirkt nur auf Produktion (siehe Produktion & Handelskammer)');
     const web = cityWideWebBonus(r);
     if (web) parts.push(`Kraftwerke zusätzlich +${web}`);
     this.ruleInfo.textContent = parts.join(' · ');

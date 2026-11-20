@@ -197,3 +197,33 @@ Zeitung, „Qualifizierte Arbeitskräfte“/„Landbesitzreform“ (Palast-Zusat
   ohne Strombonus (Vorlage `BoostedByIndustrialization 0`, vorher falsch angenommen);
   Handelskammer Neue Welt (101284) bekannt → Stempel-Download auch für die Neue Welt (Feldweg).
 - Offen: aktuelle `properties.xml` (Strom-Standard für Farmen), Enbesa-Stempel (Regionspfad).
+
+## 9. Palast & Regionalministerium (20.11.2026)
+
+Quelle: Palast-Asset 249947 (`Palace.BaseMinistryEffect`, `MinistryDecree`, Prestige),
+Attraktivitätsstufen (`AttractivenessFeature`), Ziel-Pools; Kette `EffectContainer →
+ForwardBuff → Buff` in `build-db.mjs` vollständig aufgelöst → `public/db/palace.json` und alle
+Palast-Effekte als Einträge mit Platz „Palast“ (`pal`: Ministerium, Richtlinie, Freischaltung,
+Überbringer mit Radius). Geprüft in `npm run check-db`.
+
+| Ministerium (ab) | Basiseffekt (Prestige 25) | Richtlinien (ab Attraktivität) |
+| --- | --- | --- |
+| Verwaltung (0) | +50 Bauern/Arbeiter/Handwerker/Ingenieure-Arbeitskraft je Rathaus (+300) | Umfunktionierung der Kellerräume 700, Maßvolle Ernährung 700, Wissenschaftsmessen 2.700, Freigeisterreform 3.850 (+1 Rathaus-Platz), Rathausreform 5.950 |
+| Kultur (450) | Besondere Gäste +20 % (+120 %) | Kulturaustausch 1.000, Kulturerbe 1.000, Naturschutz 3.250, Privatsammlungen 4.500, Expertenprogramm 6.750 |
+| Arbeit (700) | +10 % Produktivität (+60 %), über Handelskammern der Alten Welt, Radius 15 | Landbesitzreform 1.350 (Farmen: Zusatzware jede 2.), Qualifizierte Arbeitskräfte 1.350 (Schwerindustrie: jede 3.), Galvanismus 3.850 (+50 % Strombonus), **Fabrikinspektionen 5.200 (−50 % Arbeitskraft)**, Gewerkschaftsförderung 6.750 (+1 HK-Platz) |
+| Wohlfahrt (1.000) | öffentliche Gebäude +10 Reichweite (+60) | Verbesserung der Finanzen 1.750, Förderung der Künste 1.750, Stadtweites Netz 2.700 (Kraftwerke +15), Wohlfahrt der Arbeiter 4.500, Verlängerte Ausschankzeiten 5.950 |
+| Handel (1.350) | Lager Hafenmeisterei/Speicherstadt +200 (+1.200) | Küstenreformen 2.200 (+300 % Küstenproduktion, Hafenmeisterei 20/Speicherstadt 30), Hafenbevorratung 2.200, Brennstoffreserven 3.250, Hafenverwaltung 5.200, Marinelogistik 7.600 |
+
+- Prestige: ab 9.000 Attraktivität Stufe 1, je 1.000 eine mehr, höchstens 25 (Werte je Stufe in `palace.json`).
+- Palast und Regionalministerium nur in der Alten Welt (Vorlage `AssociatedRegions: Moderate`);
+  Arbeits-Effekte nur über Handelskammern der Alten Welt (Pool 193860) → keine Wirkung in anderen Regionen.
+- Regeln (Spieltexte): im Palast alle freigeschalteten Ministerien mit Basiseffekt, je Ministerium
+  eine Richtlinie; Regionalministerium: ein Ministerium + eine Richtlinie. Fabrikinspektionen und
+  Gewerkschaftsförderung schließen sich auf einer Insel aus (gleiches Ministerium).
+- Produktionsseite: Schalter „Palast & Regionalministerium“ (Ort, Attraktivität → Freischaltung und
+  Prestige, Richtlinien Arbeit/Handel); Rechnung `src/db/palace.ts` (`modsFor`) + `evaluate(..., { palace })`;
+  Vorschläge `setupsFI` für Fabrikinspektionen. Palast-Effekte werden beim Clipping nicht verdoppelt (Annahme, ungeprüft).
+- Stadtplaner: Wohlfahrt/Stadtweites Netz stimmen mit den Spieldaten überein; die Option „Wohlfahrt auch
+  für Feuerwehr/Polizei/Hospital“ entfällt (Spieldaten: nicht im Ziel-Pool).
+- Offen: Reichweite des Regionalministeriums (nicht in den Daten; Stadtplaner: halbe Palastreichweite),
+  4. Rathaus-Item durch Freigeisterreform im Stadtplaner.

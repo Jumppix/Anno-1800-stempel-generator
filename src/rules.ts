@@ -1,5 +1,5 @@
-// Spielregeln und einstellbare Parameter. Alle Zahlen stammen aus dem
-// Anno-1800-Wiki (Palace, Local Department, Skyscrapers, Public buildings);
+// Spielregeln und einstellbare Parameter. Zahlen aus dem Anno-1800-Wiki
+// (Skyscrapers, Public buildings), Palast/Ministerien aus den Spieldateien;
 // Details und Quellen: docs/PLAN_Stadtplaner.md, Abschnitt 10.
 
 import type { BuildingKind, Tier } from './catalog';
@@ -21,7 +21,9 @@ export type Policy =
   | 'factoryInspections'
   | 'unionSubsidies';
 
-// Deutsche Namen nur, wo sie bestätigt sind (Spiel/Rechner-Daten); sonst Englisch.
+// Namen, Werte und Freischaltung aus den Spieldateien (Palast-Asset 249947,
+// public/db/palace.json; Prüfung: npm run check-db). Reichweiten sind Spielwerte
+// (Feldweg) × 1,5 für Pflaster (SpeedFactor der Pflasterstraße).
 export interface PolicyInfo {
   id: Policy;
   ministry: Ministry;
@@ -32,16 +34,16 @@ export interface PolicyInfo {
 }
 
 export const POLICIES: readonly PolicyInfo[] = [
-  { id: 'aspirationalFinance', ministry: 'welfare', name: 'Aspirational Finance Act', effect: '+50 Bonuseinkommen (Handwerker/Ingenieure)', unlock: 1750 },
-  { id: 'artsPatronage', ministry: 'welfare', name: 'Arts Patronage Act', effect: '+3 Attraktivität je Handwerker-/Ingenieurshaus', unlock: 1750 },
-  { id: 'cityWideWeb', ministry: 'welfare', name: 'Stadtweites Netz', effect: 'Kraftwerke +22 Reichweite (Pflaster)', unlock: 2700 },
-  { id: 'socialWelfare', ministry: 'welfare', name: 'Social Welfare Act', effect: '+5 Zufriedenheit aus öffentlichen Diensten', unlock: 4500 },
-  { id: 'lateLicence', ministry: 'welfare', name: 'Verlängerte Ausschankzeiten', effect: '−20 % Getränkebedarf in Reichweite von Varieté/Clubhaus', unlock: 5950 },
-  { id: 'landReform', ministry: 'labour', name: 'Landbesitzreform', effect: 'Zusatzware von Farmen', unlock: 1350 },
-  { id: 'skilledLabour', ministry: 'labour', name: 'Qualifizierte Arbeitskräfte', effect: 'Zusatzware von Schwerindustrie', unlock: 1350 },
-  { id: 'galvanicGrants', ministry: 'labour', name: 'Förderung des Galvanismus', effect: '+50 % Produktivität durch Strom', unlock: 3850 },
-  { id: 'factoryInspections', ministry: 'labour', name: 'Factory Inspections Act', effect: '−50 % Arbeitskraft', unlock: 5200 },
-  { id: 'unionSubsidies', ministry: 'labour', name: 'Gewerkschaftsförderung', effect: '+1 Item-Slot in Handelskammern', unlock: 6750 },
+  { id: 'aspirationalFinance', ministry: 'welfare', name: 'Verbesserung der Finanzen', effect: '+50 Münzen je versorgtem Haus (Universität, Varieté, Kraftwerk, Bankhaus; Handwerker/Ingenieure)', unlock: 1750 },
+  { id: 'artsPatronage', ministry: 'welfare', name: 'Förderung der Künste', effect: '+3 Attraktivität je Handwerker-/Ingenieurshaus in Varieté-Reichweite', unlock: 1750 },
+  { id: 'cityWideWeb', ministry: 'welfare', name: 'Stadtweites Netz', effect: 'Kraftwerke +15 Reichweite (Pflaster +22)', unlock: 2700 },
+  { id: 'socialWelfare', ministry: 'welfare', name: 'Wohlfahrt der Arbeiter', effect: '+5 Zufriedenheit aus öffentlichen Diensten', unlock: 4500 },
+  { id: 'lateLicence', ministry: 'welfare', name: 'Verlängerte Ausschankzeiten', effect: '−20 % Getränkebedarf in Reichweite von Wirtshaus/Varieté/Clubhaus/Funkturm', unlock: 5950 },
+  { id: 'landReform', ministry: 'labour', name: 'Landbesitzreform', effect: 'Zusatzware jede 2. Produktion (Farmen)', unlock: 1350 },
+  { id: 'skilledLabour', ministry: 'labour', name: 'Qualifizierte Arbeitskräfte', effect: 'Zusatzware jede 3. Produktion (Schwerindustrie)', unlock: 1350 },
+  { id: 'galvanicGrants', ministry: 'labour', name: 'Förderung des Galvanismus', effect: '+50 % Strombonus', unlock: 3850 },
+  { id: 'factoryInspections', ministry: 'labour', name: 'Fabrikinspektionen', effect: '−50 % Arbeitskraft', unlock: 5200 },
+  { id: 'unionSubsidies', ministry: 'labour', name: 'Gewerkschaftsförderung', effect: '+1 Item-Platz in Handelskammern', unlock: 6750 },
 ];
 
 export interface RuleConfig {
@@ -54,7 +56,10 @@ export interface RuleConfig {
   policy: Policy;
   /** Stufe, mit der Ingenieur-/Investorenhäuser als Hochhaus gerechnet werden. */
   skyscraperLevel: 3;
-  /** Welfare-Bonus auch für Feuerwache, Polizei, Hospital (Wiki unklar). */
+  /**
+   * Welfare-Bonus auch für Feuerwache, Polizei, Hospital. Laut Spieldaten nein
+   * (Ziel „Alle öffentlichen Gebäude“ ohne diese) – bleibt aus, nur für Tests.
+   */
   welfareForInstitutions: boolean;
   /**
    * Schichten der Wohnhäuser: 'groups' = 8er-Gruppen aus je einer Linie
@@ -275,14 +280,17 @@ export function localDepartmentRange(rules: RuleConfig): number {
   return Math.floor(palaceRange(rules) / 2);
 }
 
-/** Wohlfahrt: +10 (Feldweg) bzw. +15 (Pflaster), je Prestige +20 %, max. +90. */
+/**
+ * Wohlfahrt (Spieldaten): öffentliche Gebäude +10 Reichweite, je Prestige-Stufe +2
+ * (Stufe 25: +60); auf Pflaster ×1,5 → +15 … +90.
+ */
 export function welfareBonus(rules: RuleConfig): number {
   if (rules.ministry !== 'welfare') return 0;
   const p = Math.min(25, Math.max(0, Math.round(rules.prestige)));
-  return Math.min(90, Math.round(15 * (1 + 0.2 * p)));
+  return Math.round(1.5 * (10 + 2 * p));
 }
 
-/** Stadtweites Netz: Kraftwerke +22 auf Pflaster. */
+/** Stadtweites Netz (Spieldaten): Kraftwerke +15 Reichweite, auf Pflaster +22. */
 export function cityWideWebBonus(rules: RuleConfig): number {
   return rules.ministry === 'welfare' && rules.policy === 'cityWideWeb' ? 22 : 0;
 }

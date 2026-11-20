@@ -122,7 +122,9 @@ function effectLines(it: Item): string {
   const lines: string[] = [];
   const label = (k: string): string => {
     const l = db.meta.labels.effects[k];
-    return l ? pick(l) : k.replace(/Upgrade$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
+    if (l) return pick(l);
+    const own = t(`fx.${k}`);
+    return own !== `fx.${k}` ? own : k.replace(/Upgrade$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
   };
   for (const e of it.fx) {
     const list = Array.isArray(e.v) ? (e.v as Array<Record<string, number>>) : null;
@@ -142,7 +144,7 @@ function effectLines(it: Item): string {
           return g ? `<div class="hc-sub-line hc-split">${named(g)}<b>${esc(amount)}</b></div>` : '';
         })
         .join('')}`);
-    } else if ((e.k === 'GenPool' || e.k === 'AddAssemblyOptions') && Array.isArray(e.v)) {
+    } else if ((e.k === 'GenPool' || e.k === 'AddAssemblyOptions' || e.k === 'OverrideSpecialistPool') && Array.isArray(e.v)) {
       lines.push(`<div class="hc-fx"><span class="hc-sym">•</span>${esc(label(e.k))}</div><div class="hc-sub-line">${(e.v as number[])
         .filter((g) => typeof g === 'number')
         .slice(0, 6)

@@ -5,7 +5,7 @@ import '../site.css';
 import { applyI18n, getLang, onLangChange, pick, t } from '../i18n';
 import { mountSite } from '../site';
 
-import { loadDb, type Amount, type Bi, type Building, type Db, type Effect, type Item, type Meta, type Names } from './data';
+import { loadDb, loadPalace, type Amount, type Bi, type Building, type Db, type Effect, type Item, type Meta, type Names, type PalaceData } from './data';
 import { setupHoverCards } from './hovercard';
 
 const BASE = `${import.meta.env.BASE_URL}db/`;
@@ -21,6 +21,7 @@ const rarityRank = (r: string): number => {
 };
 
 let db: Db;
+let palace: PalaceData | null = null;
 let meta: Meta;
 let buildings: Building[] = [];
 let items: Item[] = [];
@@ -76,7 +77,7 @@ const amounts = (list?: Amount[], inactive = false): string =>
 
 // ------------------------------------------------------------------ Laden
 async function load(): Promise<void> {
-  db = await loadDb();
+  [db, palace] = await Promise.all([loadDb(), loadPalace()]);
   ({ meta, buildings, items, names } = db);
   for (const [k, v] of db.buildingBy) buildingBy.set(k, v);
   for (const [k, v] of db.itemBy) itemBy.set(k, v);
@@ -212,7 +213,9 @@ function renderList(): void {
 // ------------------------------------------------------------------ Effekte
 const effectLabel = (k: string): string => {
   const l = meta?.labels.effects[k];
-  return l ? pick(l) : k.replace(/Upgrade$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
+  if (l) return pick(l);
+  const own = t(`fx.${k}`);
+  return own !== `fx.${k}` ? own : k.replace(/Upgrade$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
 };
 const rarityLabel = (r: string): string => {
   const l = meta?.labels.rarity[r];
@@ -259,7 +262,20 @@ function fmtEffect(e: Effect): string {
       })
       .join('')}`;
   }
-  if ((e.k === 'GenPool' || e.k === 'AddAssemblyOptions') && Array.isArray(e.v)) {
+  if (e.k === 'InputBenefitModifier' && list) {
+    return `${label} ${list
+      .map((o) => {
+        const parts = Object.entries(o)
+          .filter(([k]) => k !== 'Product')
+          .map(([k, v]) => `${typeof v === 'number' && v > 0 ? '+' : ''}${typeof v === 'number' ? num(v) : v} ${t(`fx.ib.${k}`) !== `fx.ib.${k}` ? t(`fx.ib.${k}`) : k}`);
+        return chip(o.Product, parts.join(', '));
+      })
+      .join('')}`;
+  }
+  if (e.k === 'AddDeltas' && list) {
+    return `${label} ${list.map((o) => chip(o.Product, `${o.Amount > 0 ? '+' : ''}${num(o.Amount)}`)).join('')}`;
+  }
+  if ((e.k === 'GenPool' || e.k === 'AddAssemblyOptions' || e.k === 'OverrideSpecialistPool') && Array.isArray(e.v)) {
     return `${label} <span class="chips">${(e.v as unknown[]).map((x) => (typeof x === 'number' ? chip(x) : fmtValue(x))).join('')}</span>`;
   }
   return `${label} ${fmtValue(e.v)}`;
@@ -343,6 +359,7 @@ function buildingDetail(b: Building): string {
     head(b, sub) +
     sec('d.general', general) +
     (b.ph ? sec('d.phases', phasesHtml(b), t('d.phasesNote')) : '') +
+    (palace?.buildings.includes(b.g) ? sec('d.palace', palaceHtml(), t(b.g === palace.buildings[0] ? 'd.palaceNote' : 'd.ministryNote')) : '') +
     sec('d.cost', !b.ph && (b.cost || b.costInh) ? amounts(b.cost) + (b.costInh ? `<p class="note">${esc(t('d.costInh'))}</p>` : '') : '') +
     sec('d.upkeep', b.mt ? amounts(b.mt, true) : '') +
     sec('d.production', prod) +
@@ -361,6 +378,7 @@ function itemDetail(i: Item): string {
       row('d.price', i.p ? num(i.p) : undefined) +
       row('d.dlc', i.dlc ? chip(i.dlc) : undefined) +
       row('d.active', i.act ? esc(t('d.yes')) : undefined) +
+      palaceRows(i) +
       row('d.template', esc(i.t)),
   );
   const fx = i.fx.length ? `<ul class="fx">${i.fx.map((e) => `<li>${fmtEffect(e)}</li>`).join('')}</ul>` : '';
@@ -380,7 +398,69 @@ function itemDetail(i: Item): string {
   const exp = i.ex?.length
     ? `<div class="chips">${i.ex.map((a) => `<span class="chip plain">${esc(expLabel(a.k))}${a.k.startsWith('Perk') ? '' : ` ${num(a.v)}`}</span>`).join('')}</div>`
     : '';
-  return head(i, sub) + sec('d.general', general) + sec('d.effects', fx) + sec('d.targets', targets) + sec('d.expedition', exp);
+  return head(i, sub) + sec('d.general', general) + sec('d.effects', fx + paragonHtml(i)) + sec('d.targets', targets) + sec('d.expedition', exp);
+}
+
+// ------------------------------------------------------------------ Palast
+const palaceMinistry = (i: Item) => (i.pal ? palace?.ministries.find((m) => m.k === i.pal?.m) : undefined);
+
+/** Zuordnung eines Palast-Effekts: Ministerium, Richtlinie, Freischaltung, Überbringer. */
+function palaceRows(i: Item): string {
+  if (!i.pal) return '';
+  const m = palaceMinistry(i);
+  const d = m?.decrees.find((x) => x.g === i.pal?.d);
+  const via = (i.pal.via ?? [])
+    .map((v) => `${chip(v.g, '', { name: true })}${v.r ? ` <span class="note">${esc(t('d.palRadius', { r: v.r }))}</span>` : ''}`)
+    .join(' ');
+  return (
+    row('d.palMinistry', m ? esc(pick(m.n)) : esc(i.pal.m)) +
+    row('d.palDecree', d ? `${esc(pick(d.n))} (${esc(t('d.palTier', { n: d.t }))})` : esc(t('d.palBase'))) +
+    row('d.palUnlock', esc(t('d.palAttr', { n: num(i.pal.at) }))) +
+    row('d.palVia', via || undefined)
+  );
+}
+
+/** Basiseffekt eines Ministeriums: Werte der Prestige-Stufen. */
+function paragonHtml(i: Item): string {
+  const m = palaceMinistry(i);
+  if (!i.pal || i.pal.d || !m || !palace) return '';
+  const idx = m.base.indexOf(i.g);
+  if (idx < 0 || !m.para.length) return '';
+  const pick5 = [1, 5, 10, 15, 20, 25].filter((l) => l <= m.para.length);
+  const rows = pick5
+    .map((l) => {
+      const fx = m.para[l - 1]?.[idx] ?? [];
+      return `<tr><td>${l}</td><td>${num(palace!.paragon.first + (l - 1) * palace!.paragon.step)}</td><td>${fx.map((e) => fmtEffect(e as Effect)).join('<br>')}</td></tr>`;
+    })
+    .join('');
+  return `<h3 class="d-sub">${esc(t('d.paragon'))}</h3><table class="d-table"><thead><tr><th>${esc(t('d.paragonLevel'))}</th><th>${esc(
+    t('d.paragonAttr'),
+  )}</th><th>${esc(t('d.effects'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/** Palast/Regionalministerium: alle Ministerien mit Basiseffekt und Richtlinien. */
+function palaceHtml(): string {
+  if (!palace) return '';
+  const fxOf = (g: number): string => {
+    const it = itemBy.get(g);
+    return it ? it.fx.map((e) => fmtEffect(e)).join(' · ') : '';
+  };
+  return palace.ministries
+    .map((m) => {
+      const decrees = m.decrees
+        .map((d) => {
+          const first = d.b[0];
+          const fx = [...new Set(d.b.map(fxOf))].slice(0, 3).join('<br>') + (d.b.length > 3 ? ` <span class="note">${esc(t('hc.more', { n: d.b.length - 3 }))}</span>` : '');
+          return `<tr><td>${d.t}</td><td>${img(d.i, 'ic')} ${first ? `<a href="#i=${first}">${esc(pick(d.n))}</a>` : esc(pick(d.n))}</td><td>${num(d.at)}</td><td>${fx}</td></tr>`;
+        })
+        .join('');
+      return `<h3 class="d-sub">${img(m.i, 'ic')} ${m.base[0] ? `<a href="#i=${m.base[0]}">${esc(pick(m.n))}</a>` : esc(pick(m.n))} <span class="note">${esc(
+        t('d.palAttr', { n: num(m.at) }),
+      )}</span></h3>
+        <p>${esc(t('d.palBase'))}: ${m.base.map(fxOf).join(' · ')}</p>
+        <table class="d-table"><thead><tr><th>#</th><th>${esc(t('d.palDecree'))}</th><th>${esc(t('d.palUnlock'))}</th><th>${esc(t('d.effects'))}</th></tr></thead><tbody>${decrees}</tbody></table>`;
+    })
+    .join('');
 }
 
 /** Rohwerte mit Namen hinter GUIDs. */

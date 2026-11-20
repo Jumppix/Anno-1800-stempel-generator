@@ -60,6 +60,67 @@ export interface Item {
   ex?: Array<{ k: string; v: number }>;
   dlc?: number;
   act?: boolean;
+  /** Palast-Effekt: Ministerium, Richtlinie (0 = Basiseffekt), Stufe, Freischaltung, Überbringer. */
+  pal?: PalaceItemMeta;
+}
+
+export interface PalaceItemMeta {
+  m: MinistryKey;
+  d: number;
+  t: number;
+  at: number;
+  /** Überbringer (z. B. alle Handelskammern der Alten Welt) mit Radius und Gebäuden. */
+  via?: Array<{ g: number; r?: number; x: number[] }>;
+}
+
+export type MinistryKey = 'City' | 'Culture' | 'Productivity' | 'Service' | 'Harbor';
+
+/** public/db/palace.json – Ministerien und Richtlinien des Palasts. */
+export interface PalaceData {
+  /** Attraktivitätsstufen (Name → Schwelle). */
+  levels: Record<string, number>;
+  /** Prestige: erste Stufe ab `first`, je weitere Stufe `step` mehr. */
+  paragon: { first: number; step: number };
+  /** Straßenreichweite des Palasts (Spielwert, Feldweg): Basis + je Flügel. */
+  range: { base: number; perWing: number };
+  /** Palast und Regionalministerium (GUIDs). */
+  buildings: number[];
+  ministries: PalaceMinistry[];
+}
+
+export interface PalaceMinistry {
+  k: MinistryKey;
+  n: Bi;
+  i?: string;
+  /** Freischaltung (Attraktivität der Palaststadt). */
+  at: number;
+  lv: string;
+  /** Basiseffekt (Item-GUIDs der Palast-Effekte). */
+  base: number[];
+  /** Prestige-Stufen 1–25: Effekte je Basis-Buff. */
+  para: Array<Array<Array<{ k: string; v: unknown }>>>;
+  decrees: PalaceDecree[];
+}
+
+export interface PalaceDecree {
+  g: number;
+  n: Bi;
+  i?: string;
+  /** Stufe 1–5 im Ministerium. */
+  t: number;
+  at: number;
+  lv: string;
+  /** Item-GUIDs der Palast-Effekte. */
+  b: number[];
+}
+
+let palacePromise: Promise<PalaceData | null> | null = null;
+/** Palast-Daten (eigene Datei, nur wo gebraucht). */
+export function loadPalace(): Promise<PalaceData | null> {
+  palacePromise ??= fetch(DB_BASE + 'palace.json')
+    .then((r) => (r.ok ? (r.json() as Promise<PalaceData>) : null))
+    .catch(() => null);
+  return palacePromise;
 }
 
 export interface Meta {
