@@ -15,6 +15,7 @@ export default defineConfig({
         main: 'index.html',
         datenbank: 'datenbank.html',
         produktion: 'produktion.html',
+        baumaterial: 'baumaterial.html',
         planer: 'planer.html',
       },
     },

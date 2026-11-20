@@ -4,7 +4,7 @@ import './site-frame.css';
 import { applyI18n, getLang, onLangChange, setLang, t } from './i18n';
 import { getPalaceSettings, onPalaceSettings, openPalaceDialog, palaceSummary } from './palaceSettings';
 
-export type Page = 'start' | 'db' | 'prod' | 'planner';
+export type Page = 'start' | 'db' | 'prod' | 'guide' | 'planner';
 
 export function mountSite(page: Page): void {
   const header = document.createElement('header');
@@ -15,6 +15,7 @@ export function mountSite(page: Page): void {
       <a href="./" data-i18n="nav.start" ${page === 'start' ? 'aria-current="page"' : ''}></a>
       <a href="./datenbank.html" data-i18n="nav.db" ${page === 'db' ? 'aria-current="page"' : ''}></a>
       <a href="./produktion.html" data-i18n="nav.prod" ${page === 'prod' ? 'aria-current="page"' : ''}></a>
+      <a href="./baumaterial.html" data-i18n="nav.guide" ${page === 'guide' ? 'aria-current="page"' : ''}></a>
       <a href="./planer.html" data-i18n="nav.planner" ${page === 'planner' ? 'aria-current="page"' : ''}></a>
     </nav>
     <div class="site-tools">
@@ -45,7 +46,7 @@ export function mountSite(page: Page): void {
   applyI18n();
   if (page === 'planner') return; // Titel steht in planer.html
   const title = (): void => {
-    const sub = page === 'db' ? t('db.title') : page === 'prod' ? t('prod.title') : '';
+    const sub = page === 'db' ? t('db.title') : page === 'prod' ? t('prod.title') : page === 'guide' ? t('guide.title') : '';
     document.title = sub ? `${sub} · ${t('site.title')}` : t('site.title');
   };
   title();

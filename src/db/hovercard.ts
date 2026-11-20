@@ -134,7 +134,7 @@ function effectLines(it: Item): string {
         .join('')}`);
     } else if (e.k === 'AdditionalOutput' && list) {
       lines.push(`<div class="hc-fx"><span class="hc-sym">+</span>${esc(label(e.k))}</div>${list
-        .map((o) => `<div class="hc-sub-line hc-split">${named(o.Product)}<b>${o.Amount && o.Amount !== 1 ? `${num(o.Amount)}×` : ''}1/${o.AdditionalOutputCycle || 1}</b></div>`)
+        .map((o) => `<div class="hc-sub-line hc-split">${o.ForceProductSameAsFactoryOutput ? `<span>${esc(t('d.sameGood'))}</span>` : named(o.Product)}<b>${o.Amount && o.Amount !== 1 ? `${num(o.Amount)}×` : ''}1/${o.AdditionalOutputCycle || 1}</b></div>`)
         .join('')}`);
     } else if ((e.k === 'GoodConsumptionUpgrade' || e.k === 'InputAmountUpgrade') && list) {
       lines.push(`<div class="hc-fx"><span class="hc-sym">•</span>${esc(label(e.k))}</div>${list

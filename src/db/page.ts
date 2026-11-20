@@ -247,7 +247,10 @@ function fmtEffect(e: Effect): string {
   const list = Array.isArray(e.v) ? (e.v as Array<Record<string, number>>) : null;
   if (e.k === 'AdditionalOutput' && list) {
     return `${label} ${list
-      .map((o) => chip(o.Product, `${o.Amount && o.Amount !== 1 ? `×${num(o.Amount)} ` : ''}${o.AdditionalOutputCycle && o.AdditionalOutputCycle > 1 ? t('d.every', { n: o.AdditionalOutputCycle }) : t('d.everyOne')}`))
+      .map((o) => {
+        const extra = `${o.Amount && o.Amount !== 1 ? `×${num(o.Amount)} ` : ''}${o.AdditionalOutputCycle && o.AdditionalOutputCycle > 1 ? t('d.every', { n: o.AdditionalOutputCycle }) : t('d.everyOne')}`;
+        return o.ForceProductSameAsFactoryOutput ? `<span class="chip plain">${esc(t('d.sameGood'))} ${esc(extra)}</span>` : chip(o.Product, extra);
+      })
       .join('')}`;
   }
   if (e.k === 'ReplaceInputs' && list) {

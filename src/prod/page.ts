@@ -19,7 +19,7 @@ import {
 } from '../db/palace';
 import { getPalaceSettings, onPalaceSettings, openPalaceDialog, prodPalaceState, setPalaceSettings } from '../palaceSettings';
 import { setupHoverCards } from '../db/hovercard';
-import { evaluate, itemFx, isUseful, slotsFor, SETUP_KINDS, SLOTS, type ProdResult, type SetupKind } from './calc';
+import { evaluate, itemFx, isUseful, SAME_AS_OUTPUT, slotsFor, SETUP_KINDS, SLOTS, type ProdResult, type SetupKind } from './calc';
 import { buildGenericStamp, type StampBuilding, type StampStreet } from '../stamp';
 import { STREET_GUIDS } from '../catalog';
 
@@ -390,7 +390,10 @@ function fxSummary(it: Item, b: Building): string {
   if (fx.wf) parts.push(`<span class="${fx.wf < 0 ? 'pos' : 'neg'}">${esc(t('prod.fx.wf'))} ${sign(fx.wf)}</span>`);
   if (fx.power) parts.push(`<span class="pos">⚡ ${esc(t('prod.fx.power'))}</span>`);
   if (fx.wfType) parts.push(`${esc(t('prod.fx.wfType'))} ${icon(fx.wfType)}`);
-  for (const e of fx.extra) parts.push(`${icon(e.p)} ${esc(e.every > 1 ? t('d.every', { n: e.every }) : t('d.everyOne'))}`);
+  for (const e of fx.extra) {
+    const p = e.p === SAME_AS_OUTPUT ? b.out?.[0]?.p : e.p;
+    if (p) parts.push(`${icon(p)}${e.amount > 1 ? ` ×${num(e.amount, 0)}` : ''} ${esc(e.every > 1 ? t('d.every', { n: e.every }) : t('d.everyOne'))}`);
+  }
   for (const r of fx.replace) if (b.in?.some((i) => i.p === r.from)) parts.push(`${icon(r.from)}→${icon(r.to)}`);
   for (const p of fx.remove) if (b.in?.some((i) => i.p === p)) parts.push(`<span class="gone">${icon(p)}</span> ${esc(t('prod.fx.noInput'))}`);
   if (fx.maint) parts.push(`${esc(t('prod.fx.maint'))} ${sign(fx.maint)}`);

@@ -441,7 +441,7 @@ for (const rec of byGuid.values()) {
   if (!('Building' in v) || !('Constructable' in v) || SKIP_TEMPLATES.has(rec.t)) continue;
   if (/^CreativeMode|^Campaign/i.test(v.Standard.Name ?? '')) continue;
   // Test- und Kampagnen-Gebäude (z. B. „GASOLINE TEST“, „Edvards Holzhof“)
-  if (/\bTEST\b|Testr|Edvard/.test(`${v.Standard.Name ?? ''} ${v.Text?.LocaText?.English?.Text ?? ''} ${textsEn[rec.g] ?? ''}`)) continue;
+  if (/\bTEST\b|Testr|Edvard|LESS MODULES|IceBlock/.test(`${v.Standard.Name ?? ''} ${v.Text?.LocaText?.English?.Text ?? ''} ${textsEn[rec.g] ?? ''}`)) continue;
   const name = nameOf(rec);
   if (!name) continue;
   const p = presets.get(rec.g);

@@ -31,8 +31,12 @@ export interface ProdResult {
   prod: number;
   baseCycle: number | null;
   cycle: number | null;
-  /** Hauptware je Minute (ein Gebäude). */
+  /** Hauptware je Minute (ein Gebäude), inkl. Zusatzware derselben Art (z. B. Verrückte Viktoria). */
   perMin: number;
+  /** Davon aus Zusatzproduktion derselben Ware. */
+  perMinBonus: number;
+  /** Verbrauch je Minute (nach Ersetzen/Entfallen/Mehrverbrauch durch Items). */
+  inputs: Array<{ p: number; perMin: number }>;
   output?: number;
   workforce: Array<{ p: number; a: number }>;
   coins: number;
@@ -47,11 +51,17 @@ export interface ItemFx {
   wf: number;
   maint: number;
   power: boolean;
+  /** Zusatzwaren; `p` = SAME_AS_OUTPUT: dieselbe Ware wie das Gebäude. */
   extra: Array<{ p: number; every: number; amount: number }>;
   replace: Array<{ from: number; to: number }>;
   remove: number[];
+  /** Mehrverbrauch je Zyklus (InputAmountUpgrade mit positiver Menge). */
+  addInput: Array<{ p: number; amount: number }>;
   wfType?: number;
 }
+
+/** Platzhalter für „Zusatzware = eigene Ware“ (ForceProductSameAsFactoryOutput). */
+export const SAME_AS_OUTPUT = -1;
 
 const num = (v: unknown): number => {
   if (typeof v === 'number') return v;
@@ -63,7 +73,7 @@ const fxCache = new Map<number, ItemFx>();
 export function itemFx(item: Item): ItemFx {
   const hit = fxCache.get(item.g);
   if (hit) return hit;
-  const fx: ItemFx = { prod: 0, wf: 0, maint: 0, power: false, extra: [], replace: [], remove: [] };
+  const fx: ItemFx = { prod: 0, wf: 0, maint: 0, power: false, extra: [], replace: [], remove: [], addInput: [] };
   for (const e of item.fx) {
     const list = Array.isArray(e.v) ? (e.v as Array<Record<string, number>>) : [];
     switch (e.k) {
@@ -84,14 +94,18 @@ export function itemFx(item: Item): ItemFx {
         break;
       case 'AdditionalOutput':
         for (const o of list) {
-          if (typeof o.Product === 'number') fx.extra.push({ p: o.Product, every: o.AdditionalOutputCycle || 1, amount: o.Amount || 1 });
+          const p = o.ForceProductSameAsFactoryOutput ? SAME_AS_OUTPUT : o.Product;
+          if (typeof p === 'number') fx.extra.push({ p, every: o.AdditionalOutputCycle || 1, amount: o.Amount || 1 });
         }
         break;
       case 'ReplaceInputs':
         for (const o of list) if (o.OldInput && o.NewInput) fx.replace.push({ from: o.OldInput, to: o.NewInput });
         break;
       case 'InputAmountUpgrade':
-        for (const o of list) if (o.Product && o.Amount === -1) fx.remove.push(o.Product);
+        for (const o of list) {
+          if (o.Product && o.Amount === -1) fx.remove.push(o.Product);
+          else if (o.Product && o.Amount > 0) fx.addInput.push({ p: o.Product, amount: o.Amount });
+        }
         break;
     }
   }
@@ -101,7 +115,7 @@ export function itemFx(item: Item): ItemFx {
 
 /** Nur Items, die an diesem Gebäude etwas Messbares ändern. */
 export const isUseful = (fx: ItemFx): boolean =>
-  fx.prod !== 0 || fx.wf !== 0 || fx.power || fx.extra.length > 0 || fx.replace.length > 0 || fx.remove.length > 0 || fx.maint !== 0 || !!fx.wfType;
+  fx.prod !== 0 || fx.wf !== 0 || fx.power || fx.extra.length > 0 || fx.replace.length > 0 || fx.remove.length > 0 || fx.addInput.length > 0 || fx.maint !== 0 || !!fx.wfType;
 
 /** Basis-Zykluszeit (Spielwert, sonst aus dem Anno-1800-Rechner). */
 export function baseCycle(b: Building): number | null {
@@ -144,11 +158,29 @@ export function evaluate(b: Building, items: readonly Item[], opts: ProdOptions,
   prod = Math.max(prod, 1);
   const cycle = base ? Math.floor((base * 100) / prod) : null;
   const outAmount = b.out?.[0]?.a ?? 1;
+  const output = b.out?.[0]?.p;
   const cyclesPerMin = works && cycle ? 60 / cycle : 0;
+  const addExtra = (p: number, perMin: number): void => {
+    const q = p === SAME_AS_OUTPUT ? (output ?? p) : p;
+    extra.set(q, (extra.get(q) ?? 0) + perMin);
+  };
   for (const [, fx] of fxs) {
-    for (const e of fx.extra) extra.set(e.p, (extra.get(e.p) ?? 0) + (cyclesPerMin / e.every) * e.amount * k);
+    for (const e of fx.extra) addExtra(e.p, (cyclesPerMin / e.every) * e.amount * k);
   }
-  for (const e of [...(pal?.extra ?? []), ...(palClip?.extra ?? [])]) extra.set(e.p, (extra.get(e.p) ?? 0) + (cyclesPerMin / e.every) * e.amount);
+  for (const e of [...(pal?.extra ?? []), ...(palClip?.extra ?? [])]) addExtra(e.p, (cyclesPerMin / e.every) * e.amount);
+  // Zusatzware derselben Art zählt zum Ausstoß
+  const perMinBonus = output !== undefined ? (extra.get(output) ?? 0) : 0;
+  if (output !== undefined) extra.delete(output);
+  // Verbrauch: Eingänge nach Ersetzen, ohne entfallene, plus Mehrverbrauch
+  const inputs = new Map<number, number>();
+  for (const i of b.in ?? []) {
+    if (removed.includes(i.p)) continue;
+    const to = replaced.find((r) => r.from === i.p)?.to ?? i.p;
+    inputs.set(to, (inputs.get(to) ?? 0) + cyclesPerMin * i.a);
+  }
+  for (const [, fx] of fxs) {
+    for (const a of fx.addInput) if (inputs.has(a.p)) inputs.set(a.p, (inputs.get(a.p) ?? 0) + cyclesPerMin * a.amount * k);
+  }
   const workforce = (b.mt ?? [])
     .filter((m) => workforceSet.has(m.p))
     .map((m) => ({ p: wfType ?? m.p, a: Math.max(0, Math.round(m.a * (1 + wf / 100))) }));
@@ -160,8 +192,10 @@ export function evaluate(b: Building, items: readonly Item[], opts: ProdOptions,
     prod,
     baseCycle: base,
     cycle,
-    perMin: cyclesPerMin * outAmount,
-    output: b.out?.[0]?.p,
+    perMin: cyclesPerMin * outAmount + perMinBonus,
+    perMinBonus,
+    inputs: [...inputs].map(([p, perMin]) => ({ p, perMin })),
+    output,
     workforce,
     coins: Math.round(coinsBase * (1 + maint / 100)),
     extra: [...extra].map(([p, perMin]) => ({ p, perMin })),
