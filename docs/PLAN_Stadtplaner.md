@@ -950,6 +950,30 @@ M6, sobald Spielwerte vorliegen.
   entfernte markiert?).
 - Palast: Anzahl Flügel bzw. angezeigte Reichweite des Regionalministeriums,
   Prestige-Stufe.
-- Handwerker-Arbeitskraft für Kaufhaus & Co. (Insel hat nur Ingenieure/
-  Investoren): Pendlerstation am Lufthafen (3. Modul) oder Pendlerkai?
+- Handwerker-Arbeitskraft für Kaufhaus & Co.: siehe Abschnitt 30.
 - Screenshot mit T1–T4 in anderer Form gehört zu welcher Insel?
+
+
+## 30. Handwerker-Arbeitskraft für die Läden (Recherche 20.11.2026)
+
+Bedarf (Spieldaten): Kaufhaus, Einrichtungshaus, Drogerie je **240 Handwerker**; Kraftwerk 150,
+Gaskraftwerk 250 Ingenieure. Typischer Plan Insel 2 (6er, Seed 1): 9 Kaufhäuser, 5 Einrichtungshäuser,
+3 Drogerien = 17 Läden → **4.080 Handwerker**; 8 Kraftwerke; 25 Rathäuser.
+
+Lösungen nach Spieldaten:
+1. **Ministerium für Verwaltung** (Palast oder Regionalministerium): Basiseffekt „+50
+   Inselarbeitskräfte pro Rathaus“ für Bauern, Arbeiter, Handwerker **und Ingenieure**; je
+   Prestige-Stufe +10, Stufe 25: +300. 25 Rathäuser: 1.250 (Prestige 0) … 7.500 Handwerker
+   (Prestige 25); für 4.080 braucht es ≈ 164 je Rathaus → Prestige 12 (20.000 Attraktivität).
+   Nur Rathäuser in Straßenreichweite des Ministeriums zählen (Regionalministerium ≈ 95
+   Pflasterkacheln bei 40 Flügeln – nicht die ganze Insel; auf der Palastinsel ≈ 191).
+   Dazu Richtlinie „Freigeisterreform“ (+1 Rathaus-Platz, Messung Abschnitt-Nachtrag: +22.400 EW
+   mit Päpstlichem Papier). Kosten: kein Wohlfahrtsministerium (−4.300 EW).
+2. **Pendlerkai**: verbindet Inseln der Alten Welt zu einem Arbeitskräftepool (Bauern, Arbeiter,
+   Handwerker, Ingenieure); einmal je Insel, an der Küste. Handwerker kommen dann von anderen
+   Inseln (z. B. Produktions- oder eigene Handwerker-Insel).
+3. **Handelskammer-Items für „Alle Einkaufspassagen“**: Original Paravent-Werbung −20 %,
+   Kundenbetreuerin −10 %, Beschädigte Paravent-Werbung −10 % (zusammen −40 % → 144 je Laden);
+   brauchen eine Handelskammer (Radius 15) bei den Läden.
+4. Eigene Handwerkerhäuser kosten Wohnfläche (lohnt kaum gegenüber Hochhäusern).
+Den Forenbeitrag des Rekordbauers konnte diese Sitzung nicht erneut lesen (Abruf blockiert).

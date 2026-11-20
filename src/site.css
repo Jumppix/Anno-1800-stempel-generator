@@ -1697,3 +1697,48 @@ body.site .bname:hover b {
     grid-template-columns: 1fr;
   }
 }
+
+.gd-actions {
+  margin-top: 10px;
+}
+
+.gd-yield {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+  display: grid;
+  gap: 6px;
+}
+
+.gd-yield li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.gd-swatch {
+  width: 14px;
+  height: 14px;
+  border: 2px solid;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.gd-ratio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  margin-left: 8px;
+}
+
+.gd-ratio input {
+  width: 70px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+}

@@ -10,10 +10,14 @@ import { setupHoverCards } from '../db/hovercard';
 import { activeEffects, modsFor, NO_MODS, type ActiveEffect, type PalaceMods } from '../db/palace';
 import { evaluate, itemFx, isUseful, SLOTS, type ProdResult } from '../prod/calc';
 import { getPalaceSettings, onPalaceSettings, openPalaceDialog, palaceSummary, prodPalaceState } from '../palaceSettings';
+import { packMixed } from '../prod/layout';
+import { buildGenericStamp, type StampBuilding, type StampStreet } from '../stamp';
+import { STREET_GUIDS } from '../catalog';
 import { CHAPTERS, CLUSTERS, DEFAULT_IMPORT, DEPOSIT, MATERIALS, OIL, POWER_PLANT, PRODUCER_CHOICES, VIDEO_URL, type Cluster } from './material';
 
 interface ProdData {
-  layouts: Record<string, { n: number }>;
+  radius: number;
+  layouts: Record<string, { n: number; b: Array<[number, number, number]>; r: Array<[number, number]> }>;
   setups: Record<string, { max?: number[] }>;
   setups4?: Record<string, { max?: number[] }>;
   setupsFI?: Record<string, { max?: number[] }>;
@@ -189,8 +193,12 @@ function solve(): Plan {
   return { counts, demand, imports, surplus };
 }
 
+/** Letztes Rechner-Ergebnis (Mischverhältnis der Layouts). */
+let lastPlan: Plan | null = null;
+
 function calcHtml(): string {
   const plan = solve();
+  lastPlan = plan;
   const rows = [...plan.counts]
     .map(([g, c]) => ({ b: db.buildingBy.get(g) as Building, c }))
     .sort((a, b) => {
@@ -322,7 +330,161 @@ function clusterCard(c: Cluster): string {
     <p>${esc(c.text)}</p>
     ${lines}
     ${c.tips?.length ? `<ul class="gd-tips">${c.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    ${canLayout(c) ? `<div class="gd-actions"><button type="button" class="pal-edit" data-layout="${c.id}">▦ ${esc(t(c.buildings.length > 1 ? 'guide.layoutMixed' : 'guide.layout'))}</button></div>` : ''}
   </article>`;
+}
+
+// ------------------------------------------------------------------ Layouts & Stempel
+interface PlacedLayout {
+  buildings: Array<{ g: number; x: number; y: number; w: number; h: number; turns: number }>;
+  roads: Array<[number, number]>;
+  counts: number[];
+}
+
+/** Layout nur für Gebäude mit fester Grundfläche (keine Farmen, Minen, Waldflächen, Küste). */
+const canLayout = (c: Cluster): boolean =>
+  c.buildings.every((g) => {
+    const b = db.buildingBy.get(g);
+    return !!b?.sz && !b.kind;
+  });
+
+/** Verhältnis der Gebäude einer Gruppe aus dem Rechner (sonst 1 : 1). */
+function planWeights(c: Cluster): number[] {
+  const w = c.buildings.map((g) => lastPlan?.counts.get(g) ?? 0);
+  return w.every((x) => x > 0) ? w : c.buildings.map(() => 1);
+}
+
+function layoutFor(c: Cluster, weights: number[]): PlacedLayout | null {
+  const bs = c.buildings.map((g) => db.buildingBy.get(g) as Building);
+  if (bs.length === 1) {
+    const b = bs[0];
+    const L = prod.layouts[(b.sz as [number, number]).join('x')];
+    if (!L) return null;
+    const [px, pz] = b.sz as [number, number];
+    return {
+      buildings: L.b.map(([x, y, turns]) => ({ g: b.g, x, y, turns, w: turns % 2 ? px : pz, h: turns % 2 ? pz : px })),
+      roads: L.r,
+      counts: [L.b.length],
+    };
+  }
+  const L = packMixed(bs.map((b, i) => ({ size: b.sz as [number, number], weight: weights[i] })), prod.radius ?? 15);
+  return {
+    buildings: L.buildings.map((x, i) => ({ g: bs[L.kinds[i]].g, x: x.x, y: x.y, w: x.w, h: x.h, turns: x.turns })),
+    roads: L.roads.map((r) => [r.x, r.y] as [number, number]),
+    counts: L.counts,
+  };
+}
+
+const KIND_COLORS = [
+  ['#1d4a5c', '#5fa8c4'],
+  ['#4a3a1d', '#c4a05f'],
+  ['#2a4a2a', '#6fb46f'],
+];
+
+function layoutSvg(c: Cluster, L: PlacedLayout): string {
+  const R = prod.radius ?? 15;
+  let minX = -R;
+  let minY = -R;
+  let maxX = R;
+  let maxY = R;
+  for (const b of L.buildings) {
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  }
+  for (const [x, y] of L.roads) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + 1);
+    maxY = Math.max(maxY, y + 1);
+  }
+  const pad = 1;
+  const vb = `${minX - pad} ${minY - pad} ${maxX - minX + 2 * pad} ${maxY - minY + 2 * pad}`;
+  const hkIcon = db.names[1010516]?.[2];
+  return `<svg class="layout-svg" viewBox="${vb}" role="img" aria-label="${esc(c.title)}">
+    <circle cx="0" cy="0" r="${R}" fill="rgba(217,179,108,.06)" stroke="#d9b36c" stroke-width=".12" stroke-dasharray=".5 .3"/>
+    ${L.roads.map(([x, y]) => `<rect x="${x}" y="${y}" width="1" height="1" fill="#4a5560"/>`).join('')}
+    ${L.buildings
+      .map((b) => {
+        const k = c.buildings.indexOf(b.g);
+        const [fill, stroke] = KIND_COLORS[k % KIND_COLORS.length];
+        const ic = db.buildingBy.get(b.g)?.i;
+        return `<g><rect x="${b.x + 0.08}" y="${b.y + 0.08}" width="${b.w - 0.16}" height="${b.h - 0.16}" rx=".3" fill="${fill}" stroke="${stroke}" stroke-width=".08"/>${
+          ic ? `<image href="${DB_BASE}icons/${ic}" x="${b.x + b.w / 2 - 1.1}" y="${b.y + b.h / 2 - 1.1}" width="2.2" height="2.2"/>` : ''
+        }</g>`;
+      })
+      .join('')}
+    <rect x="-2" y="-2" width="4" height="4" rx=".3" fill="#5c4a1d" stroke="#d9b36c" stroke-width=".12"/>
+    ${hkIcon ? `<image href="${DB_BASE}icons/${hkIcon}" x="-1.4" y="-1.4" width="2.8" height="2.8"/>` : ''}
+  </svg>`;
+}
+
+function downloadStamp(c: Cluster, L: PlacedLayout): void {
+  const items: StampBuilding[] = [
+    { guid: 1010516, x: -2, y: -2, w: 4, h: 4, turns: 0 },
+    ...L.buildings.map((b) => ({ guid: b.g, x: b.x, y: b.y, w: b.w, h: b.h, turns: b.turns })),
+  ];
+  const streets: StampStreet[] = L.roads.map(([x, y]) => ({ x, y, guid: STREET_GUIDS.paved }));
+  const bytes = buildGenericStamp(items, 'ow', streets);
+  const parts = c.buildings.map((g, i) => `${(db.buildingBy.get(g)?.n.en ?? String(g)).replace(/[^A-Za-z0-9]+/g, '')}${L.counts[i]}`);
+  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/octet-stream' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `HK_${parts.join('_')}`; // Stempel ohne Dateiendung
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+let modal: HTMLElement | null = null;
+function openLayout(c: Cluster, weights = planWeights(c)): void {
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.hidden = true;
+    modal.innerHTML = '<div class="modal-box wide" role="dialog" aria-modal="true"><button class="modal-close" type="button" aria-label="✕">✕</button><div class="modal-body"></div></div>';
+    document.body.append(modal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || (e.target as HTMLElement).closest('.modal-close')) (modal as HTMLElement).hidden = true;
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal) modal.hidden = true;
+    });
+  }
+  const L = layoutFor(c, weights);
+  const body = modal.querySelector('.modal-body') as HTMLElement;
+  if (!L) {
+    body.innerHTML = `<p>${esc(t('guide.none'))}</p>`;
+    modal.hidden = false;
+    return;
+  }
+  const mixed = c.buildings.length > 1;
+  const yields = c.buildings
+    .map((g, i) => {
+      const b = db.buildingBy.get(g) as Building;
+      const r = result(b);
+      const [fill, stroke] = KIND_COLORS[i % KIND_COLORS.length];
+      return `<li><span class="gd-swatch" style="background:${fill};border-color:${stroke}"></span>${named(g)} <b>× ${L.counts[i]}</b>${
+        r.output ? ` → ${goodAmount(r.output, r.perMin * L.counts[i], 1)} t/min` : ''
+      }${mixed ? ` <label class="gd-ratio">${esc(t('guide.weight'))} <input type="number" min="0" step="1" data-w="${i}" value="${Math.round(weights[i] * 100) / 100}" /></label>` : ''}</li>`;
+    })
+    .join('');
+  body.innerHTML = `<h2>${esc(c.title)}: ${esc(t('guide.layoutTitle'))}</h2>
+    <p>${esc(t(mixed ? 'guide.layoutMixedInfo' : 'guide.layoutInfo', { r: prod.radius ?? 15, roads: L.roads.length }))}</p>
+    <ul class="gd-yield">${yields}</ul>
+    ${mixed ? `<p class="note">${esc(t('guide.weightNote'))}</p>` : ''}
+    ${layoutSvg(c, L)}
+    <div class="layout-actions">
+      <button type="button" class="primary" data-act="stamp">${esc(t('prod.stamp'))}</button>
+      ${mixed ? `<button type="button" data-act="relayout">${esc(t('guide.relayout'))}</button>` : ''}
+    </div>
+    <p class="note">${esc(t('prod.layoutNote'))}</p>`;
+  body.querySelector('[data-act="stamp"]')?.addEventListener('click', () => downloadStamp(c, L));
+  body.querySelector('[data-act="relayout"]')?.addEventListener('click', () => {
+    const w = c.buildings.map((_, i) => Math.max(0, Number(body.querySelector<HTMLInputElement>(`[data-w="${i}"]`)?.value) || 0));
+    openLayout(c, w.some((x) => x > 0) ? w : c.buildings.map(() => 1));
+  });
+  modal.hidden = false;
 }
 
 // ------------------------------------------------------------------ Seite
@@ -420,7 +582,11 @@ async function main(): Promise<void> {
     refresh();
   });
   root.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement).closest('[data-act="palace"]')) void openPalaceDialog();
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-act="palace"]')) void openPalaceDialog();
+    const lay = target.closest<HTMLElement>('[data-layout]')?.dataset.layout;
+    const c = lay ? CLUSTERS.find((x) => x.id === lay) : undefined;
+    if (c) openLayout(c);
   });
   onPalaceSettings(() => render());
   onLangChange(() => render());

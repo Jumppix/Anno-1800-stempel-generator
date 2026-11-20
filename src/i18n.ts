@@ -102,6 +102,23 @@ const DICT: Record<string, [string, string]> = {
   'guide.itemsUsed': ['{n} von {m} Items wirken', '{n} of {m} items apply'],
   'guide.byproducts': ['Nebenprodukte', 'By-products'],
   'guide.fourth': ['4. Platz', '4th slot'],
+  'guide.layout': ['Layout & Stempel', 'Layout & stamp'],
+  'guide.layoutMixed': ['Gemischtes Layout & Stempel', 'Mixed layout & stamp'],
+  'guide.layoutTitle': ['Layout je Handelskammer', 'layout per trade union'],
+  'guide.layoutInfo': [
+    'Meiste Gebäude mit Mittelpunkt im Radius {r} der Handelskammer, alle mit Straßenanschluss ({roads} Straßenkacheln).',
+    'Most buildings with their centre inside radius {r} of the trade union, all connected to roads ({roads} road tiles).',
+  ],
+  'guide.layoutMixedInfo': [
+    'Beide Gebäudearten im Radius {r} derselben Handelskammer, im Verhältnis aus dem Rechner, alle mit Straßenanschluss ({roads} Straßenkacheln).',
+    'Both building types inside radius {r} of the same trade union, in the ratio from the calculator, all connected to roads ({roads} road tiles).',
+  ],
+  'guide.weight': ['Anteil', 'share'],
+  'guide.weightNote': [
+    'Anteile kommen aus dem Rechner (benötigte Anzahl). Ändern und „Neu berechnen“ – z. B. 1 : 1 oder nur eine Art stärker.',
+    'Shares come from the calculator (needed count). Change them and recalculate – e.g. 1 : 1 or favour one type.',
+  ],
+  'guide.relayout': ['Neu berechnen', 'Recalculate'],
   'footer.fan': [
     'Fanprojekt, nicht offiziell und nicht von Ubisoft unterstützt. Anno 1800, Spielnamen und Icons © Ubisoft.',
     'Fan project, unofficial and not endorsed by Ubisoft. Anno 1800, game names and icons © Ubisoft.',

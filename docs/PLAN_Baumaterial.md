@@ -94,5 +94,10 @@ zum Ausstoß; Items, die das Erzvorkommen durch eine Ware ersetzen, werden nicht
   Zulieferer-Items, Strom, Clipping, Palast seitenweit), 8 Handelskammer-Gruppen mit Video-Items und
   Live-Werten (4. Platz bei Gewerkschaftsförderung), Kapitel Insel/Start, Strom & Öl, Speicherstadt,
   Verteilung. Texte zunächst nur deutsch.
-- Offen: gemischte HK-Layouts/Stempel (B4), Speicherstadt-Tausch (B5), Schiffe je Route (B6),
+- B4 umgesetzt: `packMixed` in `src/prod/layout.ts` (mehrere Gebäudearten im Radius einer HK im
+  Verhältnis aus dem Rechner; Reihentiefe aus allen Grundflächen, je Stelle die rückständigste Art,
+  Bewertung: vollständige Sätze, dann Anzahl, dann Straßen). Im Guide je Gruppe „Layout & Stempel“
+  (Einzelarten aus prod.json, gemischt live, Anteile änderbar); geprüft: Radius, keine Überlappung,
+  Straßenanschluss, Stempel zurückgelesen (20 Sägewerke + 17 Fensterfabriken, 130 Straßen).
+- Offen: Speicherstadt-Tausch (B5), Schiffe je Route (B6),
   Items je Gruppe selbst wählen, Viktorias Dynamit-Verbrauch im Spiel bestätigen.
