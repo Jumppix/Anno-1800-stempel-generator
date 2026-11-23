@@ -13,7 +13,24 @@ import type { PlannerJob, PlannerMessage } from './planner.worker';
 import { CLIPPABLE, lookup, type BuildingKind } from './catalog';
 import type { ProductionRequest } from './production';
 import type { LevelMode } from './levels';
-import { cityWideWebBonus, hasMinistry, localDepartmentRange, ministryReach, welfareBonus, type RuleConfig } from './rules';
+import { cityWideWebBonus, hasMinistry, hasPolicy, localDepartmentRange, ministryReach, welfareBonus, type RuleConfig } from './rules';
+import {
+  BEST_MUSEUM_SET,
+  DELTA_SET,
+  MUSEUM_MAX_MODULES,
+  PALACE_ATTR,
+  PRIVATE_COLLECTION_ATTR,
+  PRIVATE_COLLECTIONS_DECREE,
+  TOWN_HALL_REFORM_ATTR,
+  WING_ATTR,
+} from './attractiveness';
+import { getPalaceSettings, setPalaceSettings } from './palaceSettings';
+
+/** Palastinsel-Variante eines Durchlaufs. */
+interface PalaceVariant {
+  wings: number;
+  reform?: 'townHallReform' | 'freethinkers';
+}
 import type { PostReport } from './post';
 import type { ServiceOptions } from './services';
 
@@ -251,6 +268,19 @@ export class PlannerUi {
     this.runButton.closest('section')?.addEventListener('change', () => this.updateSummaries());
     this.updateSummaries();
     document.addEventListener('city-rules-changed', () => this.updateSummaries());
+    this.status.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('[data-adopt]') || !this.adopt) return;
+      const v = this.adopt;
+      const wings = el<HTMLInputElement>('#plan-wings');
+      wings.value = String(v.wings);
+      wings.dispatchEvent(new Event('change'));
+      if (v.reform) {
+        const ps = getPalaceSettings();
+        setPalaceSettings({ palace: { ...ps.palace, City: v.reform === 'townHallReform' ? 269176 : 269175 } });
+      }
+      (e.target as HTMLElement).replaceWith(document.createTextNode('übernommen ✓'));
+      this.adopt = null;
+    });
     this.refreshIsland();
   }
 
@@ -404,7 +434,34 @@ export class PlannerUi {
    * Zufall – gleichzeitig in eigenen Workern; der Plan mit den meisten
    * Einwohnern gewinnt.
    */
-  private passList(): Array<{ lines: number; seed: number; label: string }> {
+  /** Palastinsel: Varianten Flügel × Reform (Rathausreform / Freigeisterreform). */
+  private palaceVariants(): PalaceVariant[] {
+    const rules = this.cityUi.currentRules();
+    if (!rules.palace || !el<HTMLInputElement>('#plan-variants').checked) return [];
+    const set = Math.max(0, Math.min(rules.palaceWings, Math.round(Number(el<HTMLInputElement>('#plan-wings').value) || 0)));
+    const wings = [...new Set([set, rules.palaceWings])];
+    const reforms: Array<PalaceVariant['reform']> = rules.palace.ministries.includes('city') ? ['townHallReform', 'freethinkers'] : [undefined];
+    return wings.flatMap((w) => reforms.map((reform) => ({ wings: w, reform })));
+  }
+
+  private passList(): Array<{ lines: number; seed: number; label: string; variant?: PalaceVariant }> {
+    const variants = this.palaceVariants();
+    if (variants.length) {
+      const lines = Number(this.perLine.value) || 6;
+      const n = Math.max(variants.length, Math.min(10, Number(el<HTMLSelectElement>('#plan-passes').value) || 1));
+      const out: Array<{ lines: number; seed: number; label: string; variant?: PalaceVariant }> = [];
+      for (let k = 0; out.length < n && k < 10 * variants.length; k++) {
+        const v = variants[k % variants.length];
+        const seed = Math.floor(k / variants.length);
+        const reform = v.reform === 'townHallReform' ? 'Rathausreform' : v.reform === 'freethinkers' ? 'Freigeisterreform' : '';
+        out.push({ lines, seed, variant: v, label: `${v.wings} Flügel${reform ? `, ${reform}` : ''}${seed ? ` (Variante ${seed + 1})` : ''}` });
+      }
+      return out;
+    }
+    return this.basePassList();
+  }
+
+  private basePassList(): Array<{ lines: number; seed: number; label: string }> {
     const lines = Number(this.perLine.value) || 6;
     const alt = lines === 12 ? 6 : 12;
     const third = lines === 8 ? 16 : 8;
@@ -447,8 +504,13 @@ export class PlannerUi {
   }
 
   /** Alle Einstellungen eines Durchlaufs aus der Oberfläche. */
-  private passInput(src: IslandSource, lines: number, seed: number, snapshots: boolean): PassInput {
-    const rules = this.cityUi.currentRules();
+  private passInput(src: IslandSource, lines: number, seed: number, snapshots: boolean, variant?: PalaceVariant): PassInput {
+    let rules = this.cityUi.currentRules();
+    if (variant?.reform && rules.palace) {
+      const other = variant.reform === 'townHallReform' ? 'freethinkers' : 'townHallReform';
+      const policies = rules.palace.policies.filter((p) => p !== other && p !== variant.reform);
+      rules = { ...rules, palace: { ...rules.palace, policies: [...policies, variant.reform] } };
+    }
     const production = this.production.some((r) => r.count > 0)
       ? { requests: this.production.map((r) => ({ ...r })), power: el<HTMLInputElement>('#prod-power').checked }
       : undefined;
@@ -466,7 +528,8 @@ export class PlannerUi {
       goal: Number(this.svcGoal.value) || 0,
       deliveryGoods: el<HTMLInputElement>('#rule-delivery').checked,
       townHallItems: rules.townHallItems,
-      ministry: this.ministryOption(),
+      ministry: this.ministryOption(rules, variant?.wings),
+      culture: this.cultureOption(rules, variant?.wings),
       airport: el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined,
       production,
       levelMode: this.levelMode.value as LevelMode,
@@ -482,6 +545,8 @@ export class PlannerUi {
   }
 
   private pipelineWorkers: Worker[] = [];
+  /** Palastinsel: beste Variante zum Übernehmen. */
+  private adopt: PalaceVariant | null = null;
 
   private async run(): Promise<void> {
     const src = this.island();
@@ -510,7 +575,7 @@ export class PlannerUi {
       while (next < passes.length) {
         const k = next++;
         const id = ++this.jobId;
-        const input = this.passInput(src, passes[k].lines, passes[k].seed, this.watch.checked && k === previewPass);
+        const input = this.passInput(src, passes[k].lines, passes[k].seed, this.watch.checked && k === previewPass, passes[k].variant);
         const result = await new Promise<PassResult | null>((resolve) => {
           worker.onmessage = (event: MessageEvent<PipelineMessage>) => {
             const msg = event.data;
@@ -561,6 +626,18 @@ export class PlannerUi {
           .join(' · ');
         items.push(`Durchläufe (${slots} gleichzeitig): ${tried} – bester: <strong>${passes[bestK].label}</strong>`);
       }
+      // Palastinsel: beste Variante weicht von den Einstellungen ab → übernehmen anbieten
+      const bv = passes[bestK].variant;
+      if (bv) {
+        const rules = this.cityUi.currentRules();
+        const curReform = hasPolicy(rules, 'townHallReform') ? 'townHallReform' : hasPolicy(rules, 'freethinkers') ? 'freethinkers' : undefined;
+        if (bv.wings !== this.wingsBuilt(rules) || (bv.reform && bv.reform !== curReform)) {
+          this.adopt = bv;
+          items.push(
+            `Bester Plan: ${passes[bestK].label} – weicht von deinen Einstellungen ab. <button type="button" class="linkish" data-adopt>Übernehmen</button> (Flügel und Palast-Richtlinie Verwaltung), damit die Auswertung dazu passt.`,
+          );
+        }
+      }
       items.push(`Gesamt ${((performance.now() - started) / 1000).toFixed(0)} s`);
       this.status.innerHTML = `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
     } else {
@@ -570,12 +647,35 @@ export class PlannerUi {
   }
 
   /** Regionalministerium (Reichweite, Wohlfahrt, Stadtweites Netz) aus den Regeln. */
-  private ministryOption(): ServiceOptions['ministry'] {
-    const rules = this.cityUi.currentRules();
+  /** Gebaute Palastflügel: Feld „Palastflügel auf dieser Insel“, höchstens so viele wie erlaubt. */
+  private wingsBuilt(rules: RuleConfig, override?: number): number {
+    const v = override ?? Math.round(Number(el<HTMLInputElement>('#plan-wings').value) || 0);
+    return Math.max(0, Math.min(rules.palaceWings, v));
+  }
+
+  /** Palastinsel: Museen für die Attraktivität, die bis zum Ziel fehlt. */
+  private cultureOption(rules: RuleConfig, wingsOverride?: number): ServiceOptions['culture'] {
+    if (!rules.palace || !el<HTMLInputElement>('#plan-museums').checked || !el<HTMLInputElement>('#plan-ministry').checked) return undefined;
+    const pc = getPalaceSettings().palace.Culture === PRIVATE_COLLECTIONS_DECREE ? PRIVATE_COLLECTION_ATTR : 0;
+    const wings = this.wingsBuilt(rules, wingsOverride);
+    return {
+      target: Math.max(0, Number(el<HTMLInputElement>('#plan-attr-target').value) || 0),
+      base: PALACE_ATTR + WING_ATTR * wings + (Number(el<HTMLInputElement>('#plan-attr-extra').value) || 0),
+      perTownHallInRange: hasPolicy(rules, 'townHallReform') ? TOWN_HALL_REFORM_ATTR : 0,
+      deltaSet: DELTA_SET.items + pc,
+      perTownHall: DELTA_SET.perTownHall,
+      perTradeUnion: DELTA_SET.perTradeUnion,
+      perSet: BEST_MUSEUM_SET.items + pc,
+      moduleSet: 3,
+      maxModules: MUSEUM_MAX_MODULES,
+    };
+  }
+
+  private ministryOption(rules: RuleConfig = this.cityUi.currentRules(), wingsOverride?: number): ServiceOptions['ministry'] {
     if (!el<HTMLInputElement>('#plan-ministry').checked) return undefined;
     // Palastinsel: Palast mit den Flügeln aus den Palast-Einstellungen (auch ohne freie Ministerien)
     if (rules.palace) {
-      const wings = Math.max(0, Math.min(rules.palaceWings, Math.round(Number(el<HTMLInputElement>('#plan-wings').value) || 0)));
+      const wings = this.wingsBuilt(rules, wingsOverride);
       return { range: ministryReach(rules, wings), welfare: welfareBonus(rules), web: cityWideWebBonus(rules), townHalls: hasMinistry(rules, 'city'), palace: { wings } };
     }
     return rules.ministry !== 'none'
@@ -637,6 +737,12 @@ export class PlannerUi {
         `Versorgung: ${SERVICE_KINDS_UI.filter((k) => s.placed[k])
           .map((k) => `${s.placed[k]}× ${short[k]}`)
           .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · ${this.cityUi.currentRules().palace ? 'Palast' : 'Regionalministerium'} (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
+          s.culture && (s.culture.museums || s.culture.missing)
+            ? ` · Museen: ${s.culture.museums} mit ${s.culture.modules} Modulen (+${num(s.culture.attr)} Attraktivität, ${s.culture.houses} Häuser verdrängt)${
+                s.culture.missing ? ` – <strong>noch ${num(s.culture.missing)} zu wenig</strong>` : ''
+              }`
+            : ''
+        }${
           s.airport.placed
             ? ` · Lufthafen${this.currentHarbor() ? ` ${s.airport.distance} Kacheln von der Anlegestelle` : ''}, ${s.airport.houses} Häuser verdrängt`
             : el<HTMLInputElement>('#plan-airport').checked

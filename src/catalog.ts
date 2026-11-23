@@ -35,6 +35,8 @@ export type BuildingKind =
   | 'localDepartment'
   | 'palace'
   | 'palaceWing'
+  | 'museum'
+  | 'museumModule'
   | 'warehouse'
   | 'production'
   | 'other';
@@ -96,6 +98,10 @@ export const CATALOG_LIST: readonly CatalogEntry[] = [
   E({ guid: 269085, kind: 'palaceWing', name: 'Palastflügel – Ende', size: [3, 3] }),
   E({ guid: 269086, kind: 'palaceWing', name: 'Palastflügel – Tor', size: [3, 3] }),
   E({ guid: 269549, kind: 'palaceWing', name: 'Palastflügel – Verbindung', size: [3, 3] }),
+  // Museum (Spieldaten 1010471, 8×5) und Museumsmodul (Bauoption 100454, 4×5; Museumsflügel 1010482 u. a.)
+  E({ guid: 1010471, kind: 'museum', name: 'Museum', size: [5, 8] }),
+  E({ guid: 100454, kind: 'museumModule', name: 'Museumsmodul', size: [5, 4] }),
+  E({ guid: 1010482, kind: 'museumModule', name: 'Museumsflügel', size: [5, 4] }),
   E({ guid: 1010371, kind: 'warehouse', name: 'Lagerhaus', size: [5, 5] }),
 ];
 

@@ -79,6 +79,11 @@ const RULES: readonly AutoRule[] = [
     why: 'nur mit Verwaltung + Freigeisterreform',
   },
   {
+    id: 'palace-attr',
+    hidden: () => value('rule-island') !== 'palace',
+    why: 'nur auf der Palastinsel',
+  },
+  {
     id: 'plan-wings',
     hidden: () => value('rule-island') !== 'palace',
     why: 'nur auf der Palastinsel',

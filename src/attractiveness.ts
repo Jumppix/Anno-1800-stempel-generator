@@ -47,9 +47,11 @@ export function attractivenessBalance(
   city: City,
   analysis: Analysis,
   rules: RuleConfig,
-  opts: { privateCollections: boolean; deltaSet: boolean; target?: number },
+  opts: { privateCollections: boolean; deltaSet: boolean; target?: number; extra?: number },
 ): AttrBalance {
   const target = opts.target ?? ATTRACTIVENESS_TARGET;
+  const museums = city.buildings.filter((b) => b.entry.kind === 'museum').length;
+  const modules = city.buildings.filter((b) => b.entry.kind === 'museumModule').length;
   const lines: AttrLine[] = [];
   const palaces = city.buildings.filter((b) => b.entry.kind === 'palace').length;
   const wings = city.buildings.filter((b) => b.entry.kind === 'palaceWing').length;
@@ -62,8 +64,17 @@ export function attractivenessBalance(
     const n = analysis.totals.workforce.townHalls || 0;
     lines.push({ label: `Rathausreform (${n} Rathäuser im Palastbereich × ${TOWN_HALL_REFORM_ATTR})`, value: n * TOWN_HALL_REFORM_ATTR });
   }
-  if (opts.deltaSet) {
-    const bonus = DELTA_SET.perTownHall * townHalls + DELTA_SET.perTradeUnion * tradeUnions;
+  if (opts.extra) lines.push({ label: 'Weitere (Zierde, Zufriedenheit … – eigene Angabe)', value: opts.extra });
+  const bonus = DELTA_SET.perTownHall * townHalls + DELTA_SET.perTradeUnion * tradeUnions;
+  if (museums && modules >= DELTA_SET.modules) {
+    // Gesetzte Museen: erstes Set „Götter des Deltas“, alle weiteren das beste 3er-Set
+    const sets = Math.floor(modules / BEST_MUSEUM_SET.modules);
+    lines.push({
+      label: `${museums} ${museums === 1 ? 'Museum' : 'Museen'} mit ${modules} Modulen (${opts.deltaSet ? `„${DELTA_SET.name}“ + ` : ''}${opts.deltaSet ? sets - 1 : sets}× „${BEST_MUSEUM_SET.name}“)`,
+      value: opts.deltaSet ? DELTA_SET.items + pc + bonus + (sets - 1) * (BEST_MUSEUM_SET.items + pc) : sets * (BEST_MUSEUM_SET.items + pc),
+      note: `je Set Items + Privatsammlungen ${pc}; Götter des Deltas +30 × (${townHalls} Rathäuser + ${tradeUnions} Handelskammern)`,
+    });
+  } else if (opts.deltaSet) {
     lines.push({
       label: `Museum mit „${DELTA_SET.name}“ (${DELTA_SET.modules} Module)`,
       value: DELTA_SET.items + pc + bonus,
@@ -74,10 +85,11 @@ export function attractivenessBalance(
   const missing = Math.max(0, target - total);
   const perSet = BEST_MUSEUM_SET.items + pc;
   const sets = missing > 0 ? Math.ceil(missing / perSet) : 0;
-  const modules = sets * BEST_MUSEUM_SET.modules;
-  // Das Delta-Museum nimmt weitere Module auf, bevor ein neues Museum nötig ist.
-  const room = opts.deltaSet ? MUSEUM_MAX_MODULES - DELTA_SET.modules : 0;
-  const museums = modules > room ? Math.ceil((modules - room) / MUSEUM_MAX_MODULES) : 0;
-  const tiles = museums * MUSEUM_TILES + modules * MUSEUM_MODULE_TILES + (opts.deltaSet ? MUSEUM_TILES + DELTA_SET.modules * MUSEUM_MODULE_TILES : 0);
-  return { lines, total, target, missing, culture: { sets, modules, museums, tiles, perSet } };
+  const more = sets * BEST_MUSEUM_SET.modules;
+  // Ein vorhandenes (oder geplantes Delta-)Museum nimmt weitere Module auf, bevor ein neues nötig ist.
+  const hasMuseum = museums > 0 || opts.deltaSet;
+  const room = hasMuseum ? Math.max(0, MUSEUM_MAX_MODULES * Math.max(1, museums) - Math.max(modules, opts.deltaSet ? DELTA_SET.modules : 0)) : 0;
+  const extraMuseums = more > room ? Math.ceil((more - room) / MUSEUM_MAX_MODULES) : 0;
+  const tiles = extraMuseums * MUSEUM_TILES + more * MUSEUM_MODULE_TILES + (!museums && opts.deltaSet ? MUSEUM_TILES + DELTA_SET.modules * MUSEUM_MODULE_TILES : 0);
+  return { lines, total, target, missing, culture: { sets, modules: more, museums: extraMuseums, tiles, perSet } };
 }

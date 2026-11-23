@@ -53,6 +53,8 @@ export interface PassInput {
   deliveryGoods: boolean;
   townHallItems: boolean;
   ministry?: ServiceOptions['ministry'];
+  /** Palastinsel: Museen für die fehlende Attraktivität. */
+  culture?: ServiceOptions['culture'];
   airport?: { harbor: { x: number; y: number } | null };
   production?: ProductionOptions;
   levelMode: LevelMode;
@@ -178,6 +180,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     deliveryGoods: input.deliveryGoods,
     townHallItems: input.townHallItems,
     ministry: input.ministry,
+    culture: input.culture,
     airport: input.airport,
     production: input.production,
     mip,

@@ -62,6 +62,8 @@ const KIND_COLORS: Partial<Record<BuildingKind, string>> = {
   localDepartment: '#e2b25f',
   palace: '#f0c75e',
   palaceWing: '#c9a24a',
+  museum: '#b48ad8',
+  museumModule: '#8d6bb0',
   warehouse: '#a08060',
   production: '#7a9a6a',
   other: '#5a6670',
@@ -506,7 +508,16 @@ export class CityUi {
     // Palastinsel: Attraktivität gegen das Ziel (Kulturfläche zuletzt)
     if (this.rules.palace) {
       const ps = getPalaceSettings();
-      const bal = attractivenessBalance(c, a, this.rules, { privateCollections: ps.palace.Culture === PRIVATE_COLLECTIONS_DECREE, deltaSet: true });
+      const numIn = (id: string, d: number): number => {
+        const v = Number((document.getElementById(id) as HTMLInputElement | null)?.value);
+        return Number.isFinite(v) ? v : d;
+      };
+      const bal = attractivenessBalance(c, a, this.rules, {
+        privateCollections: ps.palace.Culture === PRIVATE_COLLECTIONS_DECREE,
+        deltaSet: true,
+        target: numIn('plan-attr-target', 33000),
+        extra: numIn('plan-attr-extra', 0),
+      });
       rows.push(`<div class="wide sec"><span>Attraktivität (Ziel ${num(bal.target)})</span><strong>${num(bal.total)}</strong></div>`);
       for (const l of bal.lines) rows.push(`<div class="wide"><span title="${escapeHtml(l.note ?? '')}">${escapeHtml(l.label)}</span><strong>+${num(l.value)}</strong></div>`);
       rows.push(
@@ -965,6 +976,7 @@ export class CityUi {
       airportModule: 'M',
       localDepartment: 'RM',
       palace: 'PAL',
+      museum: 'MU',
       warehouse: 'LG',
       production: 'P',
     };

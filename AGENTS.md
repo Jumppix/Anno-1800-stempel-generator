@@ -114,7 +114,8 @@ unnötig verändern.
   `CityUi` (`PlanEditor`, `setEditor`), Verlauf/Neuberechnen in `PlannerUi`.
 - Palastinsel (Crown Falls, `docs/PLAN_CrownFalls.md`): Auswahl `rule-island`, `RuleConfig.palace` (alle Ministerien,
   `hasMinistry`/`hasPolicy`/`ministryReach` in `rules.ts`), Palast + Flügel als Komplex `palaceComplex`/`ministryRect`
-  in `services.ts` (Besitzer 9002), Attraktivitäts-Bilanz `src/attractiveness.ts`.
+  in `services.ts` (Besitzer 9002), Museen mit Modulen `options.culture`/`MUSEUM_SPEC` (Besitzer 9100+, Ringstraße um
+  große Blöcke `validRinged`), Varianten Flügel × Reform in `PlannerUi.palaceVariants`, Attraktivitäts-Bilanz `src/attractiveness.ts`.
 - `src/plannerDefaults.ts`: Stadtplaner-Schalter folgen automatisch (Ministerium, Ingenieure, Universität,
   Drogerie, Post, Lufthafen, Lieferdienst, 4. Item, Schichten); Handänderung bleibt (`anno-planer:overrides:v1`).
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;

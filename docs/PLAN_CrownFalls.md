@@ -200,8 +200,7 @@ er bleibt nur Obergrenze.
 - Auswertung: **Attraktivität** (Palast, Flügel, Rathausreform je Rathaus im Palastbereich, Museum mit
   „Götter des Deltas“ +30 je Rathaus/Handelskammer) und der Rest bis 33.000 als Museumsmodule mit dem besten
   3er-Set samt Kachelbedarf (`src/attractiveness.ts`).
-- Noch nicht: Kulturgebäude wirklich platzieren (Stufe 5), Freigeisterreform ↔ Rathausreform automatisch
-  vergleichen, Hafen (PLAN_Kueste.md), Abzüge durch Produktion.
+- Stufe 2 (Abschnitt 12): Museen werden platziert, Varianten verglichen.
 
 **Messung Testinsel 189 × 290** (Prestige 25, Verwaltung + Wohlfahrt + Arbeit, Rathausreform, Stadtweites Netz,
 Privatsammlungen, 25 Rathäuser):
@@ -216,4 +215,31 @@ Zum Vergleich Wohninsel mit Regionalministerium (Wohlfahrt): 789.500. Ein Flüge
 Attraktivität (Kultur: ≈ 5 Einwohner je Attraktivität) – Flügel nur für die Reichweite. Mit Wohlfahrt im ganzen
 Palastbereich (+90) reichen 2 Kraftwerke statt 8. Der Rest bis 33.000 kostet auf dieser Insel ≈ 4.500 Kacheln
 Museum (≈ 375 Häuser) – das ist der eigentliche Preis der Palastinsel.
+
+## 12. Umsetzung Stufe 2: Museen und Varianten (23.11.2026)
+
+- **Museen platzieren** (`options.culture` in `services.ts`): nach dem Palast, vor den Läden. Fehlende
+  Attraktivität = Ziel − (Palast + Flügel + „weitere“ + Rathausreform je Rathaus im Palastbereich); erstes Set
+  „Götter des Deltas“ (+30 je Rathaus/Handelskammer), dann das beste 3er-Set; mit Rathausreform ein Set Reserve.
+  Museum 8×5 (gedreht 5×8) mit Modulen 4×5 (Bauoption 100454) als Block (`moduleComplex`, `MUSEUM_SPEC`), höchstens
+  100 Module je Museum (Spieldaten `ModuleLimits.Main`); passt der Block nirgends, halbiert der Planer die Module je
+  Museum. Jeder große Block (Palast, Museum) bekommt eine **Ringstraße** (`validRinged`/`placeRinged`), sonst
+  zerschneidet er die Längsstraßen und das Netz zerfällt.
+- **Felder** (nur Palastinsel): Ziel-Attraktivität (33.000), „Weitere Attraktivität (Zierde, Zufriedenheit …)“ – Wert
+  aus der Attraktivitäts-Anzeige im Spiel –, „Museen für den Rest einplanen“, „Varianten vergleichen“.
+- **Varianten**: Flügel (eingestellt / höchstens erlaubt) × Rathausreform / Freigeisterreform laufen parallel; der Plan
+  mit den meisten Einwohnern gewinnt. Weicht er von den Einstellungen ab, bietet der Status „Übernehmen“ an
+  (Flügel + Palast-Richtlinie Verwaltung).
+- **Auswertung** zählt gesetzte Museen/Module.
+- Prüfung der Netz-Regel: Gebäude ohne eigenen Anschluss (Module, innere Palastflügel, Lufthafen-Module) zählen beim
+  Wegnehmen von Straßen nicht mehr als „abgehängt“ (vorher war danach kein Platz mit Straße darunter mehr gültig).
+
+**Zierde/Zufriedenheit**: In den Spieldaten haben baubare Ornamente keinen eigenen Attraktivitätswert (nur die
+Tier-/Pflanzenfiguren der Kulturmodule, je 20); laut Entwicklerblog hängt der Wert der Zierde vom Verhältnis
+Zierde : Einwohner ab. Die Formel ist hier nicht geprüft (Wiki aus dieser Umgebung nicht erreichbar) – deshalb das
+Eingabefeld. Bitte im Spiel die Aufschlüsselung der Attraktivität ablesen (Kultur, Zierde, Zufriedenheit, Strom …).
+
+**Messung** (Testinsel, 40 Flügel, Rathausreform, ohne „weitere“): 5 Museen mit 219 Modulen = 29.210, Ziel erreicht;
+483 Häuser verdrängt → ≈ 594.000 statt 779.000 Einwohner. Jede Attraktivität aus Zierde/Zufriedenheit spart
+Museumsfläche (≈ 6,5 Attraktivität je Kachel).
 

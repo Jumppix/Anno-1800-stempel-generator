@@ -182,6 +182,18 @@
             <label class="select-row" title="Jeder Flügel: +3 Reichweite (Pflaster), +15 Attraktivität, 9 Kacheln (≈ 230 Einwohner auf der Testinsel). Mehr als die Profilstufe erlaubt (Palast-Einstellungen) geht nicht.">Palastflügel auf dieser Insel
               <input id="plan-wings" type="number" min="0" max="200" step="1" value="16" />
             </label>
+            <div id="palace-attr" class="palace-only">
+              <label class="select-row" title="Prestige-Stufe 25 ab 33.000 Attraktivität">Ziel-Attraktivität
+                <input id="plan-attr-target" type="number" min="0" max="99999" step="500" value="33000" />
+              </label>
+              <label class="select-row" title="Was im Spiel sonst noch zur Attraktivität beiträgt (Zierde, Zufriedenheit, Strom, Monumente, Speicherstadt …) – Wert aus der Attraktivitäts-Anzeige im Spiel. Museen decken nur den Rest.">Weitere Attraktivität (Zierde, Zufriedenheit …)
+                <input id="plan-attr-extra" type="number" min="-99999" max="99999" step="100" value="0" />
+              </label>
+              <label class="check-row"><input id="plan-museums" type="checkbox" checked />Museen für den Rest einplanen</label>
+              <label class="check-row" title="Rechnet parallel: Flügel wie eingestellt und so viele wie erlaubt, jeweils mit Rathausreform und mit Freigeisterreform – der Plan mit den meisten Einwohnern gewinnt.">
+                <input id="plan-variants" type="checkbox" checked />Varianten vergleichen (Flügel, Rathaus-/Freigeisterreform)
+              </label>
+            </div>
             <p id="rule-palace" class="micro"></p>
             <button id="rule-palace-edit" class="ghost" type="button">🏛 Palast-Einstellungen …</button>
             <label class="check-row">
