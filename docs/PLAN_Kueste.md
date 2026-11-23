@@ -201,7 +201,11 @@ die Küste auf **maximalen Lagerplatz** – zusammen mit der Stadt (Straßenansc
 - Kontor je Insel (Stufe klein/mittel/groß/riesig; „schon im Stempel“ oder neu einplanen).
 - Je Küstengebäude: ob und wie viele (Fischerei, Quarzgrube, Salpeterwerk, Anlegestelle, Depot, Öllager,
   Ölhafen, Pendlerkai, Besucherhafen, Werften, Reparaturkran, Geschütze, Dicke Berta …).
-- „Möglichst viele Hafenmeistereien“ an/aus – Ziel Anzahl (Lagerplatz), nicht Abdeckung.
+- **Hafenmeistereien ein/aus** (Ziel: möglichst viele, also Anzahl für Lagerplatz, nicht Abdeckung).
+  **Standard nach den Palast-Einstellungen:** an, wenn auf dieser Insel das Ministerium für Handel wirkt
+  (Palastinsel mit freigeschaltetem Handelsministerium ab 1.350 Attraktivität, oder Regionalministerium
+  mit Ministerium „Handel“), sonst aus. Eine Änderung durch den Nutzer bleibt erhalten, bis er sie
+  zurücksetzt.
 
 ### 6.1 Lagerplatz (Spieldaten)
 
