@@ -243,3 +243,21 @@ Eingabefeld. Bitte im Spiel die Aufschlüsselung der Attraktivität ablesen (Kul
 483 Häuser verdrängt → ≈ 594.000 statt 779.000 Einwohner. Jede Attraktivität aus Zierde/Zufriedenheit spart
 Museumsfläche (≈ 6,5 Attraktivität je Kachel).
 
+## 13. Echter Crown-Falls-Stempel (23.11.2026)
+
+Stempel des Nutzers (14 Teile, siehe PLAN_Kueste.md Abschnitt 7): 467 × 443, **91.120 Landkacheln**, 16.788
+Kacheln Hafengebiet, Kontor bei 322/356 (Süden). Ein Durchlauf (6er-Linien, 40 Flügel, Rathausreform,
+Prestige 25, Museen, ohne „weitere Attraktivität“), ≈ 13 min:
+
+| | Wert |
+| --- | --- |
+| Einwohner (Planer) | **2.705.000** (ohne vollständige Kultur 2.777.000) |
+| Häuser / Rathäuser | 6.998 / 74 |
+| Palast | Mitte der Insel (235/221), 40 Flügel |
+| Attraktivität | Palast + Flügel 750, Rathausreform 31–36 Rathäuser im Palastbereich (≈ 6.200–7.200), **2 Museen mit 180 Modulen 25.610** |
+| Kultur-Kosten | 387 Häuser (≈ 150.000 Einwohner) |
+
+Änderungen dafür: Platzsuche für große Blöcke mit Präfixsumme und Zweierschritten, Zeit für die Museumssuche
+abhängig von der Inselgröße (vorher nach 8 s abgebrochen → nur 1 Museum); Reserve 20 % des
+Rathausreform-Anteils, weil spätere Straßenänderungen Rathäuser aus dem Palastbereich nehmen (36 → 31).
+

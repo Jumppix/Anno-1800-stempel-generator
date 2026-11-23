@@ -413,13 +413,35 @@ export function placeServices(
     const entry = lookup(guid);
     const out: Candidate[] = [];
     const seenShape = new Set<string>();
+    // Große Flächen (Palast, Museen): gesperrte Kacheln per Präfixsumme vorab ausschließen und
+    // in Zweierschritten suchen – sonst dauert die Suche auf großen Inseln zu lange.
+    const big = !!rect && rect.w * rect.h > 400;
+    let blockedSum: Int32Array | null = null;
+    if (big) {
+      blockedSum = new Int32Array((w + 1) * (h + 1));
+      for (let y = 0; y < h; y++) {
+        let row = 0;
+        for (let x = 0; x < w; x++) {
+          const c = cell[y * w + x];
+          if (c === WATER || c === BLOCKED || c === SERVICE || c === BRIDGE) row++;
+          blockedSum[(y + 1) * (w + 1) + x + 1] = blockedSum[y * (w + 1) + x + 1] + row;
+        }
+      }
+    }
+    const blockedIn = (x: number, y: number, bw: number, bh: number): number => {
+      const S = blockedSum as Int32Array;
+      const W1 = w + 1;
+      return S[(y + bh) * W1 + x + bw] - S[y * W1 + x + bw] - S[(y + bh) * W1 + x] + S[y * W1 + x];
+    };
+    const step = big ? 2 : 1;
     for (const turns of [0, 1]) {
       const { w: bw, h: bh } = rect ? (turns ? { w: rect.h, h: rect.w } : rect) : footprint(entry, turns);
       const shape = `${bw}x${bh}`;
       if (seenShape.has(shape)) continue;
       seenShape.add(shape);
-      for (let y = 0; y + bh <= h; y++) {
-        for (let x = 0; x + bw <= w; x++) {
+      for (let y = 0; y + bh <= h; y += step) {
+        for (let x = 0; x + bw <= w; x += step) {
+          if (big && blockedIn(x, y, bw, bh) > 0) continue;
           let ok = true;
           const hs = new Set<number>();
           const roads: number[] = [];
@@ -931,12 +953,14 @@ export function placeServices(
     report.culture = rep;
     if (missing > 0) {
       // Module: erst Götter des Deltas, dann das beste Set, bis das Ziel erreicht ist
-      // + 1 Set Reserve, wenn die Rathausreform zählt (spätere Straßenänderungen können Rathäuser
-      // aus dem Palastbereich nehmen)
-      const sets = 1 + Math.max(0, Math.ceil((missing - delta) / cu.perSet)) + (cu.perTownHallInRange > 0 ? 1 : 0);
+      // Reserve: 20 % des Rathausreform-Anteils (spätere Straßenänderungen nehmen Rathäuser aus
+      // dem Palastbereich; Crown Falls: 36 → 31)
+      const reserve = Math.ceil((0.2 * cu.perTownHallInRange * reachedTH) / cu.perSet);
+      const sets = 1 + Math.max(0, Math.ceil((missing - delta) / cu.perSet)) + reserve;
       let modules = sets * cu.moduleSet;
       const perMuseum = Math.max(cu.moduleSet, Math.floor(cu.maxModules / cu.moduleSet) * cu.moduleSet);
-      const deadline = performance.now() + 8000;
+      // Zeit für die Museumssuche: mit der Inselgröße (große Inseln brauchen mehr Plätze)
+      const deadline = performance.now() + Math.max(8000, Math.min(60000, (w * h) / 4));
       let size = perMuseum;
       while (modules > 0 && performance.now() < deadline) {
         const n = Math.min(size, modules);
