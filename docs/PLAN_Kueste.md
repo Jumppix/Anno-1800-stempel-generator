@@ -186,3 +186,76 @@ Größe aus Anno Designer („?“ = dort nicht hinterlegt).
 - **M3 – Modell**: Gelände je Kachel, Masken je Gebäude, Regeln aus Abschnitt 2.
 - **M4 – Optimierer**: entlang der Uferlinie (1D-Abschnitte, dynamische Programmierung) plus lokale
   Suche; Hafenmeisterei-Radien ohne Überschneidung wie die Packer für Handelskammern.
+
+---
+
+## 6. Hafenplaner im Stadtplaner (Auftrag 23.11.2026)
+
+**Ziel:** Der Nutzer stempelt die ganze Insel: Land mit Feldweg, das komplette Hafengebiet mit
+**Kaimauer bzw. Kaistraße**. Der Stadtplaner erkennt daraus Land, Uferlinie und Hafengebiet und plant
+die Küste auf **maximalen Lagerplatz** – zusammen mit der Stadt (Straßenanschluss, Regionalministerium).
+
+**Einstellungen (Nutzer):**
+- Speicherstadt ja/nein; Anzahl je Modul (Depot, Anlegestelle, Hafenmeisterei-Modul, Exportbüro,
+  Reparaturkran, Verladekai) bis zur Grenze der gewählten Exportstufe.
+- Kontor je Insel (Stufe klein/mittel/groß/riesig; „schon im Stempel“ oder neu einplanen).
+- Je Küstengebäude: ob und wie viele (Fischerei, Quarzgrube, Salpeterwerk, Anlegestelle, Depot, Öllager,
+  Ölhafen, Pendlerkai, Besucherhafen, Werften, Reparaturkran, Geschütze, Dicke Berta …).
+- „Möglichst viele Hafenmeistereien“ an/aus – Ziel Anzahl (Lagerplatz), nicht Abdeckung.
+
+### 6.1 Lagerplatz (Spieldaten)
+
+| Quelle | Lager | Hinweis |
+| --- | --- | --- |
+| Kontor klein / mittel / groß / riesig | 75 / 150 / 250 / 500 t | einmal je Insel, Ausbau in Stufen |
+| Depot (10×4) | 50 t | **+50 t** mit Richtlinie „Hafenbevorratung“, wenn im Radius einer Hafenmeisterei (20) bzw. Speicherstadt (30) („+50 Insel-Lagerplatz pro Depot“) |
+| Speicherstadt (7×6) | 100 t | einmal je Insel |
+| Speicherstadt-Depotmodul (3×3) | 100 t | auch +50 mit „Hafenbevorratung“; Grenze 5 (+2 je Exportstufe, max. 13) |
+| **Hafenmeisterei (4×4)** | **+200 t … +1.200 t** | Basiseffekt **Ministerium für Handel** („+X Insel-Lagerplatz pro Hafenmeisterei“, +40 je Prestige-Stufe); gilt auch für die Speicherstadt; Hafenmeisterei braucht dafür eine **Straße zum Palast/Regionalministerium in dessen Reichweite** |
+| Öllager (4×8) | 200 t Öl | nur Öl |
+
+Je Kachel ist die Hafenmeisterei mit Handelsministerium das stärkste Lager (16 Kacheln → 200–1.200 t,
+Depot 40 Kacheln → 50–100 t). Ohne Handelsministerium bringt sie keinen Lagerplatz.
+
+### 6.2 Abstände und Grenzen
+
+- **Hafenmeisterei-Radius 20, Speicherstadt-Radius 30, Kategorie „HarborOffice“ – Radien dürfen sich nicht
+  überschneiden**: Mittelpunktabstand Hafenmeisterei–Hafenmeisterei ≥ 40, Hafenmeisterei–Speicherstadt ≥ 50
+  (ob genau 40/50 erlaubt ist wie bei Handelskammern: Test T3).
+- Speicherstadt-Module (Spieldaten): Grenzen Depot 5, Hafenmeisterei-Modul 2, Anlegestelle 3, Exportbüro 2,
+  Reparaturkran 3, Verladekai 2; je Exportstufe mehr (Ungewöhnlich +2 Depot, +1 Anlegestelle, +1 Export,
+  +1 Verladekai; Selten +2/+1 HM-Modul/+1/+1/+1 Kran/+1; Episch +2/+1/+1/+1/+1/+2; Legendär +2 auf alles).
+  Module müssen im **selben Hafengebiet** stehen, nicht im Radius. Module 3×3, Anlegestelle 5×5.
+- Einmal je Insel: Kontor, Speicherstadt, Ölhafen, Besucherhafen, Pendlerkai.
+- Straße nötig: Fischerei, Quarzgrube, Salpeterwerk, Perlenfarm, Fischölfabrik, Pendlerkai (zu Kontor/Lager);
+  Hafenmeisterei für Palast-Effekte (Straße zum Ministerium). Ohne Straße: Depot, Öllager, Anlegestelle,
+  Reparaturkran, Geschütze, Speicherstadt.
+- Anlegestellen, Kontor, Speicherstadt: „keine Hindernisse davor“ (freie Zufahrt für Schiffe).
+
+### 6.3 Was die Teststempel klären müssen
+
+Stempel enthalten je Straßenkachel nur GUID und Position, kein Gelände. Deshalb:
+- **T1 – Gelände**: ganze Insel, Land mit Feldweg, **gesamtes Hafengebiet mit Kaimauer** (zweiter Stempel
+  mit Kaistraße). Klärt: GUIDs der Kai-Arten, wie weit das Hafengebiet ins Wasser reicht, ob es entlang der
+  ganzen Küste existiert.
+- **T2 – Gebäudemasken**: an einer **geraden Küste** je ein Gebäude setzen und rundherum Land mit Feldweg und
+  Hafengebiet mit Kaimauer auffüllen: Kontor (jede Stufe, falls Größe wechselt), Speicherstadt + je ein Modul,
+  Hafenmeisterei, Depot, Öllager, Anlegestelle, Fischerei, Quarzgrube, Salpeterwerk, Pendlerkai, Besucherhafen,
+  Ölhafen, Segel-/Dampfschiffswerft, Reparaturkran, Kanonenturm, Geschützstellung, Dicke Berta.
+  Dasselbe einmal an einer Küste in **anderer Himmelsrichtung** (Drehung) und an einer **Ecke/schrägen Küste**.
+  Daraus: welche Kacheln Land, Ufer oder Hafengebiet sein müssen und in welche Richtung das Gebäude zeigt.
+- **T3 – Abstände**: zwei Hafenmeistereien so nah wie das Spiel erlaubt; Hafenmeisterei so nah wie möglich an
+  der Speicherstadt.
+
+### 6.4 Umsetzung (nach den Teststempeln)
+
+1. Einlesen: Kaimauer/Kaistraße-GUIDs als **Hafengebiet** führen (nicht als Land); Uferlinie = Grenze
+   Land ↔ Hafengebiet; Kontor aus dem Stempel übernehmen, falls vorhanden.
+2. Gebäudemasken (aus T2) mit Drehungen; Prüfung „passt hier“ je Kachel (Land/Ufer/Hafengebiet).
+3. Reihenfolge: Kontor → Speicherstadt + Module → gewünschte Küstengebäude → Hafenmeistereien
+   (Packung mit Abständen 40/50, wie die Handelskammer-Packung) → Depots in die Restflächen, bevorzugt in
+   Hafenmeisterei-Radien. Straßenanschlüsse über das Stadtnetz; Hafenmeistereien an Straßen im
+   Ministeriumsbereich.
+4. Bewertung: Lagerplatz nach 6.1 (Palast-Einstellungen: Handelsministerium, Prestige, Hafenbevorratung),
+   Nebenbedingungen 6.2; lokale Suche (verschieben/tauschen) wie bei Rathäusern.
+5. Anzeige: Lagerplatz gesamt und je Quelle, Hafenmeistereien, Depots, Module; Stempel-Export.
