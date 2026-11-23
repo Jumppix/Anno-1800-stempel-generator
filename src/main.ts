@@ -22,6 +22,7 @@ import { Camera } from './camera';
 import { assembleParts, type AssembleResult } from './assemble';
 import { loadIsland, persistSettings, saveIsland } from './persist';
 import { detectKontor, FACING_NAMES, type KontorFound } from './harbor';
+import { depositSummary } from './deposits';
 import { initPlannerDefaults } from './plannerDefaults';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
 
@@ -283,6 +284,13 @@ function updateImportInfo(): void {
   let text = `${parts.length} Teil${parts.length === 1 ? '' : 'e'} · ${combined.w} × ${
     combined.h
   } · ${num(combined.landCount)} Landkacheln`;
+  if (combined.buildings?.length) {
+    const d = depositSummary(combined.buildings);
+    const movable = [d.clay ? `${d.clay} Lehmgruben` : '', d.oil ? `${d.oil} Ölquellen (Bohrtürme)` : ''].filter(Boolean).join(', ');
+    text += `${d.mines ? ` · fest: ${d.mines}` : ''}${movable ? ` · verschiebbar: ${movable}` : ''}${
+      d.refineries ? ' · Raffinerie-Fläche = Bauland' : ''
+    }`;
+  }
   if (combined.harborCount) {
     const k = currentKontor();
     text += ` · ${num(combined.harborCount)} Kacheln Hafengebiet (Kaistraße) · ${
@@ -565,6 +573,7 @@ async function loadStamps(files: FileList): Promise<void> {
         h: parsed.height,
         mask: parsed.mask,
         harbor: parsed.harbor,
+        buildings: parsed.buildings,
         landCount: parsed.landCount,
         offsetX: 0,
         offsetY: 0,
@@ -860,6 +869,7 @@ plannerUi = new PlannerUi(
           mask: { w: combined.w, h: combined.h, data: combined.data, landCount: combined.landCount },
           streetGuid: fieldPathGuid(),
           kontor: currentKontor(),
+          deposits: combined.buildings ? { clay: depositSummary(combined.buildings).clay, oil: depositSummary(combined.buildings).oil } : undefined,
           label: `${combined.w} × ${combined.h} · ${num(combined.landCount)} Landkacheln (${parts.length} Teil${
             parts.length === 1 ? '' : 'e'
           })`,

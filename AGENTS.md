@@ -86,6 +86,8 @@ unnötig verändern.
 - Küsten-/Wassergebäude: Recherche und Optimierer-Plan `docs/PLAN_Kueste.md`. Hafengebiet aus Kaistraße/Kaimauer/Kai
   (`HARBOR_STREETS` in `stampReader.ts`, `IslandPart.harbor`, `CombinedMask.harbor`; `data` = nur Land),
   Kontor-Erkennung aus der Lücke im Stempel `src/harbor.ts` (`detectKontor`, Anzeige in `placement.ts`).
+  Rohstoffe aus dem Stempel `src/deposits.ts` (Minen fest, Lehmgruben/Bohrtürme/Raffinerie verschiebbar → Bauland),
+  Lehmgruben-Cluster `options.clay` in `services.ts`.
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
   `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
   `src/testStamps.ts`. Phase 2: `src/fill.ts` (vollständige Bebauung: Gitter über die ganze

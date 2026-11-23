@@ -12,6 +12,11 @@ export interface ImportedIsland {
   region: number | null;
   /** Straßen-GUID für Land (Feldweg …), nicht die Kaistraße. */
   streetGuid: number | null;
+  /**
+   * Gebäude im Stempel (z. B. Minen, Lehmgruben, Bohrtürme als Blaupause): Mittelpunkt in
+   * Kachelachsen relativ zur Maske, Drehung in Radiant.
+   */
+  buildings?: Array<{ guid: number; cx: number; cy: number; dir: number }>;
 }
 
 /**
@@ -212,8 +217,12 @@ export function decodeStamp(file: Uint8Array): ImportedIsland {
 
   // Hafengebiet: Kacheln nur mit Hafen-Straßen (über die GUIDs aus dem vollständigen Lesen).
   let harbor: Uint8Array | undefined;
+  let buildings: ImportedIsland['buildings'];
   try {
     const full = decodeStampFull(file);
+    if (full.buildings.length) {
+      buildings = full.buildings.map((b) => ({ guid: b.guid, cx: -b.rawY - minX, cy: -b.rawX - minY, dir: b.dir }));
+    }
     const land = new Set<string>();
     const port = new Set<string>();
     const guidCount = new Map<number, number>();
@@ -241,7 +250,7 @@ export function decodeStamp(file: Uint8Array): ImportedIsland {
     /* ohne Hafengebiet */
   }
 
-  return { width, height, mask, harbor, landCount: tiles.length, region, streetGuid };
+  return { width, height, mask, harbor, landCount: tiles.length, region, streetGuid, buildings };
 }
 
 // ---------------------------------------------------------------------------

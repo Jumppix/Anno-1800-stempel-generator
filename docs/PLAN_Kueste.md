@@ -287,3 +287,38 @@ Stempel enthalten je Straßenkachel nur GUID und Position, kein Gelände. Deshal
   Ostrand x 466) sind kein Hindernis, sondern nicht gestempelt – dort geht das Hafengebiet vermutlich weiter.
 - Offen: ob alle Kontorstufen dieselbe Grundfläche haben; Breite der Zufahrt vor Anlegestellen.
 
+## 8. Rohstoffe aus dem Stempel, Lehmgruben und Öl (23.11.2026)
+
+**Erkennung (umgesetzt).** Gebäude im Stempel (Blaupausen) werden je Teil gelesen (`ImportedIsland.buildings`),
+beim Zusammenfügen in Inselkoordinaten umgerechnet und Doppelte aus überlappenden Teilen entfernt
+(`CombinedMask.buildings`, `src/deposits.ts`):
+- **Minen** (Kohle, Eisen, Zink, Kupfer, Zement, Gold) sind an ihr Vorkommen gebunden → bleiben stehen,
+  ihre Fläche ist kein Bauland (im Stempel ohnehin Lücke).
+- **Lehmgruben (100416, 5×5)** und **Bohrtürme/Ölquellen (101332, 3×3)** lassen sich mit „Bahnbrechende
+  Entdeckungen“ (Enbesa) verschieben → ihre Fläche wird Bauland, der Planer setzt sie selbst.
+- **Ölraffinerie (101331, 5×5)** war nur zum Stempeln der Bohrtürme nötig → Fläche = Bauland.
+- Crown Falls mit Minen (14 Teile, 470 × 448): 9 Eisen-, 9 Kohle-, 3 Kupfer-, 3 Zink-, 2 Zementminen,
+  4 Lehmgruben, 5 Bohrtürme, 1 Raffinerie; Kontor wie zuvor. Anzeige im Anordnen-Bild (Minen braun,
+  Lehmgruben orange, Bohrtürme schwarz/gelb, Raffinerie gestrichelt).
+- Offen: Minen brauchen Straßenanschluss – der Planer hält ihn noch nicht frei (Minen liegen meist am Berg).
+
+**Lehmgruben-Cluster (umgesetzt).** Stadtplaner → Produktion → „Lehmgruben (verschiebbar)“ (leer = Anzahl
+aus dem Stempel). Je Cluster bis zu 8 Gruben als Block mit Ringstraße: zwei Spalten aus 5×5-Feldern, dazwischen
+eine Straße; in der mittleren Reihe Handelskammer (an der Mittelstraße) und Lagerhaus, ringsum die Gruben
+(Mitte höchstens ≈ 11,7 von der Handelskammer, Radius 15). Geprüft auf der Testinsel: 4 Gruben 4,5–7,8 von der
+Handelskammer, alle mit Straßenanschluss. Offen: ob verschobene Lehmgruben weiter einen Fluss brauchen.
+
+**Öl (geplant).** Spieldaten:
+- Ölraffinerie: Bohrtürme sind Module im **Radius 12** (`ModuleBuildRadius`), ein Bohrturm reicht für volle
+  Produktivität (`ModulesRequiredForFullProductivity 1`); 1 Öl je 15 s; Abtransport per Zug.
+- Kleiner Ölhafen (100783, 10×7, Gelände „Coast“, Bahnhof, Lager 500, einmal je Insel), Öllager (100784, 4×8,
+  Hafengebiet, Lager 200).
+- Kraftwerk (100780, 5×5): Eingang Öl, Strom 25, Industrialisierung 35; Öl kommt per Zug.
+- Schienen: Eisenbahnschienen 1010136 (Straßentyp, stempelbar), Bahnübergang 1010165.
+
+Plan „Ölkraftwerke“ im Stadtplaner (statt Gaskraftwerken): Ölhafen an der Küste (Hafengebiet-Rand), die
+Ölquellen (verschiebbar) **zusammen an der Küste** nahe dem Ölhafen, je Raffinerie ein Bohrturm im Radius 12,
+ein Schienennetz Raffinerien ↔ Ölhafen/Öllager ↔ alle Ölkraftwerke (Bahnübergänge, wo Straßen kreuzen);
+Anzahl Raffinerien aus dem Ölbedarf der Kraftwerke. Braucht vom Nutzer: Teststempel mit Ölhafen + Schienen +
+Bahnübergang (Ausrichtung, welche Kacheln Wasser/Land), Ölverbrauch eines Kraftwerks im Spiel.
+

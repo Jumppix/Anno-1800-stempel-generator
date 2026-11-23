@@ -191,6 +191,25 @@ export function renderPlacement(
   ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = true;
 
+  // Gebäude aus den Stempeln: Minen (fest), Lehmgruben/Bohrtürme/Raffinerie (verschiebbar)
+  for (const b of combined.buildings ?? []) {
+    const colors: Record<string, [string, string]> = {
+      mine: ['rgba(120, 100, 80, 0.95)', '#d8c3a0'],
+      clay: ['rgba(214, 128, 70, 0.9)', '#ffb07a'],
+      oil: ['rgba(20, 20, 20, 0.95)', '#f5d35a'],
+      refinery: ['rgba(60, 60, 60, 0.35)', '#a0a0a0'],
+      other: ['rgba(200, 200, 200, 0.5)', '#ddd'],
+    };
+    const [fill, stroke] = colors[b.kind];
+    ctx.fillStyle = fill;
+    ctx.fillRect(originX + b.x * scale, originY + b.y * scale, b.w * scale, b.h * scale);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = Math.max(1, Math.min(2, scale / 3));
+    if (b.kind === 'refinery') ctx.setLineDash([3, 2]);
+    ctx.strokeRect(originX + b.x * scale, originY + b.y * scale, b.w * scale, b.h * scale);
+    ctx.setLineDash([]);
+  }
+
   // Erkanntes Kontor (Lücke im Hafengebiet) mit freizuhaltender Zufahrt
   if (kontor) {
     const box = (r: { x: number; y: number; w: number; h: number }, fill: string, stroke: string, dash: number[]): void => {

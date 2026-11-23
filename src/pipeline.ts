@@ -55,6 +55,8 @@ export interface PassInput {
   ministry?: ServiceOptions['ministry'];
   /** Palastinsel: Museen für die fehlende Attraktivität. */
   culture?: ServiceOptions['culture'];
+  /** Lehmgruben-Cluster (verschiebbare Vorkommen aus dem Stempel). */
+  clay?: ServiceOptions['clay'];
   airport?: { harbor: { x: number; y: number } | null };
   production?: ProductionOptions;
   levelMode: LevelMode;
@@ -181,6 +183,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     townHallItems: input.townHallItems,
     ministry: input.ministry,
     culture: input.culture,
+    clay: input.clay,
     airport: input.airport,
     production: input.production,
     mip,

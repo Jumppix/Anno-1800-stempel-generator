@@ -37,6 +37,7 @@ export type BuildingKind =
   | 'palaceWing'
   | 'museum'
   | 'museumModule'
+  | 'clayPit'
   | 'warehouse'
   | 'production'
   | 'other';
@@ -102,6 +103,8 @@ export const CATALOG_LIST: readonly CatalogEntry[] = [
   E({ guid: 1010471, kind: 'museum', name: 'Museum', size: [5, 8] }),
   E({ guid: 100454, kind: 'museumModule', name: 'Museumsmodul', size: [5, 4] }),
   E({ guid: 1010482, kind: 'museumModule', name: 'Museumsflügel', size: [5, 4] }),
+  // Lehmgrube (5×5) – mit „Bahnbrechende Entdeckungen“ verschiebbar; im Planer als Cluster um eine Handelskammer
+  E({ guid: 100416, kind: 'clayPit', name: 'Lehmgrube', size: [5, 5] }),
   E({ guid: 1010371, kind: 'warehouse', name: 'Lagerhaus', size: [5, 5] }),
 ];
 

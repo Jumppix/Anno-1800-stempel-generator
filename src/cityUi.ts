@@ -64,6 +64,7 @@ const KIND_COLORS: Partial<Record<BuildingKind, string>> = {
   palaceWing: '#c9a24a',
   museum: '#b48ad8',
   museumModule: '#8d6bb0',
+  clayPit: '#d6804a',
   warehouse: '#a08060',
   production: '#7a9a6a',
   other: '#5a6670',
@@ -977,6 +978,7 @@ export class CityUi {
       localDepartment: 'RM',
       palace: 'PAL',
       museum: 'MU',
+      clayPit: 'LE',
       warehouse: 'LG',
       production: 'P',
     };

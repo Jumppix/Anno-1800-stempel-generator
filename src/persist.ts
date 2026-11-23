@@ -15,6 +15,8 @@ interface StoredPart {
   mask: string;
   /** Hafengebiet als Bits, Base64 (fehlt bei Inseln ohne Kaistraße). */
   harbor?: string;
+  /** Gebäude aus dem Stempel (Minen, Lehmgruben, Bohrtürme …). */
+  buildings?: Array<{ guid: number; cx: number; cy: number; dir: number }>;
   landCount: number;
   offsetX: number;
   offsetY: number;
@@ -55,6 +57,7 @@ export function saveIsland(parts: readonly IslandPart[], region: string, mode: '
         h: p.h,
         mask: packBits(p.mask),
         harbor: p.harbor ? packBits(p.harbor) : undefined,
+        buildings: p.buildings,
         landCount: p.landCount,
         offsetX: p.offsetX,
         offsetY: p.offsetY,
@@ -82,6 +85,7 @@ export function loadIsland(nextId: () => string): { parts: IslandPart[]; region:
       h: p.h,
       mask: unpackBits(p.mask, p.w * p.h),
       harbor: p.harbor ? unpackBits(p.harbor, p.w * p.h) : undefined,
+      buildings: Array.isArray(p.buildings) ? p.buildings : undefined,
       landCount: p.landCount,
       offsetX: p.offsetX,
       offsetY: p.offsetY,

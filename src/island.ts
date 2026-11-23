@@ -1,5 +1,6 @@
 import { fft2d, nextPow2 } from './fft';
 import type { LandMask } from './solver';
+import { partBuilding, type IslandBuilding } from './deposits';
 
 export interface IslandPart {
   id: string;
@@ -10,6 +11,8 @@ export interface IslandPart {
   mask: Uint8Array;
   /** Hafengebiet (Kaistraße/Kaimauer/Kai), kein Bauland für die Stadt. */
   harbor?: Uint8Array;
+  /** Gebäude im Stempel (Minen, Lehmgruben, Bohrtürme …), Mittelpunkt relativ zur Teilmaske. */
+  buildings?: Array<{ guid: number; cx: number; cy: number; dir: number }>;
   /** Straßenkacheln des Teils (Land + Hafengebiet; Anker beim Ausrichten). */
   landCount: number;
   offsetX: number;
@@ -25,6 +28,8 @@ export interface CombinedMask extends LandMask {
   /** Hafengebiet (1 = Kaistraße/Kaimauer/Kai, kein Land), falls vorhanden. */
   harbor?: Uint8Array;
   harborCount?: number;
+  /** Gebäude aus den Stempeln (doppelte aus überlappenden Teilen entfernt), Maskenkoordinaten. */
+  buildings?: IslandBuilding[];
 }
 
 export interface AlignResult {
@@ -89,14 +94,45 @@ export function combineParts(parts: readonly IslandPart[], all = false): Combine
       }
     }
   }
-  if (!any) return { w, h, data, landCount, minX, minY };
+  // Gebäude aus den Stempeln: doppelte (überlappende Teile) entfernen. Unter verschiebbaren
+  // Vorkommen (Lehmgrube, Bohrturm) und der Raffinerie ist Bauland; Minen bleiben gesperrt.
+  const seen = new Set<string>();
+  const buildings: IslandBuilding[] = [];
+  for (const part of parts) {
+    for (const raw of part.buildings ?? []) {
+      const b = partBuilding(raw);
+      b.x += part.offsetX - minX;
+      b.y += part.offsetY - minY;
+      const key = `${b.guid},${b.x},${b.y}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      buildings.push(b);
+    }
+  }
+  if (!all) {
+    for (const b of buildings) {
+      if (b.kind !== 'clay' && b.kind !== 'oil' && b.kind !== 'refinery') continue;
+      for (let y = b.y; y < b.y + b.h; y++) {
+        for (let x = b.x; x < b.x + b.w; x++) {
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          const i = y * w + x;
+          if (!data[i] && !port[i]) {
+            data[i] = 1;
+            landCount++;
+          }
+        }
+      }
+    }
+  }
+  const extra = buildings.length ? { buildings } : {};
+  if (!any) return { w, h, data, landCount, minX, minY, ...extra };
   // Was ein anderes Teil als Land führt, ist Land.
   let harborCount = 0;
   for (let i = 0; i < port.length; i++) {
     if (data[i]) port[i] = 0;
     else if (port[i]) harborCount++;
   }
-  return { w, h, data, landCount, minX, minY, harbor: port, harborCount };
+  return { w, h, data, landCount, minX, minY, harbor: port, harborCount, ...extra };
 }
 
 export function overlapCount(parts: readonly IslandPart[], part: IslandPart): number {

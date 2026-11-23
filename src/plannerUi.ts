@@ -63,6 +63,8 @@ export interface IslandSource {
   label: string;
   /** Erkanntes Kontor (Lücke im Hafengebiet des Stempels), Maskenkoordinaten. */
   kontor?: KontorFound | null;
+  /** Verschiebbare Vorkommen aus dem Stempel (Blaupausen). */
+  deposits?: { clay: number; oil: number };
 }
 
 function el<T extends HTMLElement>(selector: string): T {
@@ -541,6 +543,7 @@ export class PlannerUi {
       townHallItems: rules.townHallItems,
       ministry: this.ministryOption(rules, variant?.wings),
       culture: this.cultureOption(rules, variant?.wings),
+      clay: this.clayOption(src),
       airport: el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined,
       production,
       levelMode: this.levelMode.value as LevelMode,
@@ -658,6 +661,13 @@ export class PlannerUi {
   }
 
   /** Regionalministerium (Reichweite, Wohlfahrt, Stadtweites Netz) aus den Regeln. */
+  /** Lehmgruben: Feld oder (leer) Anzahl aus dem Stempel. */
+  private clayOption(src: IslandSource): ServiceOptions['clay'] {
+    const raw = el<HTMLInputElement>('#plan-clay').value.trim();
+    const count = raw === '' ? (src.deposits?.clay ?? 0) : Math.max(0, Math.min(64, Math.round(Number(raw) || 0)));
+    return count > 0 ? { count } : undefined;
+  }
+
   /** Gebaute Palastflügel: Feld „Palastflügel auf dieser Insel“, höchstens so viele wie erlaubt. */
   private wingsBuilt(rules: RuleConfig, override?: number): number {
     const v = override ?? Math.round(Number(el<HTMLInputElement>('#plan-wings').value) || 0);
@@ -755,6 +765,8 @@ export class PlannerUi {
         `Versorgung: ${SERVICE_KINDS_UI.filter((k) => s.placed[k])
           .map((k) => `${s.placed[k]}× ${short[k]}`)
           .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · ${this.cityUi.currentRules().palace ? 'Palast' : 'Regionalministerium'} (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
+          s.clay ? ` · Lehmgruben: ${s.clay.pits} in ${s.clay.clusters} Cluster${s.clay.clusters === 1 ? '' : 'n'} mit Handelskammer + Lagerhaus (${s.clay.houses} Häuser verdrängt)` : ''
+        }${
           s.culture && (s.culture.museums || s.culture.missing)
             ? ` · Museen: ${s.culture.museums} mit ${s.culture.modules} Modulen (+${num(s.culture.attr)} Attraktivität, ${s.culture.houses} Häuser verdrängt)${
                 s.culture.missing ? ` – <strong>noch ${num(s.culture.missing)} zu wenig</strong>` : ''

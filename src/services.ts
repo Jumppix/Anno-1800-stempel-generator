@@ -80,6 +80,8 @@ export const SERVICE_SPECS: readonly ServiceSpec[] = [
 ];
 
 export const WAREHOUSE_GUID = 1010371;
+export const TRADE_UNION_GUID = 1010516;
+export const CLAY_PIT_GUID = 100416;
 export const MINISTRY_GUID = 269602;
 /** Palast (9×9) und Palastflügel (3×3) – Palastinsel (Crown Falls). */
 export const PALACE_GUID = 249947;
@@ -235,6 +237,11 @@ export interface ServiceOptions {
     moduleSet: number;
     maxModules: number;
   };
+  /**
+   * Lehmgruben (verschiebbare Vorkommen): je Cluster bis zu 8 Gruben im Radius einer
+   * Handelskammer, dazu ein Lagerhaus – als Block mit Ringstraße.
+   */
+  clay?: { count: number };
   /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
   keepRoads?: boolean;
   /**
@@ -268,6 +275,8 @@ export interface ServiceReport {
   airport: { placed: boolean; distance: number; houses: number };
   /** Regionalministerium gesetzt (und wie viele Häuser in seiner Reichweite liegen). */
   ministry: { placed: boolean; houses: number };
+  /** Lehmgruben-Cluster (Handelskammer + Gruben + Lagerhaus). */
+  clay?: { clusters: number; pits: number; houses: number };
   /** Museen für die Attraktivität (Palastinsel). */
   culture?: { museums: number; modules: number; attr: number; known: number; missing: number; houses: number };
   warehouses: number;
@@ -990,6 +999,67 @@ export function placeServices(
       rep.attr = setsPlaced > 0 ? delta + (setsPlaced - 1) * cu.perSet : 0;
       missing -= rep.attr;
       rep.missing = Math.max(0, missing);
+    }
+  }
+
+  // --- Lehmgruben-Cluster: Handelskammer und Lagerhaus in der Mitte, Gruben ringsum (Radius 15).
+  if (options.clay && options.clay.count > 0) {
+    const rep = { clusters: 0, pits: 0, houses: 0 };
+    report.clay = rep;
+    let left = Math.round(options.clay.count);
+    const deadline = performance.now() + Math.max(5000, Math.min(30000, (w * h) / 8));
+    while (left > 0 && performance.now() < deadline) {
+      const n = Math.min(8, left);
+      const rows = Math.max(2, Math.ceil((n + 2) / 2));
+      // Zwei Spalten aus 5×5-Feldern, dazwischen eine Straße; ringsum Ringstraße
+      const bw = 11;
+      const bh = rows * 5;
+      let best: Candidate | null = null;
+      for (const c of candidatesFor(CLAY_PIT_GUID, { w: bw + 2, h: bh + 2, maxRoads: Infinity })) {
+        if (validRinged(c)) {
+          best = c;
+          break;
+        }
+      }
+      if (!best) break;
+      const inner = innerOf(best);
+      const turned = best.turns === 1;
+      for (const i of borderOf(best)) cell[i] = ROAD;
+      for (const k of best.houses) removedBy[k]++;
+      for (let dy = 0; dy < inner.h; dy++) for (let dx = 0; dx < inner.w; dx++) cell[(inner.y + dy) * w + inner.x + dx] = FREE;
+      // ungedreht (lx, ly) → Karte
+      const at = (lx: number, ly: number): [number, number] => (turned ? [inner.x + ly, inner.y + lx] : [inner.x + lx, inner.y + ly]);
+      for (let ly = 0; ly < bh; ly++) {
+        const [rx, ry] = at(5, ly);
+        cell[ry * w + rx] = ROAD;
+      }
+      const mid = Math.floor(rows / 2);
+      /** Quadratisches Gebäude an ungedrehter Stelle (lx, ly) setzen. */
+      const put = (guid: number, lx: number, ly: number, size: number): void => {
+        const [x, y] = at(lx, ly);
+        for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) cell[(y + dy) * w + x + dx] = SERVICE;
+        const entry = lookup(guid);
+        services.push({ guid, kind: entry.kind, name: entry.name, x, y, w: size, h: size, turns: 0 });
+      };
+      let pits = 0;
+      for (let r = 0; r < rows; r++) {
+        const ly = r * 5;
+        // linke Spalte x 0–4, Straße x 5, rechte Spalte x 6–10
+        if (r === mid) {
+          put(TRADE_UNION_GUID, 1, ly, 4); // Handelskammer an der Mittelstraße
+          put(WAREHOUSE_GUID, 6, ly, 5);
+          continue;
+        }
+        for (const lx of [0, 6]) {
+          if (pits >= n) break;
+          put(CLAY_PIT_GUID, lx, ly, 5);
+          pits++;
+        }
+      }
+      rep.clusters++;
+      rep.pits += pits;
+      rep.houses += best.houses.length;
+      left -= pits;
     }
   }
 
