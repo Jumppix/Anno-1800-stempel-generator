@@ -870,6 +870,7 @@ plannerUi = new PlannerUi(
           streetGuid: fieldPathGuid(),
           kontor: currentKontor(),
           deposits: combined.buildings ? { clay: depositSummary(combined.buildings).clay, oil: depositSummary(combined.buildings).oil } : undefined,
+          mines: combined.buildings?.filter((b) => b.kind === 'mine').map(({ guid, x, y, w, h }) => ({ guid, x, y, w, h })),
           label: `${combined.w} × ${combined.h} · ${num(combined.landCount)} Landkacheln (${parts.length} Teil${
             parts.length === 1 ? '' : 'e'
           })`,

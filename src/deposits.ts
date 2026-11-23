@@ -21,6 +21,8 @@ export const OIL_WELL_GUID = 101332;
 export const OIL_REFINERY_GUID = 101331;
 /** Bohrtürme müssen im Radius der Raffinerie stehen (Spieldaten ModuleBuildRadius). */
 export const OIL_WELL_RADIUS = 12;
+/** Bohrtürme je Raffinerie, mit denen geplant wird (Angabe des Nutzers; Spieldaten: 1 reicht für 100 %). */
+export const OIL_WELLS_PER_REFINERY = 3;
 
 export interface IslandBuilding {
   guid: number;

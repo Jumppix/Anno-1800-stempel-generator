@@ -57,6 +57,8 @@ export interface PassInput {
   culture?: ServiceOptions['culture'];
   /** Lehmgruben-Cluster (verschiebbare Vorkommen aus dem Stempel). */
   clay?: ServiceOptions['clay'];
+  /** Minen aus dem Stempel (Straßenanschluss + Lagerhaus). */
+  mines?: ServiceOptions['mines'];
   airport?: { harbor: { x: number; y: number } | null };
   production?: ProductionOptions;
   levelMode: LevelMode;
@@ -184,6 +186,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     ministry: input.ministry,
     culture: input.culture,
     clay: input.clay,
+    mines: input.mines,
     airport: input.airport,
     production: input.production,
     mip,

@@ -300,17 +300,28 @@ beim Zusammenfügen in Inselkoordinaten umgerechnet und Doppelte aus überlappen
 - Crown Falls mit Minen (14 Teile, 470 × 448): 9 Eisen-, 9 Kohle-, 3 Kupfer-, 3 Zink-, 2 Zementminen,
   4 Lehmgruben, 5 Bohrtürme, 1 Raffinerie; Kontor wie zuvor. Anzeige im Anordnen-Bild (Minen braun,
   Lehmgruben orange, Bohrtürme schwarz/gelb, Raffinerie gestrichelt).
-- Offen: Minen brauchen Straßenanschluss – der Planer hält ihn noch nicht frei (Minen liegen meist am Berg).
+- **Minen** brauchen Straßenanschluss und ein Lagerhaus in Reichweite (Nutzer): Der Planer legt je Mine den
+  günstigsten Weg zum Straßennetz (freies Land vor Häusern, `options.mines` in `services.ts`) und zählt Minen beim
+  Lagerhaus-Bedarf mit (Reichweite wie Produktion, 40).
 
 **Lehmgruben-Cluster (umgesetzt).** Stadtplaner → Produktion → „Lehmgruben (verschiebbar)“ (leer = Anzahl
 aus dem Stempel). Je Cluster bis zu 8 Gruben als Block mit Ringstraße: zwei Spalten aus 5×5-Feldern, dazwischen
 eine Straße; in der mittleren Reihe Handelskammer (an der Mittelstraße) und Lagerhaus, ringsum die Gruben
 (Mitte höchstens ≈ 11,7 von der Handelskammer, Radius 15). Geprüft auf der Testinsel: 4 Gruben 4,5–7,8 von der
-Handelskammer, alle mit Straßenanschluss. Offen: ob verschobene Lehmgruben weiter einen Fluss brauchen.
+Handelskammer, alle mit Straßenanschluss. Verschobene Lehmgruben können **überall** stehen (Nutzer).
+„Lehmgruben je Lagerhaus“ (Standard 8; weitere Lagerhäuser kommen in den Block, Gruben gleichmäßig auf die
+Cluster verteilt) und „Lehmgruben mit Strom“ (Kraftwerk in Reichweite, wie bei der geclippten Produktion).
+
+**Karren (Spieldaten, `properties.xml`/`templates.xml`):** Lagerhaus I/II/III/IV = 2/3/4/6 Karren
+(`ProcessingQueueParallelCount`), Karren: Ladung 10, `LoadingTime` 20, `UnloadingTime` 20, `TransporterSpeed`
+0,7 (Einheiten nicht angegeben). Lehmgrube 1 Lehm je 30 s, Lager 4, Strom +100 %. Eine eigene Berechnung
+„Karren je Gebäude“ braucht die Einheiten bzw. eine Messung im Spiel (Nutzer-Faustregel: 8 Lehmgruben je
+Lagerhaus nur mit Strom) – bis dahin ist die Zahl je Lagerhaus einstellbar.
 
 **Öl (geplant).** Spieldaten:
-- Ölraffinerie: Bohrtürme sind Module im **Radius 12** (`ModuleBuildRadius`), ein Bohrturm reicht für volle
-  Produktivität (`ModulesRequiredForFullProductivity 1`); 1 Öl je 15 s; Abtransport per Zug.
+- Ölraffinerie: Bohrtürme sind Module im **Radius 12** (`ModuleBuildRadius`); Spieldaten: ein Bohrturm reicht
+  für volle Produktivität (`ModulesRequiredForFullProductivity 1`) – geplant wird mit **bis zu 3 Bohrtürmen je
+  Raffinerie** (Nutzer); 1 Öl je 15 s; Abtransport per Zug.
 - Kleiner Ölhafen (100783, 10×7, Gelände „Coast“, Bahnhof, Lager 500, einmal je Insel), Öllager (100784, 4×8,
   Hafengebiet, Lager 200).
 - Kraftwerk (100780, 5×5): Eingang Öl, Strom 25, Industrialisierung 35; Öl kommt per Zug.

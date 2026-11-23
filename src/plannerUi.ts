@@ -65,6 +65,8 @@ export interface IslandSource {
   kontor?: KontorFound | null;
   /** Verschiebbare Vorkommen aus dem Stempel (Blaupausen). */
   deposits?: { clay: number; oil: number };
+  /** Minen aus dem Stempel (fest), Maskenkoordinaten. */
+  mines?: ReadonlyArray<{ guid: number; x: number; y: number; w: number; h: number }>;
 }
 
 function el<T extends HTMLElement>(selector: string): T {
@@ -544,6 +546,7 @@ export class PlannerUi {
       ministry: this.ministryOption(rules, variant?.wings),
       culture: this.cultureOption(rules, variant?.wings),
       clay: this.clayOption(src),
+      mines: src.mines?.length ? src.mines : undefined,
       airport: el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined,
       production,
       levelMode: this.levelMode.value as LevelMode,
@@ -665,7 +668,13 @@ export class PlannerUi {
   private clayOption(src: IslandSource): ServiceOptions['clay'] {
     const raw = el<HTMLInputElement>('#plan-clay').value.trim();
     const count = raw === '' ? (src.deposits?.clay ?? 0) : Math.max(0, Math.min(64, Math.round(Number(raw) || 0)));
-    return count > 0 ? { count } : undefined;
+    return count > 0
+      ? {
+          count,
+          perWarehouse: Math.max(1, Math.min(8, Math.round(Number(el<HTMLInputElement>('#plan-clay-wh').value) || 8))),
+          power: el<HTMLInputElement>('#plan-clay-power').checked,
+        }
+      : undefined;
   }
 
   /** Gebaute Palastflügel: Feld „Palastflügel auf dieser Insel“, höchstens so viele wie erlaubt. */
@@ -765,7 +774,13 @@ export class PlannerUi {
         `Versorgung: ${SERVICE_KINDS_UI.filter((k) => s.placed[k])
           .map((k) => `${s.placed[k]}× ${short[k]}`)
           .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · ${this.cityUi.currentRules().palace ? 'Palast' : 'Regionalministerium'} (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
-          s.clay ? ` · Lehmgruben: ${s.clay.pits} in ${s.clay.clusters} Cluster${s.clay.clusters === 1 ? '' : 'n'} mit Handelskammer + Lagerhaus (${s.clay.houses} Häuser verdrängt)` : ''
+          s.mines ? ` · Minen: ${s.mines.connected} angeschlossen${s.mines.roads ? ` (${s.mines.roads} Straßenkacheln neu, ${s.mines.houses} Häuser verdrängt)` : ''}${s.mines.unreachable ? ` – <strong>${s.mines.unreachable} ohne Weg</strong>` : ''}` : ''
+        }${
+          s.clay
+            ? ` · Lehmgruben: ${s.clay.pits} in ${s.clay.clusters} Cluster${s.clay.clusters === 1 ? '' : 'n'} mit Handelskammer + ${s.clay.warehouses} Lagerh${
+                s.clay.warehouses === 1 ? 'aus' : 'äusern'
+              }${s.clay.powerPlants ? `, ${s.clay.powerPlants} Kraftwerk${s.clay.powerPlants === 1 ? '' : 'e'} für Strom` : ''} (${s.clay.houses} Häuser verdrängt)`
+            : ''
         }${
           s.culture && (s.culture.museums || s.culture.missing)
             ? ` · Museen: ${s.culture.museums} mit ${s.culture.modules} Modulen (+${num(s.culture.attr)} Attraktivität, ${s.culture.houses} Häuser verdrängt)${
