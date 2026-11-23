@@ -449,3 +449,45 @@ body.with-header #app {
   font: inherit;
   cursor: pointer;
 }
+
+.pal-desc {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pal-desc b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.pal-reg > .pal-desc {
+  margin-top: 4px;
+}
+
+.pal-overview {
+  margin: 10px 0;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.pal-overview summary {
+  cursor: pointer;
+  color: var(--gold);
+}
+
+.pal-overview h4 {
+  margin: 12px 0 2px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pal-overview ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}

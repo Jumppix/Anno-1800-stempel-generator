@@ -3,6 +3,7 @@
 // Änderungen gehen per Ereignis an alle offenen Seiten (auch andere Tabs).
 import { getLang, pick, t } from './i18n';
 import { DB_BASE, loadPalace, type MinistryKey, type PalaceData } from './db/data';
+import { decreeInfo, ministryInfo } from './db/palaceInfo';
 import type { PalaceLocation, PalaceState } from './db/palace';
 import { POLICIES, type Ministry, type Policy } from './rules';
 
@@ -317,10 +318,20 @@ export async function openPalaceDialog(): Promise<void> {
       return `<option value="0">${esc(t('pal.none'))}</option>${(m?.decrees ?? [])
         .map(
           (d) =>
-            `<option value="${d.g}" ${d.g === cur ? 'selected' : ''} ${s.attr >= d.at ? '' : 'disabled'}>${esc(pick(d.n))} (${esc(t('pal.from', { n: num(d.at) }))})</option>`,
+            `<option value="${d.g}" title="${esc(decreeInfo(d.g))}" ${d.g === cur ? 'selected' : ''} ${s.attr >= d.at ? '' : 'disabled'}>${esc(pick(d.n))} (${esc(t('pal.from', { n: num(d.at) }))})</option>`,
         )
         .join('')}`;
     };
+    /** Erklärung unter einer Auswahl: gewählte Richtlinie, sonst der Basiseffekt des Ministeriums. */
+    const desc = (k: MinistryKey, g: number): string =>
+      `<small class="pal-desc">${g ? `<b>${esc(pick(data.ministries.find((m) => m.k === k)?.decrees.find((d) => d.g === g)?.n ?? { de: '', en: '' }))}:</b> ${esc(decreeInfo(g))}` : esc(ministryInfo(k))}</small>`;
+    const overview = data.ministries
+      .map(
+        (m) => `<h4>${icon(m.i)}${esc(pick(m.n))} <small>${esc(t('pal.from', { n: num(m.at) }))}</small></h4>
+          <p class="pal-note">${esc(ministryInfo(m.k))}</p>
+          <ul>${m.decrees.map((d) => `<li><b>${esc(pick(d.n))}</b> <small>(${esc(t('pal.from', { n: num(d.at) }))})</small> – ${esc(decreeInfo(d.g))}</li>`).join('')}</ul>`,
+      )
+      .join('');
     const paved = 71 + 3 * s.wings;
     const level = s.population > 0 ? levelForPopulation(s.population) : 0;
     const auto = s.population > 0 ? wingsForPopulation(s.population) : 0;
@@ -336,8 +347,9 @@ export async function openPalaceDialog(): Promise<void> {
                 )})</option>`,
             )
             .join('')}</select></label>
-          <label><span>${esc(t('pal.decree'))}</span><select data-k="regDecree" data-t="${k}">${decreeOptions(r.ministry, r.decree)}</select></label>
-        </div></div>`;
+          <label><span>${esc(t('pal.decree'))}</span><select data-k="regDecree" data-t="${k}">${decreeOptions(r.ministry, r.decree)}</select>${desc(r.ministry, r.decree)}</label>
+        </div>
+        <small class="pal-desc">${esc(ministryInfo(r.ministry))}</small></div>`;
     };
     box.innerHTML = `<h2>🏛 ${esc(t('pal.title'))}</h2>
       <p class="pal-lead">${esc(t('pal.globalLead'))}</p>
@@ -356,14 +368,15 @@ export async function openPalaceDialog(): Promise<void> {
       <div class="pal-list">${data.ministries
         .map((m) => {
           const ok = s.attr >= m.at;
-          return `<label class="${ok ? '' : 'locked'}"><span>${icon(m.i)}${esc(pick(m.n))} <small>${esc(t(ok ? 'pal.from' : 'pal.lockedFrom', { n: num(m.at) }))}</small></span>
-            <select data-k="palace" data-m="${m.k}" ${ok ? '' : 'disabled'}>${decreeOptions(m.k, s.palace[m.k] ?? 0)}</select></label>`;
+          return `<label class="${ok ? '' : 'locked'}"><span title="${esc(ministryInfo(m.k))}">${icon(m.i)}${esc(pick(m.n))} <small>${esc(t(ok ? 'pal.from' : 'pal.lockedFrom', { n: num(m.at) }))}</small></span>
+            <select data-k="palace" data-m="${m.k}" ${ok ? '' : 'disabled'}>${decreeOptions(m.k, s.palace[m.k] ?? 0)}</select>${desc(m.k, s.palace[m.k] ?? 0)}</label>`;
         })
         .join('')}</div>
       <h3>${esc(t('pal.loc.regional'))}</h3>
       <p class="pal-note">${esc(t('pal.noteRegional'))}</p>
       ${ISLAND_TYPES.map(regRow).join('')}
       <p class="pal-note">${esc(t('pal.usedBy'))}</p>
+      <details class="pal-overview"><summary>${esc(t('pal.overview'))}</summary>${overview}</details>
       <p><button type="button" class="pal-reset" data-k="reset">${esc(t('pal.reset'))}</button></p>`;
   };
   render();

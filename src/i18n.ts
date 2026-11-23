@@ -343,6 +343,7 @@ const DICT: Record<string, [string, string]> = {
   'pal.islandNote.city': ['Stadtplaner · meist Verwaltung (Arbeitskraft, 4. Rathaus-Item) oder Wohlfahrt', 'City planner · usually City Affairs (workforce, 4th town-hall item) or Welfare'],
   'pal.islandNote.prod': ['Produktion & Handelskammer, Baumaterial-Guide · meist Arbeit + Fabrikinspektionen', 'Production & trade union, building-material guide · usually Labour + Factory inspections'],
   'pal.islandNote.harbor': ['Hafenplaner (geplant) · Handel: Hafenmeistereien an', 'Harbour planner (planned) · Trade: harbourmasters on'],
+  'pal.overview': ['Alle Ministerien und Richtlinien kurz erklärt', 'All ministries and policies explained briefly'],
   'pal.reset': ['Auf Standardwerte zurücksetzen', 'Reset to defaults'],
   'pal.edit': ['Palast-Einstellungen …', 'Palace settings …'],
   'pal.fx.socket': ['+{n} Item-Platz in der Handelskammer', '+{n} item slot in the trade union'],

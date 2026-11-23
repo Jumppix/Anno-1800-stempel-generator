@@ -8,6 +8,7 @@ import { mountSite } from '../site';
 import { loadDb, loadPalace, type Amount, type Bi, type Building, type Db, type Effect, type Item, type Meta, type Names, type PalaceData } from './data';
 import { setupHoverCards } from './hovercard';
 import { originHtml } from './origin';
+import { decreeInfo, ministryInfo } from './palaceInfo';
 
 const BASE = `${import.meta.env.BASE_URL}db/`;
 const PAGE = 120;
@@ -456,13 +457,15 @@ function palaceHtml(): string {
         .map((d) => {
           const first = d.b[0];
           const fx = [...new Set(d.b.map(fxOf))].slice(0, 3).join('<br>') + (d.b.length > 3 ? ` <span class="note">${esc(t('hc.more', { n: d.b.length - 3 }))}</span>` : '');
-          return `<tr><td>${d.t}</td><td>${img(d.i, 'ic')} ${first ? `<a href="#i=${first}">${esc(pick(d.n))}</a>` : esc(pick(d.n))}</td><td>${num(d.at)}</td><td>${fx}</td></tr>`;
+          const info = decreeInfo(d.g);
+          return `<tr><td>${d.t}</td><td>${img(d.i, 'ic')} ${first ? `<a href="#i=${first}">${esc(pick(d.n))}</a>` : esc(pick(d.n))}</td><td>${num(d.at)}</td><td>${info ? `<b>${esc(info)}</b><br>` : ''}${fx}</td></tr>`;
         })
         .join('');
       return `<h3 class="d-sub">${img(m.i, 'ic')} ${m.base[0] ? `<a href="#i=${m.base[0]}">${esc(pick(m.n))}</a>` : esc(pick(m.n))} <span class="note">${esc(
         t('d.palAttr', { n: num(m.at) }),
       )}</span></h3>
-        <p>${esc(t('d.palBase'))}: ${m.base.map(fxOf).join(' · ')}</p>
+        <p>${esc(ministryInfo(m.k))}</p>
+        <p class="note">${esc(t('d.palBase'))}: ${m.base.map(fxOf).join(' · ')}</p>
         <table class="d-table"><thead><tr><th>#</th><th>${esc(t('d.palDecree'))}</th><th>${esc(t('d.palUnlock'))}</th><th>${esc(t('d.effects'))}</th></tr></thead><tbody>${decrees}</tbody></table>`;
     })
     .join('');
