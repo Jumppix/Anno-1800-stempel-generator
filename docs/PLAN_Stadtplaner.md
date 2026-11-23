@@ -992,3 +992,26 @@ Messung Insel 2 (6er, Seeds 1/2): Verwaltung + Freigeisterreform 794.000 / 794.9
 Regionalministeriums (≈ 95 Pflasterkacheln) – mit allen Rathäusern wären es ≈ 811.700.
 Hinweis: „Rathausreform“ (+200 Attraktivität je Rathaus) ist nicht der 4. Platz – das ist die
 „Freigeisterreform“; je Ministerium ist nur eine Richtlinie aktiv.
+
+## 31. Automatische Standards (23.11.2026)
+
+`src/plannerDefaults.ts`: Schalter folgen anderen Einstellungen, solange der Nutzer sie nicht von Hand ändert
+(gelb markiert, „Automatik wiederherstellen“):
+
+| Schalter | Regel |
+| --- | --- |
+| Ministerium | an bei Wohlfahrt oder Verwaltung im Regionalministerium der Wohninsel, sonst aus |
+| Genug Ingenieure für die Kraftwerke | aus bei Verwaltung (Arbeitskraft je Rathaus) |
+| Universität | aus bei Bauweise 4-5 |
+| Drogerie | an (jede Bauweise hat Ingenieure 3 oder Investoren 5) |
+| Briefkästen | aus bei „Keine Post“ |
+| Lufthafen | nur mit regionaler/Übersee-Post |
+| Lieferdienst-Waren | gesperrt und aus ohne Rathaus-Items |
+| 4. Rathaus-Item | nur sichtbar mit Verwaltung + Freigeisterreform |
+| Schichten | „wie im Stempel“, wenn der geladene Stempel Ingenieur-/Investorenhäuser enthält |
+
+Palast-Dialog: je ein Regionalministerium für Wohninsel (Stadtplaner), Produktions-/Baumaterialinsel
+(Produktion & Handelskammer, Guide) und Haupthafen (Hafenmeistereien); Standard Verwaltung +
+Freigeisterreform / Arbeit + Fabrikinspektionen / Handel + Hafenbevorratung, Attraktivität 33.000,
+Flügel aus Weltbevölkerung (Profilstufe).
+

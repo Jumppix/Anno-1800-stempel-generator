@@ -55,9 +55,11 @@ die Nebenbedingung Attraktivität ≥ 33.000.
 3. **Stadt**: wie bisher (Gitter, Rathäuser, Läden, Hochhaus-Stufen), aber mit allen Ministerien:
    Wohlfahrt-Reichweiten, Verwaltung-Arbeitskraft je Rathaus (deckt Handwerker für Läden), 4. Rathaus-Item
    oder Rathausreform.
-4. **Kulturviertel**: Zoo, Museum, Botanischer Garten (Module), Weltausstellung, Forschungsinstitut, Zierde –
-   so viel, dass **Attraktivität ≥ 33.000**, bei geringstem Verlust an Wohnfläche (Attraktivität je Kachel
-   sortiert, Sets der Nutzer-Sammlung).
+4. **Attraktivität in fester Reihenfolge** (Vorgabe des Nutzers, Details Abschnitt 10): erst was ohnehin da
+   ist oder mit der Stadt skaliert (Palast/Flügel, Rathausreform, Sets mit Attraktivität **je Rathaus/
+   Handelskammer**, Items), Zoo/Museum/Botanischer Garten **erst ganz am Ende** und nur so viel, wie bis
+   **33.000** fehlt – dann mit den Sets mit der höchsten Attraktivität je Kachel (gleiche Sets dürfen sich
+   wiederholen).
 5. **Hafen**: Hafenplaner mit Handelsministerium → Hafenmeistereien standardmäßig an (Lager +1.200 t je HM).
 6. **Bewertung**: Einwohner maximal unter Attraktivität ≥ 33.000; Anzeige Attraktivität je Quelle und
    Prestige-Stufe.
@@ -66,7 +68,7 @@ die Nebenbedingung Attraktivität ≥ 33.000.
 
 - Palastinsel fest; Palast-Einstellungen (Richtlinien je Ministerium) aus dem seitenweiten Dialog.
 - Ziel-Attraktivität (Standard 33.000), Anzahl Palastflügel (Grenze nach Profilstufe).
-- Vorhandene Kultur: welche Zoo-/Museums-/Garten-Sets der Nutzer besitzt (sonst Schätzwert je Modul).
+- Kultur: Standard „alle Sets herstellbar“ (Forschungsinstitut); Kulturgebäude nur als letzte Stufe.
 - Rathausreform vs. Freigeisterreform automatisch vergleichen oder fest wählen.
 
 ## 6. Was gebraucht wird
@@ -83,7 +85,7 @@ die Nebenbedingung Attraktivität ≥ 33.000.
 1. Datenbank: Attraktivität (Gebäude, Ornamente, Kultur-Items, Sets) + Anzeige; Rechner „Attraktivität“.
 2. Palast als Gebäude im Planer (Platzierung, Flügel, Reichweite) statt Regionalministerium.
 3. Alle Ministerien gleichzeitig im Einwohnermodell (Verwaltung + Wohlfahrt + 4. Rathaus-Platz).
-4. Kulturviertel-Platzierung mit Nebenbedingung Attraktivität.
+4. Attraktivitäts-Stufen 1–4 (Abschnitt 10) rechnen und anzeigen; Kulturviertel (Stufe 5) nur für den Rest.
 5. Hafenplaner (PLAN_Kueste.md) einbinden.
 6. Kalibrierung mit dem Spielstand des Nutzers.
 
@@ -134,3 +136,51 @@ Flügel 15 je Stück (z. B. 60 → 900) + Speicherstadt 150 + Module + Weltausst
 Abzüge der Industrie. Der Rest kommt aus Zierde oder einer zweiten Kulturgruppe; der Planer wählt die
 Variante mit dem geringsten Einwohnerverlust (Freigeisterreform statt Rathausreform kostet 5.000
 Attraktivität, bringt ≈ 22.000 Einwohner).
+
+## 10. Reihenfolge der Attraktivität (Vorgabe 23.11.2026, Spieldaten geprüft)
+
+Zoo, Museum und Botanischer Garten kosten viel Fläche und kommen **ganz zum Schluss**. Ausnahme sind Sets,
+deren Set-Bonus Attraktivität **je Rathaus oder Handelskammer** gibt – sie wachsen mit der Stadt. Gleiche Sets
+geben erneut volle Attraktivität (Angabe des Nutzers); Modulgrenze unbekannt (Spieldaten: 100 je Gebäude –
+im Spiel prüfen).
+
+**Set-Boni mit Attraktivität** (ItemSet → SetBuff, BuffScope „Area“ = vermutlich ganze Insel):
+
+| Set | Gebäude, Module | Items + Privatsammlungen | Set-Bonus | Bei 25 Rathäusern + 6 HK |
+| --- | --- | --- | --- | --- |
+| **Götter des Deltas** | Museum, 3 | 130 + 250 | **+30 je Rathaus und je Handelskammer** | **+930** (zusammen 1.310) |
+| **Regenwald** | Zoo, 6 | 210 + 250 | **+30 je Handelskammer** | +180 (zusammen 640) |
+| Kulturen der Ägäis | Museum, 6 | 240 + 250 | +5 je Varieté, Museum, Funkturm | klein |
+| Leuchtkreaturen | Zoo, 3 | 90 + 250 | +3 je Wirtshaus, Varieté, Clubhaus, Einkaufspassage, Restaurant | klein |
+| Großes Korallenriff | Zoo, 6 | 130 + 250 | +2 je Arbeiter-/Handwerkerhaus | nur mit vielen solchen Häusern |
+| Ausgestorbene Arten / Schneeflocken | Zoo, 3 / 6 | 150 / 290 + 250 | +10 % / +20 % auf den Zoo | nur wenn ohnehin ein großer Zoo steht |
+| Arktische Tundra / Sargassosee | Zoo, 3 / Garten, 6 | 90 / 130 + 250 | +100 / +50 je Besucherhafen | einmal |
+
+Offen (Spieltest): ob der Set-Bonus eines zweiten gleichen Sets erneut wirkt (+30 je Rathaus doppelt) –
+bis dahin rechnet der Planer ihn **einmal**; die Attraktivität der Items und Privatsammlungen zählt je Set.
+
+**Weitere skalierende Quellen**:
+- Rathausreform +200 je Rathaus (Palast, Verwaltung) – gegen Freigeisterreform abwägen (Abschnitt 2).
+- Rathaus-Items auf das Rathaus selbst: Internationales Liberales Kunst- und Handwerksforum +50,
+  Großes Forum Wissenschaft/Literatur +40, Kleines Forum Landwirtschaft/Industrie +30 – kosten einen
+  Rathaus-Platz (nur sinnvoll mit 4. Platz oder wo Zofe/Lieferdienst/Saint D'Artois nicht gebraucht werden);
+  Nates Raketen/Lichterspiel +1 je Wohnhaus im Radius.
+- Handelskammer-Items: Eisen-Glas-Gerüst +3 / Doppelgerüst +2 je Produktionsgebäude im Radius,
+  Dekorateur +50 je Einkaufspassage, Marie-Louise Carême +30 je Restaurant.
+- Feste Werte: Palast +150, Flügel +15 (≈ 1,7 je Kachel – Flügel nur für die Reichweite), Speicherstadt
+  +150 und +15 je Modul, Weltausstellung, Forschungsinstitut je +150, Monumente.
+
+**Stufen im Planer** (jeweils nur, solange 33.000 nicht erreicht sind):
+1. Palast + Flügel (aus Reichweite), Monumente/Speicherstadt, sofern geplant.
+2. Rathausreform, wenn sie mehr Attraktivität je verlorenem Einwohner bringt als Stufe 5.
+3. **Ein kleines Museum mit Götter des Deltas** (3 Module) und, ab mehreren Handelskammern, ein Zoo mit
+   Regenwald – skalieren mit Rathäusern/Handelskammern.
+4. Items mit Attraktivität in freien Rathaus-/Handelskammer-Plätzen.
+5. **Zuletzt** Kulturfläche: Sets nach Attraktivität je Kachel (Items + 250, Modulfläche Zoo 24, Museum/
+   Garten 20), gleiche Sets wiederholt. Beste: Museum-3er-Sets ≈ 5,8–6,5 je Kachel (Ursprung der Menschheit
+   390, Götter des Deltas 380, Adlerreich 380 …), Zoo „Ausgestorbene Arten“ 5,6, Garten „Anden“ 5,5;
+   6er-Sets und Zoo/Garten-Sets deutlich weniger. Ein Museum (5×8) mit z. B. 30 Modulen aus 3er-Sets
+   ≈ 3.800 Attraktivität auf ≈ 640 Kacheln.
+
+Damit fällt „alle Sets in allen Bereichen“ (≈ 20.000 auf sehr großer Fläche, Abschnitt 9) als Plan weg;
+er bleibt nur Obergrenze.

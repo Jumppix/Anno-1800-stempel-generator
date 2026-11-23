@@ -205,7 +205,9 @@ die Küste auf **maximalen Lagerplatz** – zusammen mit der Stadt (Straßenansc
   **Standard nach den Palast-Einstellungen:** an, wenn auf dieser Insel das Ministerium für Handel wirkt
   (Palastinsel mit freigeschaltetem Handelsministerium ab 1.350 Attraktivität, oder Regionalministerium
   mit Ministerium „Handel“), sonst aus. Eine Änderung durch den Nutzer bleibt erhalten, bis er sie
-  zurücksetzt.
+  zurücksetzt. Umgesetzt als `harborOfficesDefault()` in `src/palaceSettings.ts` (Regionalministerium
+  „Haupthafen“ im Palast-Dialog; Muster für die Übersteuerung: `src/plannerDefaults.ts`). Bei
+  Hafenbevorratung Depots bevorzugt in Radien von Hafenmeistereien/Speicherstadt (+50 je Depot).
 
 ### 6.1 Lagerplatz (Spieldaten)
 
