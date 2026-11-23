@@ -33,6 +33,8 @@ export type BuildingKind =
   | 'airport'
   | 'airportModule'
   | 'localDepartment'
+  | 'palace'
+  | 'palaceWing'
   | 'warehouse'
   | 'production'
   | 'other';
@@ -86,6 +88,14 @@ export const CATALOG_LIST: readonly CatalogEntry[] = [
   E({ guid: 964, kind: 'airportModule', name: 'Item-Terminal', size: [5, 3] }),
   E({ guid: 966, kind: 'airportModule', name: 'Luftpostlager', size: [5, 3] }),
   E({ guid: 269602, kind: 'localDepartment', name: 'Regionalministerium', size: [8, 5] }),
+  // Palast (Spieldaten 249947, 9×9) und Flügel (alle Varianten 3×3; die Variante ist nur Optik).
+  E({ guid: 249947, kind: 'palace', name: 'Palast', size: [9, 9] }),
+  E({ guid: 249950, kind: 'palaceWing', name: 'Palastflügel', size: [3, 3] }),
+  E({ guid: 269083, kind: 'palaceWing', name: 'Palastflügel – Ecke', size: [3, 3] }),
+  E({ guid: 269084, kind: 'palaceWing', name: 'Palastflügel – Kreuzung', size: [3, 3] }),
+  E({ guid: 269085, kind: 'palaceWing', name: 'Palastflügel – Ende', size: [3, 3] }),
+  E({ guid: 269086, kind: 'palaceWing', name: 'Palastflügel – Tor', size: [3, 3] }),
+  E({ guid: 269549, kind: 'palaceWing', name: 'Palastflügel – Verbindung', size: [3, 3] }),
   E({ guid: 1010371, kind: 'warehouse', name: 'Lagerhaus', size: [5, 5] }),
 ];
 

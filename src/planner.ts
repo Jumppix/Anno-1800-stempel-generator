@@ -817,8 +817,8 @@ export function editCity(
     if (!sv) return fail('Gebäude nicht gefunden.');
     const group = sv.owner !== undefined ? services.map((x, i) => ({ x, i })).filter((p) => p.x.owner === sv.owner) : [{ x: sv, i: target.index }];
     parts = group.map((p) => ({ x: p.x.x, y: p.x.y, w: p.x.w, h: p.x.h, si: p.i }));
-    label = sv.owner !== undefined ? 'Lufthafen-Komplex' : sv.name;
-    if (op.type === 'rotate' && sv.owner !== undefined) return fail('Komplexe (Lufthafen mit Modulen) lassen sich nicht drehen.');
+    label = sv.owner !== undefined ? (sv.kind === 'palace' || sv.kind === 'palaceWing' ? 'Palast-Komplex' : 'Lufthafen-Komplex') : sv.name;
+    if (op.type === 'rotate' && sv.owner !== undefined) return fail('Komplexe (Lufthafen, Palast mit Flügeln) lassen sich nicht drehen.');
   }
   // Alte Fläche freimachen.
   for (const p of parts) for (let dy = 0; dy < p.h; dy++) for (let dx = 0; dx < p.w; dx++) cell[(p.y + dy) * w + p.x + dx] = FREE;
@@ -1021,7 +1021,7 @@ export function improveRoads(
   city: CityPlan,
   options: {
     deadline: number;
-    ministry?: { range: number; welfare: number; web: number };
+    ministry?: ServiceOptions['ministry'];
     insert: boolean;
     thin: boolean;
     onProgress?: (phase: 'insert' | 'thin', count: number, houses: number) => void;

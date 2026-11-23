@@ -13,8 +13,9 @@ import type { PlannerJob, PlannerMessage } from './planner.worker';
 import { CLIPPABLE, lookup, type BuildingKind } from './catalog';
 import type { ProductionRequest } from './production';
 import type { LevelMode } from './levels';
-import { cityWideWebBonus, localDepartmentRange, welfareBonus, type RuleConfig } from './rules';
+import { cityWideWebBonus, hasMinistry, localDepartmentRange, ministryReach, welfareBonus, type RuleConfig } from './rules';
 import type { PostReport } from './post';
+import type { ServiceOptions } from './services';
 
 const SERVICE_KINDS_UI: BuildingKind[] = [
   'departmentStore',
@@ -266,7 +267,9 @@ export class PlannerUi {
       ? prod.map((r) => `${r.count}× ${CLIPPABLE.find((c) => c.guid === r.guid)?.name ?? r.guid}`).join(', ')
       : 'keine';
     const r = this.cityUi.currentRules();
-    const ministry = r.ministry === 'welfare' ? 'Wohlfahrt' : r.ministry === 'labour' ? 'Arbeit' : r.ministry === 'city' ? 'Verwaltung' : 'ohne Ministerium';
+    const ministry = r.palace
+      ? 'Palast (Crown Falls)'
+      : r.ministry === 'welfare' ? 'Wohlfahrt' : r.ministry === 'labour' ? 'Arbeit' : r.ministry === 'city' ? 'Verwaltung' : 'ohne Ministerium';
     el<HTMLElement>('#sum-rules').textContent = `${ministry} · Zeitung −${
       el<HTMLInputElement>('#rule-reduction').value || 0
     } %`;
@@ -567,9 +570,15 @@ export class PlannerUi {
   }
 
   /** Regionalministerium (Reichweite, Wohlfahrt, Stadtweites Netz) aus den Regeln. */
-  private ministryOption(): { range: number; welfare: number; web: number; townHalls?: boolean } | undefined {
+  private ministryOption(): ServiceOptions['ministry'] {
     const rules = this.cityUi.currentRules();
-    return el<HTMLInputElement>('#plan-ministry').checked && rules.ministry !== 'none'
+    if (!el<HTMLInputElement>('#plan-ministry').checked) return undefined;
+    // Palastinsel: Palast mit den Flügeln aus den Palast-Einstellungen (auch ohne freie Ministerien)
+    if (rules.palace) {
+      const wings = Math.max(0, Math.min(rules.palaceWings, Math.round(Number(el<HTMLInputElement>('#plan-wings').value) || 0)));
+      return { range: ministryReach(rules, wings), welfare: welfareBonus(rules), web: cityWideWebBonus(rules), townHalls: hasMinistry(rules, 'city'), palace: { wings } };
+    }
+    return rules.ministry !== 'none'
       ? { range: localDepartmentRange(rules), welfare: welfareBonus(rules), web: cityWideWebBonus(rules), townHalls: rules.ministry === 'city' }
       : undefined;
   }
@@ -627,7 +636,7 @@ export class PlannerUi {
       items.push(
         `Versorgung: ${SERVICE_KINDS_UI.filter((k) => s.placed[k])
           .map((k) => `${s.placed[k]}× ${short[k]}`)
-          .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · Regionalministerium (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
+          .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · ${this.cityUi.currentRules().palace ? 'Palast' : 'Regionalministerium'} (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
           s.airport.placed
             ? ` · Lufthafen${this.currentHarbor() ? ` ${s.airport.distance} Kacheln von der Anlegestelle` : ''}, ${s.airport.houses} Häuser verdrängt`
             : el<HTMLInputElement>('#plan-airport').checked

@@ -81,6 +81,67 @@ export const SERVICE_SPECS: readonly ServiceSpec[] = [
 
 export const WAREHOUSE_GUID = 1010371;
 export const MINISTRY_GUID = 269602;
+/** Palast (9×9) und Palastflügel (3×3) – Palastinsel (Crown Falls). */
+export const PALACE_GUID = 249947;
+export const PALACE_WING_GUID = 249950;
+export const PALACE_OWNER = 9002;
+
+/**
+ * Anordnung des Palasts mit `wings` Flügeln als Rechteck aus 3×3-Feldern: Palast unten
+ * in der Mitte (seine Unterkante liegt außen, dort hängt er an der Straße), Flügel
+ * links, rechts und darüber, alle über Nachbarn mit dem Palast verbunden. Felder in
+ * 3er-Schritten; nicht gebrauchte Felder (obere Ecken) bleiben frei.
+ */
+export function palaceComplex(wings: number): { w: number; h: number; palace: [number, number]; wings: Array<[number, number]> } {
+  const n = Math.max(0, Math.round(wings));
+  let best: { a: number; b: number; area: number; skew: number } | null = null;
+  for (let a = 0; a <= 30; a++) {
+    for (let b = 0; b <= 60; b++) {
+      const cap = (3 + 2 * a) * (3 + b) - 9;
+      if (cap < n) continue;
+      const W = 9 + 6 * a;
+      const H = 9 + 3 * b;
+      const area = W * H;
+      const skew = Math.abs(W - H);
+      if (!best || area < best.area || (area === best.area && skew < best.skew)) best = { a, b, area, skew };
+      break;
+    }
+  }
+  const { a, b } = best ?? { a: 0, b: 0 };
+  const cols = 3 + 2 * a;
+  const rows = 3 + b;
+  // Felder nach Abstand (Nachbarschaft) vom Palast, nahe zuerst → zusammenhängend.
+  const isPalace = (c: number, r: number): boolean => c >= a && c < a + 3 && r >= b && r < b + 3;
+  const dist = new Map<string, number>();
+  const queue: Array<[number, number]> = [];
+  for (let c = a; c < a + 3; c++) for (let r = b; r < b + 3; r++) {
+    dist.set(`${c},${r}`, 0);
+    queue.push([c, r]);
+  }
+  for (let q = 0; q < queue.length; q++) {
+    const [c, r] = queue[q];
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc;
+      const nr = r + dr;
+      if (nc < 0 || nr < 0 || nc >= cols || nr >= rows || dist.has(`${nc},${nr}`)) continue;
+      dist.set(`${nc},${nr}`, (dist.get(`${c},${r}`) as number) + 1);
+      queue.push([nc, nr]);
+    }
+  }
+  const cells = queue.filter(([c, r]) => !isPalace(c, r)).slice(0, n);
+  return { w: cols * 3, h: rows * 3, palace: [a * 3, b * 3], wings: cells.map(([c, r]) => [c * 3, r * 3]) };
+}
+
+/** Rechteck des Ministeriums für Reichweiten: Regionalministerium oder Palast mit Flügeln. */
+export function ministryRect(services: readonly PlacedService[]): { x: number; y: number; w: number; h: number } | undefined {
+  const dep = services.find((sv) => sv.kind === 'localDepartment');
+  if (dep) return dep;
+  const parts = services.filter((sv) => sv.kind === 'palace' || sv.kind === 'palaceWing');
+  if (!parts.length) return undefined;
+  const x = Math.min(...parts.map((p) => p.x));
+  const y = Math.min(...parts.map((p) => p.y));
+  return { x, y, w: Math.max(...parts.map((p) => p.x + p.w)) - x, h: Math.max(...parts.map((p) => p.y + p.h)) - y };
+}
 export const AIRPORT_GUID = 962;
 export const AIRPORT_MODULES = [966, 964];
 const AIRPORT_OWNER = 9001;
@@ -115,7 +176,14 @@ export interface ServiceOptions {
    * betroffen.
    */
   /** `townHalls`: Ministerium für Verwaltung – möglichst viele Rathäuser in Reichweite. */
-  ministry?: { range: number; welfare: number; web: number; townHalls?: boolean };
+  ministry?: {
+    range: number;
+    welfare: number;
+    web: number;
+    townHalls?: boolean;
+    /** Palastinsel: Palast mit so vielen Flügeln statt Regionalministerium (Reichweite 71 + 3 je Flügel). */
+    palace?: { wings: number };
+  };
   /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
   keepRoads?: boolean;
   /**
@@ -288,12 +356,12 @@ export function placeServices(
   };
 
   /** Alle zulässigen Plätze für eine Fläche bw×bh (Häuser/Straßen dürfen weichen). */
-  const candidatesFor = (guid: number): Candidate[] => {
+  const candidatesFor = (guid: number, rect?: { w: number; h: number; maxRoads: number }): Candidate[] => {
     const entry = lookup(guid);
     const out: Candidate[] = [];
     const seenShape = new Set<string>();
     for (const turns of [0, 1]) {
-      const { w: bw, h: bh } = footprint(entry, turns);
+      const { w: bw, h: bh } = rect ? (turns ? { w: rect.h, h: rect.w } : rect) : footprint(entry, turns);
       const shape = `${bw}x${bh}`;
       if (seenShape.has(shape)) continue;
       seenShape.add(shape);
@@ -317,7 +385,7 @@ export function placeServices(
           if (!ok) continue;
           // Straßen unter der Fläche nur als Querstraßen-Stück (höchstens eine Zeile/Spalte),
           // nie ein Brückenkopf.
-          if (roads.length > (options.keepRoads ? 0 : Math.max(bw, bh)) || roads.some((i) => touchesBridge(cell, w, i))) continue;
+          if (roads.length > (options.keepRoads ? 0 : (rect?.maxRoads ?? Math.max(bw, bh))) || roads.some((i) => touchesBridge(cell, w, i))) continue;
           const starts = ring(x, y, bw, bh).filter((i) => cell[i] === ROAD);
           if (!starts.length) continue;
           let cost = 0;
@@ -644,6 +712,61 @@ export function placeServices(
     }
   }
 
+  // --- Palast-Komplex: Ausrichtung (Palast-Seite zur Straße) und Platzierung.
+  type Complex = ReturnType<typeof palaceComplex>;
+  /** Lage des Palasts im Rechteck je Drehung (0 = unten, 1 = rechts, 2 = oben, 3 = links). */
+  const palaceRects = (c: Candidate, pal: Complex): Array<{ px: number; py: number; wings: Array<[number, number]> }> => {
+    const out: Array<{ px: number; py: number; wings: Array<[number, number]> }> = [];
+    const turned = c.turns === 1;
+    for (let side = 0; side < 4; side++) {
+      // Nur Drehungen, die zur Form des Kandidaten passen
+      const swap = side % 2 === 1;
+      if (pal.w !== pal.h && swap !== turned) continue;
+      const tf = ([x, y]: [number, number], size: number): [number, number] => {
+        // Koordinaten im ungedrehten Komplex (Palast unten) → gedreht
+        if (side === 0) return [x, y];
+        if (side === 2) return [pal.w - size - x, pal.h - size - y];
+        if (side === 1) return [pal.h - size - y, x];
+        return [y, pal.w - size - x];
+      };
+      const [px, py] = tf(pal.palace, 9);
+      out.push({ px: c.x + px, py: c.y + py, wings: pal.wings.map((wg) => {
+        const [x, y] = tf(wg, 3);
+        return [c.x + x, c.y + y] as [number, number];
+      }) });
+    }
+    return out;
+  };
+  /** Beste Drehung: die meisten Straßen an der Palastkante; −1 = Palast ohne Straße. */
+  const palaceSide = (c: Candidate): number => {
+    if (!palaceComplexOf) return -1;
+    let best = -1;
+    let most = 0;
+    palaceRects(c, palaceComplexOf).forEach((r, k) => {
+      const n = ring(r.px, r.py, 9, 9).filter((i) => cell[i] === ROAD && !c.roads.includes(i)).length;
+      if (n > most) {
+        most = n;
+        best = k;
+      }
+    });
+    return best;
+  };
+  let palaceComplexOf: Complex | null = options.ministry?.palace ? palaceComplex(options.ministry.palace.wings) : null;
+  const placePalace = (c: Candidate, pal: Complex): void => {
+    palaceComplexOf = pal;
+    const r = palaceRects(c, pal)[Math.max(0, palaceSide(c))];
+    for (const k of c.houses) removedBy[k]++;
+    // Ganzes Rechteck räumen; nicht gebrauchte Felder werden freies Land.
+    for (let dy = 0; dy < c.h; dy++) for (let dx = 0; dx < c.w; dx++) cell[(c.y + dy) * w + c.x + dx] = FREE;
+    const put = (guid: number, x: number, y: number, size: number): void => {
+      for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) cell[(y + dy) * w + x + dx] = SERVICE;
+      const entry = lookup(guid);
+      services.push({ guid, kind: entry.kind, name: entry.name, x, y, w: size, h: size, turns: 0, owner: PALACE_OWNER });
+    };
+    put(PALACE_GUID, r.px, r.py, 9);
+    for (const [x, y] of r.wings) put(PALACE_WING_GUID, x, y, 3);
+  };
+
   // --- Regionalministerium: zentral, möglichst viele Häuser in Straßenreichweite.
   const inMinistry = new Uint8Array(w * h);
   let ministryStarts: number[] = [];
@@ -661,7 +784,20 @@ export function placeServices(
     const thHouses = options.ministry.townHalls
       ? townHalls.map((t) => s.houses.filter((hs) => Math.hypot(hs.x + 1 - (t.x + 1.5), hs.y + 1 - (t.y + 1.5)) <= 20 + 1e-9).length)
       : [];
-    for (const c of candidatesFor(MINISTRY_GUID)) {
+    // Palastinsel: Palast mit Flügeln als ein Rechteck (Straßen darunter dürfen weg, solange das
+    // Netz hält); nur die günstigsten Plätze werden auf Reichweite geprüft.
+    const pal = options.ministry.palace ? palaceComplex(options.ministry.palace.wings) : null;
+    let cands = pal ? candidatesFor(PALACE_GUID, { w: pal.w, h: pal.h, maxRoads: Infinity }) : candidatesFor(MINISTRY_GUID);
+    if (pal) cands = cands.filter((c) => palaceSide(c) >= 0);
+    let valid = 0;
+    const palDeadline = performance.now() + 4000;
+    for (const c of cands) {
+      if (pal) {
+        // erst gültige Plätze (Netz hält), davon höchstens 200 bzw. ≈ 4 s bewerten
+        if (valid >= 200 || (valid > 0 && performance.now() > palDeadline)) break;
+        if (!stillValid(c)) continue;
+        valid++;
+      }
       bfs(c.starts, mr);
       let n = 0;
       s.houses.forEach((_, k) => {
@@ -676,7 +812,14 @@ export function placeServices(
       const value = n * 3 - c.cost;
       if ((!best || value > best.value) && stillValid(c)) best = { c, value };
     }
-    if (best) {
+    if (best && pal) {
+      placePalace(best.c, pal);
+      ministryStarts = best.c.starts;
+      bfs(best.c.starts, mr);
+      for (let i = 0; i < inMinistry.length; i++) if (gen[i] === g) inMinistry[i] = 1;
+      report.ministry.placed = true;
+      report.ministry.houses = s.houses.filter((_, k) => isAlive(k) && reached(houseRing[k])).length;
+    } else if (best) {
       place(best.c, MINISTRY_GUID);
       ministryStarts = best.c.starts;
       bfs(best.c.starts, mr);

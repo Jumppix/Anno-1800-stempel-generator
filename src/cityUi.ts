@@ -14,6 +14,8 @@ import {
   PANORAMA_NAMES,
   POLICIES,
   welfareBonus,
+  hasMinistry,
+  hasPolicy,
   type GoodNeed,
   type RuleConfig,
   type TierEdits,
@@ -21,6 +23,7 @@ import {
 import { Camera } from './camera';
 import { loadPalace, type PalaceData } from './db/data';
 import { pick } from './i18n';
+import { attractivenessBalance, BEST_MUSEUM_SET, PRIVATE_COLLECTIONS_DECREE } from './attractiveness';
 import { cityPalaceRules, getPalaceSettings, onPalaceSettings, openPalaceDialog } from './palaceSettings';
 import { buildGenericStamp } from './stamp';
 import { decodeStampFull } from './stampReader';
@@ -57,6 +60,8 @@ const KIND_COLORS: Partial<Record<BuildingKind, string>> = {
   airport: '#8aa0b0',
   airportModule: '#8aa0b0',
   localDepartment: '#e2b25f',
+  palace: '#f0c75e',
+  palaceWing: '#c9a24a',
   warehouse: '#a08060',
   production: '#7a9a6a',
   other: '#5a6670',
@@ -112,6 +117,7 @@ export class CityUi {
   private readonly ruleInfo = el<HTMLElement>('#rule-info');
   private readonly layerSelect = el<HTMLSelectElement>('#city-layer');
   private readonly tierMode = el<HTMLSelectElement>('#rule-tiers');
+  private readonly island = el<HTMLSelectElement>('#rule-island');
   private edits: TierEdits = { houses: new Map(), groups: new Map() };
   private nonSky = new Set<number>();
   private readonly stats = el<HTMLElement>('#city-stats');
@@ -160,7 +166,7 @@ export class CityUi {
       download('Katalog_Teststempel_AW', bytes);
       this.load(bytes, 'Katalog-Teststempel');
     });
-    for (const input of [this.tierMode, this.items, this.fourth, this.delivery, this.mail, this.reduction]) {
+    for (const input of [this.island, this.tierMode, this.items, this.fourth, this.delivery, this.mail, this.reduction]) {
       input.addEventListener('change', () => this.readRules());
     }
     this.layerSelect.addEventListener('change', () => {
@@ -196,7 +202,6 @@ export class CityUi {
   /** Palast-Einstellungen übernehmen (Regionalministerium der Stadt). */
   private applyPalace(): void {
     this.readRules();
-    document.dispatchEvent(new CustomEvent('city-rules-changed'));
   }
 
   private fillLayers(): void {
@@ -206,7 +211,7 @@ export class CityUi {
       ['residents', 'Einwohner (Schätzung)'],
       ['townHall', 'Rathaus-Radius'],
       ['post', 'Post-Radius'],
-      ['ministry', 'Regionalministerium'],
+      ['ministry', 'Regionalministerium / Palast'],
       ['clipping', 'Handelskammer / Clipping'],
     ];
     const services = SERVICE_KINDS.map((k) => [k, `Versorgung: ${KIND_NAMES[k] ?? k}`] as [Layer, string]);
@@ -267,7 +272,7 @@ export class CityUi {
   private readRules(): void {
     this.rules = {
       ...this.rules,
-      ...cityPalaceRules(getPalaceSettings(), this.palaceData),
+      ...cityPalaceRules(getPalaceSettings(), this.palaceData, this.island.value === 'palace' ? 'palace' : 'city'),
       welfareForInstitutions: false,
       tierMode: this.tierMode.value === 'stamp' ? 'stamp' : 'groups',
       townHallItems: this.items.checked,
@@ -278,6 +283,7 @@ export class CityUi {
     };
     this.updateRuleInfo();
     this.reanalyze();
+    document.dispatchEvent(new CustomEvent('city-rules-changed'));
   }
 
   private updateRuleInfo(): void {
@@ -285,18 +291,26 @@ export class CityUi {
     const ps = getPalaceSettings();
     const reg = this.palaceData?.ministries.find((m) => m.k === ps.regional.city.ministry);
     const pol = POLICIES.find((p) => p.id === r.policy);
-    this.palaceInfo.textContent = `Regionalministerium (Wohninsel): ${reg ? pick(reg.n) : ps.regional.city.ministry}${
-      r.ministry === 'none' && reg && ps.attr < reg.at ? ` (gesperrt, ab ${num(reg.at)} Attraktivität)` : ''
-    }${pol ? ` · ${pol.name}` : ''} · Flügel ${r.palaceWings} · Prestige ${r.prestige} (Attraktivität ${num(ps.attr)})`;
-    const parts = [
-      `Palast ${palaceRange(r)}`,
-      `Regionalministerium ${localDepartmentRange(r)} Straßenkacheln`,
-    ];
-    if (r.ministry === 'welfare') parts.push(`öffentliche Gebäude +${welfareBonus(r)} (Universität, Bankhaus, Varieté, Clubhaus, Kraftwerke u. a.; nicht Feuerwache/Polizei/Hospital/Läden)`);
-    if (r.ministry === 'labour') parts.push('Ministerium für Arbeit wirkt nur auf Produktion (siehe Produktion & Handelskammer)');
-    if (r.ministry === 'city') {
+    if (r.palace) {
+      const names: Record<string, string> = { city: 'Verwaltung', welfare: 'Wohlfahrt', labour: 'Arbeit' };
+      const pols = r.palace.policies.map((id) => POLICIES.find((p) => p.id === id)?.name ?? id);
+      this.palaceInfo.textContent = `Palast (Crown Falls): ${r.palace.ministries.map((m) => names[m] ?? m).join(', ') || 'keine Ministerien frei'}${
+        pols.length ? ` · ${pols.join(', ')}` : ''
+      } · Flügel ${r.palaceWings} · Prestige ${r.prestige} (Attraktivität ${num(ps.attr)})`;
+    } else {
+      this.palaceInfo.textContent = `Regionalministerium (Wohninsel): ${reg ? pick(reg.n) : ps.regional.city.ministry}${
+        r.ministry === 'none' && reg && ps.attr < reg.at ? ` (gesperrt, ab ${num(reg.at)} Attraktivität)` : ''
+      }${pol ? ` · ${pol.name}` : ''} · Flügel ${r.palaceWings} · Prestige ${r.prestige} (Attraktivität ${num(ps.attr)})`;
+    }
+    const parts = r.palace
+      ? [`Palast ${palaceRange(r)} Straßenkacheln (mit ${r.palaceWings} Flügeln; im Plan zählen die gebauten)`]
+      : [`Palast ${palaceRange(r)}`, `Regionalministerium ${localDepartmentRange(r)} Straßenkacheln`];
+    if (hasMinistry(r, 'welfare')) parts.push(`öffentliche Gebäude +${welfareBonus(r)} (Universität, Bankhaus, Varieté, Clubhaus, Kraftwerke u. a.; nicht Feuerwache/Polizei/Hospital/Läden)`);
+    if (hasMinistry(r, 'labour')) parts.push('Ministerium für Arbeit wirkt nur auf Produktion (siehe Produktion & Handelskammer)');
+    if (hasMinistry(r, 'city')) {
       parts.push(`je Rathaus im Bereich +${num(cityWorkforcePerTownHall(r))} Bauern, Arbeiter, Handwerker und Ingenieure`);
-      if (r.policy === 'freethinkers') parts.push(`4. Rathaus-Item: +${r.fourthItem} je Bedürfnis`);
+      if (hasPolicy(r, 'freethinkers')) parts.push(`4. Rathaus-Item: +${r.fourthItem} je Bedürfnis`);
+      if (hasPolicy(r, 'townHallReform')) parts.push('Rathausreform: +200 Attraktivität je Rathaus');
     }
     const web = cityWideWebBonus(r);
     if (web) parts.push(`Kraftwerke zusätzlich +${web}`);
@@ -488,6 +502,20 @@ export class CityUi {
       };
       rows.push(line('Handwerker', wf.artisan), line('Ingenieure', wf.engineer));
       if (wf.perTownHall) rows.push(`<div><span>Rathäuser im Ministeriumsbereich</span><strong>${num(wf.townHalls)} × ${num(wf.perTownHall)}</strong></div>`);
+    }
+    // Palastinsel: Attraktivität gegen das Ziel (Kulturfläche zuletzt)
+    if (this.rules.palace) {
+      const ps = getPalaceSettings();
+      const bal = attractivenessBalance(c, a, this.rules, { privateCollections: ps.palace.Culture === PRIVATE_COLLECTIONS_DECREE, deltaSet: true });
+      rows.push(`<div class="wide sec"><span>Attraktivität (Ziel ${num(bal.target)})</span><strong>${num(bal.total)}</strong></div>`);
+      for (const l of bal.lines) rows.push(`<div class="wide"><span title="${escapeHtml(l.note ?? '')}">${escapeHtml(l.label)}</span><strong>+${num(l.value)}</strong></div>`);
+      rows.push(
+        bal.missing > 0
+          ? `<div class="wide"><span>Rest aus Kultur: ${num(bal.culture.sets)}× „${escapeHtml(BEST_MUSEUM_SET.name)}“ (je ${num(bal.culture.perSet)}) = ${num(bal.culture.modules)} Museumsmodule${
+              bal.culture.museums ? `, ${bal.culture.museums} weitere${bal.culture.museums === 1 ? 's Museum' : ' Museen'}` : ''
+            }</span><strong><small class="neg">−${num(bal.missing)}</small> ≈ ${num(bal.culture.tiles)} Kacheln</strong></div>`
+          : `<div class="wide"><span>Ziel erreicht</span><strong><small class="pos">✓</small></strong></div>`,
+      );
     }
     if (t.skyscrapers) {
       rows.push(
@@ -904,7 +932,7 @@ export class CityUi {
 
   private isHighlighted(b: CityBuilding, a: Analysis): boolean {
     if (this.layer === 'ministry') {
-      return b.entry.kind === 'localDepartment' || a.services.some((s) => s.building === b && s.inMinistry);
+      return b.entry.kind === 'localDepartment' || b.entry.kind === 'palace' || b.entry.kind === 'palaceWing' || a.services.some((s) => s.building === b && s.inMinistry);
     }
     return this.layer === b.entry.kind;
   }
@@ -936,6 +964,7 @@ export class CityUi {
       airport: 'LH',
       airportModule: 'M',
       localDepartment: 'RM',
+      palace: 'PAL',
       warehouse: 'LG',
       production: 'P',
     };

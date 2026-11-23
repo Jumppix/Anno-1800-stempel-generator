@@ -28,6 +28,7 @@ import {
 } from './planner';
 import type { PostReport } from './post';
 import type { ProductionOptions } from './production';
+import type { ServiceOptions } from './services';
 import { mailResidentsFor, mailTypes, type RuleConfig } from './rules';
 import type { MipSolver, ServiceReport } from './services';
 import { solve, type LandMask } from './solver';
@@ -51,7 +52,7 @@ export interface PassInput {
   goal: number;
   deliveryGoods: boolean;
   townHallItems: boolean;
-  ministry?: { range: number; welfare: number; web: number; townHalls?: boolean };
+  ministry?: ServiceOptions['ministry'];
   airport?: { harbor: { x: number; y: number } | null };
   production?: ProductionOptions;
   levelMode: LevelMode;

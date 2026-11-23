@@ -17,7 +17,7 @@ import { lookup, type BuildingKind } from './catalog';
 import { FREE, isWay, realignLanes, ROAD, type FillState } from './fill';
 import { PRODUCTION_WAREHOUSE_RANGE } from './production';
 import { UNIVERSITY_MAX_RANGE, universityFactor } from './rules';
-import { SERVICE_SPECS, type PlacedService } from './services';
+import { ministryRect, SERVICE_SPECS, type PlacedService } from './services';
 
 export interface ThinOptions {
   deadline: number;
@@ -104,7 +104,7 @@ export function thinCrossRoads(s: FillState, services: readonly PlacedService[],
   };
 
   // --- Ministerium: Bereich und betroffene Gebäude
-  const ministrySv = options.ministry ? services.find((sv) => sv.kind === 'localDepartment') : undefined;
+  const ministrySv = options.ministry ? ministryRect(services) : undefined;
   const ministryRange = options.ministry?.range ?? 0;
   const inMinistryOf = (cell: Uint8Array): Uint8Array => {
     const m = new Uint8Array(services.length);

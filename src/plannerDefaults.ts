@@ -4,6 +4,7 @@
 // „Automatik wiederherstellen“ klickt.
 import { loadPalace, type PalaceData } from './db/data';
 import { cityPalaceRules, getPalaceSettings, onPalaceSettings } from './palaceSettings';
+import { hasMinistry, hasPolicy } from './rules';
 
 const KEY = 'anno-planer:overrides:v1';
 
@@ -27,20 +28,21 @@ let palaceData: PalaceData | null = null;
 /** Enthält der zuletzt geladene Stempel Ingenieur-/Investorenhäuser? */
 let stampTiers: boolean | null = null;
 
-const cityMinistry = (): ReturnType<typeof cityPalaceRules> => cityPalaceRules(getPalaceSettings(), palaceData);
+const cityMinistry = (): ReturnType<typeof cityPalaceRules> =>
+  cityPalaceRules(getPalaceSettings(), palaceData, value('rule-island') === 'palace' ? 'palace' : 'city');
 
 const RULES: readonly AutoRule[] = [
   {
     id: 'plan-ministry',
     value: () => {
-      const m = cityMinistry().ministry;
-      return m === 'welfare' || m === 'city';
+      const r = cityMinistry();
+      return !!r.palace || hasMinistry(r, 'welfare') || hasMinistry(r, 'city');
     },
-    why: 'an, wenn das Regionalministerium der Wohninsel (Palast-Einstellungen) hier wirkt: Wohlfahrt oder Verwaltung',
+    why: 'an auf der Palastinsel (Palast) oder wenn das Regionalministerium der Wohninsel hier wirkt: Wohlfahrt oder Verwaltung',
   },
   {
     id: 'plan-engineers',
-    value: () => cityMinistry().ministry !== 'city',
+    value: () => !hasMinistry(cityMinistry(), 'city'),
     why: 'aus bei Verwaltung – die Arbeitskraft je Rathaus deckt die Ingenieure der Kraftwerke',
   },
   {
@@ -72,10 +74,14 @@ const RULES: readonly AutoRule[] = [
   {
     id: 'rule-fourth',
     hidden: () => {
-      const r = cityMinistry();
-      return !(r.ministry === 'city' && r.policy === 'freethinkers');
+      return !hasPolicy(cityMinistry(), 'freethinkers');
     },
     why: 'nur mit Verwaltung + Freigeisterreform',
+  },
+  {
+    id: 'plan-wings',
+    hidden: () => value('rule-island') !== 'palace',
+    why: 'nur auf der Palastinsel',
   },
   {
     id: 'rule-tiers',
@@ -161,7 +167,7 @@ export function initPlannerDefaults(): void {
     });
   }
   // Abhängigkeiten
-  for (const id of ['plan-levels', 'rule-mail', 'rule-items']) $(id)?.addEventListener('change', () => apply());
+  for (const id of ['plan-levels', 'rule-mail', 'rule-items', 'rule-island']) $(id)?.addEventListener('change', () => apply());
   onPalaceSettings(() => apply());
   document.addEventListener('city-stamp-loaded', (e) => {
     stampTiers = !!(e as CustomEvent<{ tiers: boolean }>).detail?.tiers;

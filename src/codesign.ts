@@ -15,7 +15,7 @@
 
 import { lookup, type BuildingKind } from './catalog';
 import { FREE, HOUSE, isWay, realignLanes, ROAD, type FillState } from './fill';
-import { SERVICE_SPECS, type PlacedService } from './services';
+import { ministryRect, SERVICE_SPECS, type PlacedService } from './services';
 
 export interface InsertOptions {
   deadline: number;
@@ -92,7 +92,7 @@ export function insertCrossRoads(s: FillState, services: readonly PlacedService[
   };
 
   // --- Ministerium (Reichweiten-Zuschlag) und Versorger
-  const ministrySv = options.ministry ? services.find((sv) => sv.kind === 'localDepartment') : undefined;
+  const ministrySv = options.ministry ? ministryRect(services) : undefined;
   const inMinistry = new Uint8Array(services.length);
   if (ministrySv && options.ministry) {
     const d = new Int16Array(N);

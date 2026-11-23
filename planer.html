@@ -173,6 +173,15 @@
 
           <details class="group">
             <summary>Palast, Ministerium &amp; Items <span id="sum-rules" class="sum"></span></summary>
+            <label class="select-row">Insel
+              <select id="rule-island">
+                <option value="city" selected>Wohninsel (Regionalministerium)</option>
+                <option value="palace">Crown Falls / Palastinsel (Palast)</option>
+              </select>
+            </label>
+            <label class="select-row" title="Jeder Flügel: +3 Reichweite (Pflaster), +15 Attraktivität, 9 Kacheln (≈ 230 Einwohner auf der Testinsel). Mehr als die Profilstufe erlaubt (Palast-Einstellungen) geht nicht.">Palastflügel auf dieser Insel
+              <input id="plan-wings" type="number" min="0" max="200" step="1" value="16" />
+            </label>
             <p id="rule-palace" class="micro"></p>
             <button id="rule-palace-edit" class="ghost" type="button">🏛 Palast-Einstellungen …</button>
             <label class="check-row">

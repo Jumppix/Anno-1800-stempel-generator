@@ -112,6 +112,9 @@ unnötig verändern.
   nur bei `PassInput.exact` per dynamischem Import geladen; Worker im ES-Format, `vite.config.js`).
 - Plan bearbeiten (Phase 6): `editCity`/`editTargetAt` in `src/planner.ts`, Ziehen/Tasten in
   `CityUi` (`PlanEditor`, `setEditor`), Verlauf/Neuberechnen in `PlannerUi`.
+- Palastinsel (Crown Falls, `docs/PLAN_CrownFalls.md`): Auswahl `rule-island`, `RuleConfig.palace` (alle Ministerien,
+  `hasMinistry`/`hasPolicy`/`ministryReach` in `rules.ts`), Palast + Flügel als Komplex `palaceComplex`/`ministryRect`
+  in `services.ts` (Besitzer 9002), Attraktivitäts-Bilanz `src/attractiveness.ts`.
 - `src/plannerDefaults.ts`: Stadtplaner-Schalter folgen automatisch (Ministerium, Ingenieure, Universität,
   Drogerie, Post, Lufthafen, Lieferdienst, 4. Item, Schichten); Handänderung bleibt (`anno-planer:overrides:v1`).
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;

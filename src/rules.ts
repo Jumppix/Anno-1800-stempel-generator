@@ -67,6 +67,12 @@ export interface RuleConfig {
   /** Ministerium im Regionalministerium dieser Insel. */
   ministry: Ministry;
   policy: Policy;
+  /**
+   * Palastinsel (Crown Falls): Statt eines Regionalministeriums steht der Palast;
+   * alle freigeschalteten Ministerien wirken gleichzeitig mit je einer Richtlinie,
+   * Reichweite des Palasts (Pflaster 71 + 3 je gebautem Flügel).
+   */
+  palace?: { ministries: Ministry[]; policies: Policy[] };
   /** Stufe, mit der Ingenieur-/Investorenhäuser als Hochhaus gerechnet werden. */
   skyscraperLevel: 3;
   /**
@@ -291,8 +297,30 @@ export const DELIVERY_GOODS: Readonly<
 };
 
 /** Palast: Pflaster-Basisreichweite 71, je Flügel +3. */
-export function palaceRange(rules: RuleConfig): number {
+export function palaceRange(rules: Pick<RuleConfig, 'palaceWings'>): number {
   return 71 + 3 * Math.max(0, Math.round(rules.palaceWings));
+}
+
+/** Wirkt dieses Ministerium (Regionalministerium oder, auf der Palastinsel, eines der Palast-Ministerien)? */
+export function hasMinistry(rules: Pick<RuleConfig, 'ministry' | 'palace'>, m: Ministry): boolean {
+  return rules.palace ? rules.palace.ministries.includes(m) : rules.ministry === m;
+}
+
+/** Ist diese Richtlinie erlassen (und ihr Ministerium aktiv)? */
+export function hasPolicy(rules: Pick<RuleConfig, 'ministry' | 'policy' | 'palace'>, p: Policy): boolean {
+  const info = POLICIES.find((x) => x.id === p);
+  if (!info || !hasMinistry(rules, info.ministry)) return false;
+  return rules.palace ? rules.palace.policies.includes(p) : rules.policy === p;
+}
+
+/** Irgendein Ministerium mit Wirkung im Stadtplaner aktiv? */
+export function anyMinistry(rules: Pick<RuleConfig, 'ministry' | 'palace'>): boolean {
+  return rules.palace ? rules.palace.ministries.length > 0 : rules.ministry !== 'none';
+}
+
+/** Reichweite des Ministeriums dieser Insel: Palast (mit gebauten Flügeln) oder Regionalministerium. */
+export function ministryReach(rules: RuleConfig, wingsBuilt?: number): number {
+  return rules.palace ? palaceRange({ palaceWings: wingsBuilt ?? rules.palaceWings }) : localDepartmentRange(rules);
 }
 
 /** Regionalministerium: halbe Palastreichweite (Rundung im Spiel unbestätigt). */
@@ -305,14 +333,14 @@ export function localDepartmentRange(rules: RuleConfig): number {
  * (Stufe 25: +60); auf Pflaster ×1,5 → +15 … +90.
  */
 export function welfareBonus(rules: RuleConfig): number {
-  if (rules.ministry !== 'welfare') return 0;
+  if (!hasMinistry(rules, 'welfare')) return 0;
   const p = Math.min(25, Math.max(0, Math.round(rules.prestige)));
   return Math.round(1.5 * (10 + 2 * p));
 }
 
 /** Stadtweites Netz (Spieldaten): Kraftwerke +15 Reichweite, auf Pflaster +22. */
 export function cityWideWebBonus(rules: RuleConfig): number {
-  return rules.ministry === 'welfare' && rules.policy === 'cityWideWeb' ? 22 : 0;
+  return hasPolicy(rules, 'cityWideWeb') ? 22 : 0;
 }
 
 export function welfareApplies(kind: BuildingKind, welfareFlag: boolean | undefined, rules: RuleConfig): boolean {
@@ -564,8 +592,8 @@ export function fourthItemBonuses(tier: SkyTier, perNeed: number): Array<{ label
  * Inselarbeitskräfte pro Rathaus“ für Bauern, Arbeiter, Handwerker und
  * Ingenieure, je Prestige-Stufe +10 (Stufe 25: +300).
  */
-export function cityWorkforcePerTownHall(rules: Pick<RuleConfig, 'ministry' | 'prestige'>): number {
-  if (rules.ministry !== 'city') return 0;
+export function cityWorkforcePerTownHall(rules: Pick<RuleConfig, 'ministry' | 'prestige' | 'palace'>): number {
+  if (!hasMinistry(rules, 'city')) return 0;
   return 50 + 10 * Math.min(25, Math.max(0, Math.round(rules.prestige)));
 }
 

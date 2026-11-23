@@ -6,7 +6,8 @@ import { adjacentRoads, RoadSearch, type City, type CityBuilding } from './city'
 import {
   type TierEdits,
   cityWideWebBonus,
-  localDepartmentRange,
+  hasPolicy,
+  ministryReach,
   PANORAMA_RADIUS,
   SKYSCRAPER_L3_RESIDENTS,
   UNIVERSITY_MAX_RANGE,
@@ -97,6 +98,8 @@ export interface Analysis {
   ministryRoads: Uint8Array;
   ministryRange: number;
   hasMinistry: boolean;
+  /** Gebaute Palastflügel (Palastinsel). */
+  palaceWings: number;
   warnings: string[];
   totals: {
     residents: number;
@@ -129,16 +132,21 @@ export function analyzeCity(
   const search = new RoadSearch(city);
   const roadsOf = city.buildings.map((b) => adjacentRoads(city, b));
 
-  // --- Regionalministerium: welche Gebäude liegen in seiner Straßenreichweite?
-  const ministries = city.buildings.filter((b) => b.entry.kind === 'localDepartment');
-  const ministryRange = localDepartmentRange(rules);
+  // --- Regionalministerium bzw. Palast: welche Gebäude liegen in seiner Straßenreichweite?
+  // Palastinsel: Reichweite mit den gebauten Flügeln, Anschluss über Palast und Flügel.
+  const palaces = city.buildings.filter((b) => b.entry.kind === 'palace');
+  const wings = city.buildings.filter((b) => b.entry.kind === 'palaceWing');
+  const ministries = rules.palace ? palaces : city.buildings.filter((b) => b.entry.kind === 'localDepartment');
+  const ministryRange = ministryReach(rules, wings.length);
   const ministryRoads = new Uint8Array(city.w * city.h);
   const inMinistry = new Uint8Array(city.buildings.length);
-  if (ministries.length > 1) warnings.push('Mehr als ein Regionalministerium – im Spiel ist nur eines je Insel erlaubt.');
+  const what = rules.palace ? 'Palast' : 'Regionalministerium';
+  if (ministries.length > 1) warnings.push(`Mehr als ein ${what} – im Spiel ist nur einer/eines je Insel erlaubt.`);
+  if (rules.palace && city.buildings.some((b) => b.entry.kind === 'localDepartment')) warnings.push('Regionalministerium auf der Palastinsel – im Spiel nicht erlaubt.');
   for (const m of ministries) {
-    const starts = roadsOf[m.index];
+    const starts = rules.palace ? [...new Set([m, ...wings].flatMap((b) => roadsOf[b.index]))] : roadsOf[m.index];
     if (starts.length === 0) {
-      warnings.push('Regionalministerium ohne Straßenanschluss.');
+      warnings.push(`${what} ohne Straßenanschluss.`);
       continue;
     }
     search.run(starts, ministryRange);
@@ -226,7 +234,7 @@ export function analyzeCity(
   // --- Kreisradien: Rathaus und Post (Mittelpunkt im Radius, ≤)
   const townHalls = city.buildings.filter((b) => b.entry.kind === 'townHall');
   const posts = city.buildings.filter((b) => b.entry.kind === 'postOffice' || b.entry.kind === 'postBox');
-  const freethinkers = rules.ministry === 'city' && rules.policy === 'freethinkers';
+  const freethinkers = hasPolicy(rules, 'freethinkers');
   for (const r of residences) {
     for (const t of townHalls) {
       if (dist(r.building, t) <= (t.entry.radius ?? 0) + 1e-9) {
@@ -392,6 +400,7 @@ export function analyzeCity(
     ministryRoads,
     ministryRange,
     hasMinistry: ministries.length > 0,
+    palaceWings: wings.length,
     warnings,
     totals: {
       residents,

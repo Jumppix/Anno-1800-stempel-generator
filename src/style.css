@@ -1263,3 +1263,8 @@ button.linkish {
   cursor: pointer;
   font: inherit;
 }
+
+.stat-grid .sec {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}

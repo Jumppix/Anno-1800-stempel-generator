@@ -34,11 +34,11 @@ export interface PalaceSettings {
 
 const KEY = 'anno-palace-settings';
 const EVENT = 'anno-palace-settings';
-const VERSION = 2;
+const VERSION = 3;
 
 /**
  * Standard: Palaststadt mit 33.000 Attraktivität (Crown Falls), Palast mit
- * Rathausreform, Gewerkschaftsförderung und Stadtweitem Netz; Regionalministerien:
+ * Rathausreform, Privatsammlungen, Gewerkschaftsförderung und Stadtweitem Netz; Regionalministerien:
  * Wohninsel Verwaltung + Freigeisterreform, Produktion Arbeit + Fabrikinspektionen,
  * Hafen Handel + Hafenbevorratung. Produktion steht meist nicht auf der Palastinsel.
  */
@@ -47,7 +47,7 @@ export const DEFAULT_SETTINGS: PalaceSettings = {
   attr: 33000,
   wings: 40,
   population: 0,
-  palace: { City: 269176, Productivity: 269197, Service: 269143 },
+  palace: { City: 269176, Culture: 269182, Productivity: 269197, Service: 269143 },
   regional: {
     city: { ministry: 'City', decree: 269175 },
     prod: { ministry: 'Productivity', decree: 269194 },
@@ -149,6 +149,8 @@ function upgrade(raw: Partial<PalaceSettings> & { regional?: unknown }): PalaceS
       if (r?.ministry) s.regional[k] = { ministry: r.ministry, decree: r.decree ?? 0 };
     }
   }
+  // Version 3: Kultur-Richtlinie „Privatsammlungen“ als Standard (Crown Falls), wenn nie gewählt
+  if ((raw.v ?? 1) < 3 && raw.palace && raw.palace.Culture === undefined) s.palace = { ...s.palace, Culture: 269182 };
   s.v = VERSION;
   return s;
 }
@@ -203,20 +205,40 @@ export function harborOfficesDefault(s: PalaceSettings = getPalaceSettings()): b
 /** Freischaltung der Ministerien (Attraktivität), falls Palast-Daten fehlen. */
 const MINISTRY_UNLOCK: Record<MinistryKey, number> = { City: 0, Culture: 450, Productivity: 700, Service: 1000, Harbor: 1350 };
 
+const MINISTRY_OF: Partial<Record<MinistryKey, Ministry>> = { Service: 'welfare', Productivity: 'labour', City: 'city' };
+
+/** Inseltyp im Stadtplaner: Wohninsel mit Regionalministerium oder Palastinsel (Crown Falls). */
+export type CityIsland = 'city' | 'palace';
+
 /**
- * Regeln für den Stadtplaner: Er plant das Regionalministerium der Wohninsel. Wohlfahrt und
- * Stadtweites Netz zählen nur, wenn sie bei der Attraktivität freigeschaltet sind.
+ * Regeln für den Stadtplaner. Wohninsel: das Regionalministerium der Wohninsel.
+ * Palastinsel: alle freigeschalteten Ministerien gleichzeitig mit den Palast-Richtlinien
+ * (`palace`). Ministerien und Richtlinien zählen nur, wenn sie bei der Attraktivität
+ * freigeschaltet sind.
  */
 export function cityPalaceRules(
   s: PalaceSettings = getPalaceSettings(),
   data?: PalaceData | null,
-): { palaceWings: number; prestige: number; ministry: Ministry; policy: Policy } {
+  island: CityIsland = 'city',
+): { palaceWings: number; prestige: number; ministry: Ministry; policy: Policy; palace?: { ministries: Ministry[]; policies: Policy[] } } {
+  const unlockOf = (k: MinistryKey): number => data?.ministries.find((m) => m.k === k)?.at ?? MINISTRY_UNLOCK[k];
+  const policyOf = (ministry: Ministry, decree: number): Policy =>
+    POLICIES.find((p) => p.guid === decree && p.ministry === ministry && s.attr >= p.unlock)?.id ?? 'none';
+  const base = { palaceWings: s.wings, prestige: prestigeOf(s.attr, data) };
+  if (island === 'palace') {
+    const ministries: Ministry[] = [];
+    const policies: Policy[] = [];
+    for (const [k, m] of Object.entries(MINISTRY_OF) as Array<[MinistryKey, Ministry]>) {
+      if (s.attr < unlockOf(k)) continue;
+      ministries.push(m);
+      const p = policyOf(m, s.palace[k] ?? 0);
+      if (p !== 'none') policies.push(p);
+    }
+    return { ...base, ministry: 'none', policy: 'none', palace: { ministries, policies } };
+  }
   const { ministry: key, decree } = s.regional.city;
-  const unlock = data?.ministries.find((m) => m.k === key)?.at ?? MINISTRY_UNLOCK[key];
-  const unlocked = s.attr >= unlock;
-  const ministry: Ministry = !unlocked ? 'none' : key === 'Service' ? 'welfare' : key === 'Productivity' ? 'labour' : key === 'City' ? 'city' : 'none';
-  const pol = POLICIES.find((p) => p.guid === decree && p.ministry === ministry && s.attr >= p.unlock);
-  return { palaceWings: s.wings, prestige: prestigeOf(s.attr, data), ministry, policy: pol?.id ?? 'none' };
+  const ministry: Ministry = s.attr >= unlockOf(key) ? (MINISTRY_OF[key] ?? 'none') : 'none';
+  return { ...base, ministry, policy: policyOf(ministry, decree), palace: undefined };
 }
 
 // ------------------------------------------------------------------ Dialog

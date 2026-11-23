@@ -184,3 +184,36 @@ bis dahin rechnet der Planer ihn **einmal**; die Attraktivität der Items und Pr
 
 Damit fällt „alle Sets in allen Bereichen“ (≈ 20.000 auf sehr großer Fläche, Abschnitt 9) als Plan weg;
 er bleibt nur Obergrenze.
+
+## 11. Umsetzung Stufe 1 (23.11.2026)
+
+- Stadtplaner → „Palast, Ministerium & Items“ → **Insel: Crown Falls / Palastinsel**. Dann wirken alle
+  freigeschalteten Ministerien gleichzeitig (Verwaltung, Wohlfahrt, Arbeit) mit den Palast-Richtlinien aus dem
+  seitenweiten Palast-Dialog (`cityPalaceRules(…, 'palace')`, `RuleConfig.palace`, `hasMinistry`/`hasPolicy`).
+- Der Planer setzt statt des Regionalministeriums den **Palast mit Flügeln** als ein Rechteck
+  (`palaceComplex` in `src/services.ts`): Palast an einer Außenkante (dort Straßenanschluss), Flügel links,
+  rechts und darüber, alle zusammenhängend; nicht gebrauchte Felder bleiben frei. Anzahl Flügel: Feld
+  „Palastflügel auf dieser Insel“ (Standard 16, höchstens so viele wie der Palast-Dialog erlaubt). Reichweite
+  71 + 3 je gebautem Flügel, gemessen vom ganzen Komplex.
+  Im Stempel tragen Palast und Flügel denselben Besitzer (wie der Lufthafen mit Modulen) – **im Spiel prüfen**,
+  ob die Flügel so als Module übernommen werden.
+- Auswertung: **Attraktivität** (Palast, Flügel, Rathausreform je Rathaus im Palastbereich, Museum mit
+  „Götter des Deltas“ +30 je Rathaus/Handelskammer) und der Rest bis 33.000 als Museumsmodule mit dem besten
+  3er-Set samt Kachelbedarf (`src/attractiveness.ts`).
+- Noch nicht: Kulturgebäude wirklich platzieren (Stufe 5), Freigeisterreform ↔ Rathausreform automatisch
+  vergleichen, Hafen (PLAN_Kueste.md), Abzüge durch Produktion.
+
+**Messung Testinsel 189 × 290** (Prestige 25, Verwaltung + Wohlfahrt + Arbeit, Rathausreform, Stadtweites Netz,
+Privatsammlungen, 25 Rathäuser):
+
+| Flügel | Reichweite | Einwohner (Planer) | Rathäuser im Palastbereich | Attraktivität ohne Kultur | Rest als Museumsmodule |
+| --- | --- | --- | --- | --- | --- |
+| 16 | 119 | 785.100 | 12 | 3.670 (ohne Privatsammlungen) | – |
+| 40 | 191 | 779.500 | 16 | 5.080 | 216 Module ≈ 4.500 Kacheln |
+| 80 | 311 | 764.400 | 25 (erwartet) | – | – |
+
+Zum Vergleich Wohninsel mit Regionalministerium (Wohlfahrt): 789.500. Ein Flügel kostet ≈ 230 Einwohner für +15
+Attraktivität (Kultur: ≈ 5 Einwohner je Attraktivität) – Flügel nur für die Reichweite. Mit Wohlfahrt im ganzen
+Palastbereich (+90) reichen 2 Kraftwerke statt 8. Der Rest bis 33.000 kostet auf dieser Insel ≈ 4.500 Kacheln
+Museum (≈ 375 Häuser) – das ist der eigentliche Preis der Palastinsel.
+
