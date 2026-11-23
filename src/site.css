@@ -1742,3 +1742,40 @@ body.site .bname:hover b {
   padding: 4px 6px;
   font: inherit;
 }
+
+.slots.ho {
+  margin-top: 4px;
+  align-items: center;
+}
+
+.slots .slot-label {
+  color: var(--muted);
+  font-size: 11px;
+  width: 22px;
+  text-align: center;
+}
+
+.gd-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gd-clip {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+#trade h4 {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.gd-flowline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}

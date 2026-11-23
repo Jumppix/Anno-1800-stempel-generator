@@ -19,7 +19,7 @@ import {
 } from '../db/palace';
 import { getPalaceSettings, onPalaceSettings, openPalaceDialog, prodPalaceState, setPalaceSettings } from '../palaceSettings';
 import { setupHoverCards } from '../db/hovercard';
-import { evaluate, itemFx, isUseful, SAME_AS_OUTPUT, slotsFor, SETUP_KINDS, SLOTS, type ProdResult, type SetupKind } from './calc';
+import { evaluate, HARBOR_OFFICE, HARBOR_SLOTS, itemFx, isUseful, SAME_AS_OUTPUT, slotsFor, SETUP_KINDS, SLOTS, type ProdResult, type SetupKind } from './calc';
 import { buildGenericStamp, type StampBuilding, type StampStreet } from '../stamp';
 import { STREET_GUIDS } from '../catalog';
 
@@ -32,6 +32,9 @@ interface ProdData {
   setups4?: Record<string, Partial<Record<SetupKind, number[]>>>;
   /** Vorschläge mit Palast-Erlass „Fabrikinspektionen“ (−50 % Arbeitskraft). */
   setupsFI?: Record<string, Partial<Record<SetupKind, number[]>>>;
+  /** Hafenmeisterei-Items für Küstengebäude (3 bzw. 4 Plätze mit „Hafenverwaltung“). */
+  setupsHO?: Record<string, Partial<Record<SetupKind, number[]>>>;
+  setupsHO4?: Record<string, Partial<Record<SetupKind, number[]>>>;
 }
 
 /** Zustand je Gebäude (im Browser gespeichert, wenn geändert). */
@@ -40,6 +43,8 @@ interface RowState {
   items: number[];
   power: boolean;
   count: number;
+  /** Eigene Hafenmeisterei-Items (sonst Vorschlag zur gewählten Art). */
+  ho?: number[];
 }
 
 const REGIONS = ['ow', 'nw', 'arctic', 'africa'] as const;
@@ -146,6 +151,17 @@ const candidates = (b: Building): Item[] => {
   const slots = slotsFor(b);
   return (db.itemsFor.get(b.g) ?? []).filter((i) => slots.includes(i.s) && isUseful(itemFx(i)));
 };
+/** Hafenmeisterei-Items (Küstengebäude im Radius einer Hafenmeisterei bzw. Speicherstadt). */
+const hoCandidates = (b: Building): Item[] => (db.itemsFor.get(b.g) ?? []).filter((i) => i.s === 'HarborOffice' && isUseful(itemFx(i)));
+/** Plätze der Hafenmeisterei: 3, mit Palast-Richtlinie „Hafenverwaltung“ 4. */
+const hoSlotCount = (b: Building): number =>
+  HARBOR_SLOTS + (palaceData ? Math.max(0, modsFor(db, palaceData, palaceEffects, b, HARBOR_OFFICE).sockets) : 0);
+function hoItems(b: Building, s: RowState): number[] {
+  if (s.ho) return s.ho.slice(0, hoSlotCount(b));
+  const table = hoSlotCount(b) > 3 && prod.setupsHO4 ? prod.setupsHO4 : prod.setupsHO;
+  const k = s.kind === 'custom' ? 'max' : s.kind;
+  return [...(table?.[b.g]?.[k] ?? table?.[b.g]?.max ?? [])];
+}
 
 // ------------------------------------------------------------------ Liste
 function productionBuildings(): Building[] {
@@ -225,8 +241,14 @@ function rowHtml(b: Building): string {
     .slice(0, slotCount(b))
     .map((g) => db.itemBy.get(g))
     .filter((i): i is Item => !!i);
+  const hasHo = hoCandidates(b).length > 0;
+  const hoList = hasHo
+    ? hoItems(b, s)
+        .map((g) => db.itemBy.get(g))
+        .filter((i): i is Item => !!i)
+    : [];
   const mods = modsOf(b);
-  const r: ProdResult = evaluate(b, items, { power: s.power, clip, palace: mods }, workforceSet);
+  const r: ProdResult = evaluate(b, [...items, ...hoList], { power: s.power, clip, palace: mods }, workforceSet);
   const L = layoutOf(b);
   const n = Math.max(0, s.count);
   const chain = `<span class="chain">${(b.in ?? [])
@@ -244,6 +266,14 @@ function rowHtml(b: Building): string {
       ? `<button type="button" class="slot r-${it.r}" data-slot="${i}">${icon(it.g, 'sic')}</button>`
       : `<button type="button" class="slot empty" data-slot="${i}" data-tip="${esc(t('prod.slotEmpty'))}">+</button>`;
   }).join('');
+  const hoSlots = hasHo
+    ? `<span class="slots ho" data-tip="${esc(t('prod.hoTip'))}"><small class="slot-label">${esc(t('prod.hoShort'))}</small>${Array.from({ length: hoSlotCount(b) }, (_, i) => {
+        const it = hoList[i];
+        return it
+          ? `<button type="button" class="slot r-${it.r}" data-hslot="${i}">${icon(it.g, 'sic')}</button>`
+          : `<button type="button" class="slot empty" data-hslot="${i}" data-tip="${esc(t('prod.slotEmpty'))}">+</button>`;
+      }).join('')}</span>`
+    : '';
   const power = !b.pow
     ? '<span class="muted">–</span>'
     : b.pow === 'req' && !s.power && !r.powerItem
@@ -264,7 +294,7 @@ function rowHtml(b: Building): string {
       b.sz ? `${b.sz[0]}×${b.sz[1]}` : ''
     }${b.dlc ? ` · ${esc(nameOf(b.dlc))}` : ''}</small></span></a>${chain}</span>
     <span class="cell-n" data-label="${esc(t('prod.col.count'))}">${countCell}</span>
-    <span class="cell-i" data-label="${esc(t('prod.col.items'))}"><span class="slots">${slots}</span><span class="kinds">${kinds
+    <span class="cell-i" data-label="${esc(t('prod.col.items'))}"><span class="slots">${slots}</span>${hoSlots}<span class="kinds">${kinds
       .map((k) => `<button type="button" data-kind="${k}" class="${s.kind === k ? 'active' : ''}">${esc(t(`prod.setup.${k}`))}</button>`)
       .join('')}${s.kind === 'custom' ? `<span class="custom">${esc(t('prod.setup.custom'))}</span>` : ''}</span></span>
     <span class="cell-p" data-label="${esc(t('prod.col.power'))}">${power}</span>
@@ -400,14 +430,15 @@ function fxSummary(it: Item, b: Building): string {
   return parts.join(' · ');
 }
 
-function openPicker(b: Building, slot: number): void {
+function openPicker(b: Building, slot: number, ho = false): void {
   const s = rowState(b);
-  const used = new Set(s.items.filter((_, i) => i !== slot));
-  const list = candidates(b)
+  const current = ho ? hoItems(b, s) : s.items;
+  const used = new Set(current.filter((_, i) => i !== slot));
+  const list = (ho ? hoCandidates(b) : candidates(b))
     .filter((i) => !used.has(i.g))
     .sort((a, c) => rarityRank(a.r) - rarityRank(c.r) || itemFx(c).prod - itemFx(a).prod || pick(a.n).localeCompare(pick(c.n)));
   const body = openModal(
-    `<h2>${esc(t('prod.pick', { b: pick(b.n) }))}</h2>
+    `<h2>${esc(t(ho ? 'prod.pickHo' : 'prod.pick', { b: pick(b.n) }))}</h2>
      <div class="search"><input type="search" class="pick-q" placeholder="${esc(t('db.search'))}" /></div>
      <div class="pick-list">
        <button type="button" class="pick-row" data-g="0"><span class="pick-none">✕</span><span>${esc(t('prod.slotClear'))}</span></button>
@@ -428,10 +459,11 @@ function openPicker(b: Building, slot: number): void {
   body.querySelectorAll<HTMLElement>('.pick-row').forEach((el) =>
     el.addEventListener('click', () => {
       const g = Number(el.dataset.g);
-      const items = [...s.items];
+      const items = [...current];
       if (g) items[slot] = g;
       else items.splice(slot, 1);
-      state.set(b.g, { ...s, kind: 'custom', items: items.filter(Boolean).slice(0, slotCount(b)) });
+      if (ho) state.set(b.g, { ...s, ...(state.get(b.g) ?? {}), ho: items.filter(Boolean).slice(0, hoSlotCount(b)) });
+      else state.set(b.g, { ...s, ho: state.get(b.g)?.ho, kind: 'custom', items: items.filter(Boolean).slice(0, slotCount(b)) });
       saveState();
       closeModal();
       refreshRow(b.g);
@@ -625,9 +657,11 @@ async function main(): Promise<void> {
     if (!b) return;
     const slot = target.closest<HTMLElement>('[data-slot]');
     if (slot) return openPicker(b, Number(slot.dataset.slot));
+    const hslot = target.closest<HTMLElement>('[data-hslot]');
+    if (hslot) return openPicker(b, Number(hslot.dataset.hslot), true);
     const kind = target.closest<HTMLElement>('[data-kind]')?.dataset.kind as SetupKind | undefined;
     if (kind) {
-      state.set(b.g, { ...rowState(b), kind, items: [...(setupTable(b)[b.g]?.[kind] ?? [])] });
+      state.set(b.g, { ...rowState(b), kind, ho: undefined, items: [...(setupTable(b)[b.g]?.[kind] ?? [])] });
       saveState();
       return refreshRow(b.g);
     }

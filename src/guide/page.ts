@@ -34,6 +34,10 @@ interface GuideState {
   imports: number[];
   /** Items der Zulieferer (nicht im Video): Rechner-Vorschlag oder keine. */
   supplier: 'suggest' | 'none';
+  /** Gruppen, deren Gebäude geclippt stehen (Item- und Ministeriumseffekte doppelt). */
+  clipGroups: string[];
+  /** Speicherstadt-Kreislauf: Exportstufen und Endware. */
+  trade: { lvlA: string; lvlB: string; mid: number; final: number };
 }
 
 const STORE = 'anno-guide-bm';
@@ -53,6 +57,8 @@ function defaults(): GuideState {
     producer: {},
     imports: [...DEFAULT_IMPORT],
     supplier: 'suggest',
+    clipGroups: ['bike'],
+    trade: { lvlA: 'Common', lvlB: 'Common', mid: 1010225, final: 1010227 },
   };
 }
 function load(): void {
@@ -132,7 +138,8 @@ const resCache = new Map<number, ProdResult>();
 function result(b: Building): ProdResult {
   let r = resCache.get(b.g);
   if (!r) {
-    r = evaluate(b, itemsFor(b), { power: b.pow === 'req' || st.power, clip: st.clip, palace: modsOf(b) }, wfSet);
+    const clip = st.clip || st.clipGroups.includes(clusterOf(b.g)?.id ?? '');
+    r = evaluate(b, itemsFor(b), { power: b.pow === 'req' || st.power, clip, palace: modsOf(b) }, wfSet);
     resCache.set(b.g, r);
   }
   return r;
@@ -319,8 +326,9 @@ function clusterCard(c: Cluster): string {
       </div>`;
     })
     .join('');
+  const clipped = st.clip || st.clipGroups.includes(c.id);
   return `<article class="gd-card" id="hk-${c.id}">
-    <h3>${esc(c.title)}</h3>
+    <h3>${esc(c.title)}<label class="gd-chk gd-clip"><input type="checkbox" data-clipgroup="${c.id}" ${clipped ? 'checked' : ''} ${st.clip ? 'disabled' : ''} /><span>${esc(t('guide.clipped'))}</span></label></h3>
     <div class="gd-items">${items
       .map((g, i) => {
         const it = db.itemBy.get(g);
@@ -332,6 +340,78 @@ function clusterCard(c: Cluster): string {
     ${c.tips?.length ? `<ul class="gd-tips">${c.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
     ${canLayout(c) ? `<div class="gd-actions"><button type="button" class="pal-edit" data-layout="${c.id}">▦ ${esc(t(c.buildings.length > 1 ? 'guide.layoutMixed' : 'guide.layout'))}</button></div>` : ''}
   </article>`;
+}
+
+// ------------------------------------------------------------------ Speicherstadt
+const LEVELS = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
+
+/** Tonnen Export je Tonne Import: R = V(I)/V(E) · M_I(I)/M_E(Stufe des Exports). */
+function ratio(exp: number, imp: number, expLevel: string): number | null {
+  const e = db.info.goods[exp];
+  const i = db.info.goods[imp];
+  if (!e?.ev || !i?.ev) return null;
+  const me = db.info.docklands?.factors[expLevel]?.f ?? 1;
+  return (i.ev / e.ev) * ((i.im ?? 1) / me);
+}
+
+/** Alle importierbaren Waren mit Händler und Stufe. */
+function importables(): Array<{ p: number; trader: string; lvl: string }> {
+  const out: Array<{ p: number; trader: string; lvl: string }> = [];
+  for (const tr of db.info.docklands?.traders ?? []) for (const g of tr.goods) out.push({ p: g.p, trader: pick(tr.n ?? { de: '', en: '' }), lvl: g.lvl });
+  return out;
+}
+
+/** Verhältnis wie im Spiel: > 1 als „R : 1“, sonst „1 : 1/R“ (Export : Import). */
+const ratioText = (r: number): string => (r >= 1 ? `${num(r, 2)} : 1` : `1 : ${num(1 / r, 1)}`);
+
+function tradeHtml(): string {
+  const d = db.info.docklands;
+  if (!d) return `<p class="muted">${esc(t('guide.none'))}</p>`;
+  const lvlName = (k: string): string => pick(db.meta.labels.rarity[k.toLowerCase()] ?? [k, k]);
+  const lvlSelect = (key: 'lvlA' | 'lvlB'): string =>
+    `<select data-trade="${key}">${LEVELS.map((l) => `<option value="${l}" ${st.trade[key] === l ? 'selected' : ''}>${esc(lvlName(l))} (×${d.factors[l]?.f ?? 1})</option>`).join('')}</select>`;
+  const imps = importables().filter((x) => db.info.goods[x.p]?.ev);
+  const goodSelect = (key: 'mid' | 'final'): string =>
+    `<select data-trade="${key}">${imps
+      .map((x) => `<option value="${x.p}" ${st.trade[key] === x.p ? 'selected' : ''}>${esc(nameOf(x.p))} – ${esc(x.trader)} (${esc(lvlName(x.lvl))})</option>`)
+      .join('')}</select>`;
+  // Nebenprodukte der Hochrad-Werkhallen aus dem Rechner
+  const bike = db.buildingBy.get(1010323);
+  const bikes = lastPlan?.counts.get(1010323) ?? 0;
+  const by = bike ? result(bike).extra.filter((e) => db.info.goods[e.p]?.ev) : [];
+  const mid = st.trade.mid;
+  const fin = st.trade.final;
+  let midTotal = 0;
+  const rowsA = by
+    .map((e) => {
+      const perMin = e.perMin * Math.ceil(bikes - 1e-6);
+      const r = ratio(e.p, mid, st.trade.lvlA);
+      const got = r ? perMin / r : 0;
+      midTotal += got;
+      return `<tr><td>${named(e.p)}</td><td class="num">${num(perMin, 2)}</td><td class="num">${r ? ratioText(r) : '–'}</td><td class="num">${goodAmount(mid, got, 2)}</td></tr>`;
+    })
+    .join('');
+  const rB = ratio(mid, fin, st.trade.lvlB);
+  const finTotal = rB ? midTotal / rB : 0;
+  const perTrade = (perMin: number): number => perMin * (d.minutes ?? 20);
+  return `<div class="gd-options">
+      <label class="gd-opt"><span>${esc(t('guide.tradeMid'))}</span>${goodSelect('mid')}</label>
+      <label class="gd-opt"><span>${esc(t('guide.tradeLvlA'))}</span>${lvlSelect('lvlA')}</label>
+      <label class="gd-opt"><span>${esc(t('guide.tradeFinal'))}</span>${goodSelect('final')}</label>
+      <label class="gd-opt"><span>${esc(t('guide.tradeLvlB'))}</span>${lvlSelect('lvlB')}</label>
+    </div>
+    <h4>${esc(t('guide.tradeStepA', { n: Math.ceil(bikes - 1e-6) }))}</h4>
+    ${
+      rowsA
+        ? `<div class="gd-table-wrap"><table class="gd-table"><thead><tr><th>${esc(t('guide.byproducts'))}</th><th>t/min</th><th>${esc(t('guide.ratio'))}</th><th>${esc(
+            nameOf(mid),
+          )} t/min</th></tr></thead><tbody>${rowsA}</tbody></table></div>`
+        : `<p class="muted">${esc(t('guide.tradeNoBikes'))}</p>`
+    }
+    <h4>${esc(t('guide.tradeStepB'))}</h4>
+    <p class="gd-flowline">${goodAmount(mid, midTotal, 2)} t/min → ${rB ? `${esc(t('guide.ratio'))} ${ratioText(rB)} → ` : ''}${goodAmount(fin, finTotal, 2)} t/min
+      <small class="muted">${esc(t('guide.tradePerTrade', { a: num(perTrade(midTotal), 0), b: num(perTrade(finTotal), 0), m: d.minutes ?? 20 }))}</small></p>
+    <p class="note">${esc(t('guide.tradeRules'))} <a href="${esc(d.valuesSource ?? '#')}" target="_blank" rel="noopener">Anno 1800 Wiki – Exchange Ratios</a></p>`;
 }
 
 // ------------------------------------------------------------------ Layouts & Stempel
@@ -497,6 +577,7 @@ function render(): void {
   const toc = [
     ['overview', t('guide.toc.overview')],
     ['calc', t('guide.toc.calc')],
+    ['trade', t('guide.toc.trade')],
     ['hk', t('guide.toc.hk')],
     ...CHAPTERS.map((c) => [c.id, c.title]),
   ];
@@ -526,6 +607,11 @@ function render(): void {
       <div id="gd-controls">${calcControls()}</div>
       <div id="gd-result">${calcHtml()}</div>
     </section>
+    <section class="gd-sec" id="trade">
+      <h2>${esc(t('guide.toc.trade'))}</h2>
+      <p class="note">${esc(t('guide.tradeNote'))}</p>
+      <div id="gd-trade">${tradeHtml()}</div>
+    </section>
     <section class="gd-sec" id="hk">
       <h2>${esc(t('guide.toc.hk'))}</h2>
       <p class="note">${esc(t('guide.hkNote'))}</p>
@@ -540,6 +626,8 @@ function render(): void {
 function refresh(): void {
   resCache.clear();
   $('#gd-result').innerHTML = calcHtml();
+  const tr = document.querySelector('#gd-trade');
+  if (tr) tr.innerHTML = tradeHtml();
   const cards = document.querySelector('.gd-cards');
   if (cards) cards.innerHTML = CLUSTERS.map(clusterCard).join('');
 }
@@ -577,6 +665,10 @@ async function main(): Promise<void> {
     } else if (el.dataset.opt === 'supplier') st.supplier = el.value as GuideState['supplier'];
     else if (el.dataset.opt === 'power') st.power = (el as HTMLInputElement).checked;
     else if (el.dataset.opt === 'clip') st.clip = (el as HTMLInputElement).checked;
+    else if (el.dataset.clipgroup) {
+      const id = el.dataset.clipgroup;
+      st.clipGroups = (el as HTMLInputElement).checked ? [...new Set([...st.clipGroups, id])] : st.clipGroups.filter((x) => x !== id);
+    } else if (el.dataset.trade) st.trade = { ...st.trade, [el.dataset.trade]: el.dataset.trade.startsWith('lvl') ? el.value : Number(el.value) };
     else return;
     save();
     refresh();

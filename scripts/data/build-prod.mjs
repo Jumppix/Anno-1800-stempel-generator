@@ -9,7 +9,7 @@ import { createServer } from 'vite';
 const root = new URL('../..', import.meta.url).pathname;
 const server = await createServer({ root, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const { packAroundTradeUnion } = await server.ssrLoadModule('/src/prod/layout.ts');
-const { bestSetup, SETUP_KINDS, slotsFor } = await server.ssrLoadModule('/src/prod/calc.ts');
+const { bestSetup, SETUP_KINDS, slotsFor, isUseful, itemFx } = await server.ssrLoadModule('/src/prod/calc.ts');
 const { activeEffects, modsFor, FACTORY_INSPECTIONS_DECREE } = await server.ssrLoadModule('/src/db/palace.ts');
 const read = (f) => JSON.parse(readFileSync(`${root}public/db/${f}`, 'utf8'));
 const buildings = read('buildings.json');
@@ -61,6 +61,24 @@ for (const b of prodBuildings) {
     setupsFI[b.g] = entry;
   }
 }
-writeFileSync(`${root}public/db/prod.json`, JSON.stringify({ radius: 15, hk: [-2, -2], layouts, setups, setups4, setupsFI }));
+// Hafenmeisterei-Items (Küstengebäude): bester Satz zusätzlich zu den Handelskammer-Items derselben Art,
+// für 3 Plätze und 4 Plätze (Palast-Richtlinie „Hafenverwaltung“)
+const setupsHO = {};
+const setupsHO4 = {};
+const byG = new Map(items.map((i) => [i.g, i]));
+for (const b of prodBuildings) {
+  const ho = items.filter((i) => i.s === 'HarborOffice' && i.tgx.includes(b.g) && isUseful(itemFx(i)));
+  if (!ho.length) continue;
+  for (const [target, n] of [[setupsHO, 3], [setupsHO4, 4]]) {
+    const entry = {};
+    for (const kind of SETUP_KINDS) {
+      const baseItems = ((setups[b.g]?.[kind] ?? setups[b.g]?.max) ?? []).map((g) => byG.get(g)).filter(Boolean);
+      const s = bestSetup(b, ho, kind, { power: true, clip: false }, workforce, n, baseItems);
+      if (s) entry[kind] = s.map((i) => i.g);
+    }
+    target[b.g] = entry;
+  }
+}
+writeFileSync(`${root}public/db/prod.json`, JSON.stringify({ radius: 15, hk: [-2, -2], layouts, setups, setups4, setupsFI, setupsHO, setupsHO4 }));
 console.log(`${Object.keys(layouts).length} Layouts, ${prodBuildings.length} Gebäude mit Vorschlägen in ${((performance.now() - t0) / 1000).toFixed(1)} s`);
 await server.close();

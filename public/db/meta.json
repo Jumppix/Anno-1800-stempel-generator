@@ -1,5 +1,5 @@
 {
- "built": "2026-11-20T11:28:03.377Z",
+ "built": "2026-11-23T08:03:30.295Z",
  "workforce": [
   1010052,
   1010115,
@@ -49,8 +49,8 @@
  "counts": {
   "items": 1534,
   "buildings": 1499,
-  "names": 6245,
-  "icons": 2131
+  "names": 6256,
+  "icons": 2139
  },
  "limits": [
   "Standardwerte der Vorlagen (templates.xml) fehlen: nicht angegebene Felder sind unbekannt, nicht 0.",
@@ -415,8 +415,8 @@
  "files": [
   {
    "file": "items.json",
-   "bytes": 986805,
-   "sha1": "f9206272f0fd"
+   "bytes": 1058005,
+   "sha1": "4bacbf864dd1"
   },
   {
    "file": "buildings.json",
@@ -425,13 +425,13 @@
   },
   {
    "file": "names.json",
-   "bytes": 752567,
-   "sha1": "0b59f8cf95cd"
+   "bytes": 752988,
+   "sha1": "2eb8f053589e"
   },
   {
    "file": "info.json",
-   "bytes": 62542,
-   "sha1": "806ab0067fb1"
+   "bytes": 72336,
+   "sha1": "1f49b9b2177f"
   },
   {
    "file": "palace.json",

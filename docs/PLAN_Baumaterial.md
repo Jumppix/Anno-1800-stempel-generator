@@ -99,5 +99,10 @@ zum Ausstoß; Items, die das Erzvorkommen durch eine Ware ersetzen, werden nicht
   Bewertung: vollständige Sätze, dann Anzahl, dann Straßen). Im Guide je Gruppe „Layout & Stempel“
   (Einzelarten aus prod.json, gemischt live, Anteile änderbar); geprüft: Radius, keine Überlappung,
   Straßenanschluss, Stempel zurückgelesen (20 Sägewerke + 17 Fensterfabriken, 130 Straßen).
-- Offen: Speicherstadt-Tausch (B5), Schiffe je Route (B6),
+- B5 (Teil): Abschnitt „Speicherstadt-Tausch“ im Guide – Kreislauf des Nutzers: Nebenprodukte der
+  geclippten Hochrad-Werkhallen (Taschenuhren, Phonographen, Schwere Geschütze, Dampfmaschinen) auf einer
+  zweiten Insel gegen eine Zwischenware (Standard Dampfwagen, Ganymedia, episch) und diese auf der
+  Baumaterialinsel gegen eine Endware (Standard Eisen, Qinsa) – mit Verhältnis, t/min und Menge je
+  Lieferung (alle 20 min). „geclippt“ je Gruppe (Standard: Hochräder).
+- Offen: freie Tausch-Verträge (beliebige Ware ↔ Ware) und Exportpyramide, Schiffe je Route (B6),
   Items je Gruppe selbst wählen, Viktorias Dynamit-Verbrauch im Spiel bestätigen.

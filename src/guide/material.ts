@@ -12,7 +12,7 @@ export const MATERIALS: ReadonlyArray<{ p: number; target: number }> = [
   { p: 1010218, target: 60 }, // Stahlträger
   { p: 1010207, target: 45 }, // Fenster
   { p: 1010202, target: 40 }, // Stahlbeton
-  { p: 1010245, target: 0 }, // Hochräder
+  { p: 1010245, target: 20 }, // Hochräder
   { p: 134623, target: 0 }, // Fahrstühle
 ];
 

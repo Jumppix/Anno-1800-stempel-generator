@@ -7,6 +7,7 @@ import { mountSite } from '../site';
 
 import { loadDb, loadPalace, type Amount, type Bi, type Building, type Db, type Effect, type Item, type Meta, type Names, type PalaceData } from './data';
 import { setupHoverCards } from './hovercard';
+import { originHtml } from './origin';
 
 const BASE = `${import.meta.env.BASE_URL}db/`;
 const PAGE = 120;
@@ -401,7 +402,8 @@ function itemDetail(i: Item): string {
   const exp = i.ex?.length
     ? `<div class="chips">${i.ex.map((a) => `<span class="chip plain">${esc(expLabel(a.k))}${a.k.startsWith('Perk') ? '' : ` ${num(a.v)}`}</span>`).join('')}</div>`
     : '';
-  return head(i, sub) + sec('d.general', general) + sec('d.effects', fx + paragonHtml(i)) + sec('d.targets', targets) + sec('d.expedition', exp);
+  const origin = originHtml(i, (g) => chip(g, '', { name: true }), (n) => num(n), esc);
+  return head(i, sub) + sec('d.general', general) + sec('origin.title', origin) + sec('d.effects', fx + paragonHtml(i)) + sec('d.targets', targets) + sec('d.expedition', exp);
 }
 
 // ------------------------------------------------------------------ Palast

@@ -62,6 +62,21 @@ export interface Item {
   act?: boolean;
   /** Palast-Effekt: Ministerium, Richtlinie (0 = Basiseffekt), Stufe, Freischaltung, Überbringer. */
   pal?: PalaceItemMeta;
+  /** Herkunft (aus den Spieldaten, über Belohnungs-Pools). */
+  src?: ItemSource;
+}
+
+export interface ItemSource {
+  /** Händler (Profil-GUID) mit erster Spielphase (0 Spielbeginn … 5 Endspiel), in der er es anbietet. */
+  tr?: Array<{ g: number; ph: number }>;
+  /** Herstellung bei (Profil-GUID) in einer Region. */
+  cr?: Array<{ g: number; reg: string }>;
+  /** Anzahl Expeditions-Ereignisse, Quests, Tauchglocken-Quests, Weltausstellungs-Belohnungen, Tourismus. */
+  ex?: number;
+  qu?: number;
+  dv?: number;
+  wf?: number;
+  to?: number;
 }
 
 export interface PalaceItemMeta {
@@ -141,6 +156,9 @@ export interface GoodInfo {
   civ?: number;
   reg?: string[];
   wf?: 1;
+  /** Speicherstadt: Tauschwert V(G) (Anno-1800-Wiki) und Import-Multiplikator (nur importierbare Waren). */
+  ev?: number;
+  im?: number;
 }
 
 export interface PopulationInfo {
@@ -155,6 +173,17 @@ export interface Info {
   goods: Record<string, GoodInfo>;
   population: Record<string, PopulationInfo>;
   pools: Record<string, number[]>;
+  docklands?: DocklandsInfo;
+}
+
+/** Speicherstadt: Importhändler (Spieldaten) und Stufen-Faktoren. */
+export interface DocklandsInfo {
+  traders: Array<{ n: Bi; d?: Bi; i?: string; goods: Array<{ p: number; lvl: string; step: number }> }>;
+  /** Stufe → Faktor, benötigte Exportmenge, höchstens Waren in dieser Stufe. */
+  factors: Record<string, { f: number; need: number; max: number }>;
+  amount?: number;
+  minutes?: number;
+  valuesSource?: string;
 }
 
 export const DB_BASE = `${import.meta.env.BASE_URL}db/`;

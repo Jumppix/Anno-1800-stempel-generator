@@ -47,7 +47,7 @@ unnötig verändern.
 ## Code-Landkarte
 
 - Hilfeseite (mehrere Seiten, `vite.config.js` `build.rollupOptions.input`): `index.html` Startseite
-  (`src/start.ts`), `datenbank.html` (`src/db/page.ts`, Typen/Laden `src/db/data.ts`, Palast/Regionalministerium `src/db/palace.ts` (aktive Effekte, `modsFor`; Daten `public/db/palace.json`), Infofenster beim Überfahren `src/db/hovercard.ts` – `data-card="<GUID>"` für Items, Gebäude, Waren (inkl. Münzen/Arbeitskraft), Bevölkerungsstufen, Zielgruppen und DLCs; Zusatzdaten `public/db/info.json`: Waren, Bevölkerung mit Bedürfnissen, Zielgruppen; auch auf der Produktionsseite), `produktion.html`
+  (`src/start.ts`), `datenbank.html` (`src/db/page.ts`, Typen/Laden `src/db/data.ts`, Palast/Regionalministerium `src/db/palace.ts` (aktive Effekte, `modsFor`; Daten `public/db/palace.json`), Item-Herkunft `src/db/origin.ts`, Infofenster beim Überfahren `src/db/hovercard.ts` – `data-card="<GUID>"` für Items, Gebäude, Waren (inkl. Münzen/Arbeitskraft), Bevölkerungsstufen, Zielgruppen und DLCs; Zusatzdaten `public/db/info.json`: Waren, Bevölkerung mit Bedürfnissen, Zielgruppen; auch auf der Produktionsseite), `produktion.html`
   (`src/prod/page.ts`: Produktion & Handelskammer nach Vorbild annolayouts.de; Rechenkern `src/prod/calc.ts`
   – Produktivität/Strom/Clipping/Arbeitskraft, `bestSetup`; Packer `src/prod/layout.ts` – meiste Gebäude
   je HK-Radius mit Straßennetz, `packMixed` für mehrere Arten im Verhältnis; Vorberechnung `scripts/data/build-prod.mjs`), `baumaterial.html` (Guide Baumaterialinsel: `src/guide/page.ts` Rechner/Karten, Inhalte `src/guide/material.ts`), `planer.html` (bisheriges
@@ -83,6 +83,7 @@ unnötig verändern.
 - `src/stampReader.ts`: zusätzlich `decodeStampFull` (Gebäude + Straßen mit
   GUID; Attribut-IDs über das Namensverzeichnis, da Spiel- und App-Stempel
   verschiedene IDs nutzen).
+- Küsten-/Wassergebäude: Recherche und Optimierer-Plan `docs/PLAN_Kueste.md`.
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
   `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
   `src/testStamps.ts`. Phase 2: `src/fill.ts` (vollständige Bebauung: Gitter über die ganze

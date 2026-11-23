@@ -4,6 +4,7 @@
 // Touch: Antippen eines Elements (kein Link) zeigt das Fenster.
 import { getLang, pick, t } from '../i18n';
 import { DB_BASE, type Building, type Db, type Item } from './data';
+import { originHtml } from './origin';
 
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
 const num = (n: number, d = 2): string => n.toLocaleString(getLang() === 'de' ? 'de-DE' : 'en-US', { maximumFractionDigits: d });
@@ -179,7 +180,8 @@ function itemCard(it: Item): string {
     }${it.dlc ? `<div class="hc-split"><span>DLC</span><b>${esc(nameOf(it.dlc))}</b></div>` : ''}</div>
     ${it.tg.length ? `<div class="hc-sec">${esc(t('hc.affects'))} ${listNames(it.tg)}</div>` : ''}
     ${it.fx.length ? `<div class="hc-sec">${effectLines(it)}</div>` : ''}
-    ${exp ? `<div class="hc-sec"><div class="hc-cap">${esc(t('d.expedition'))}</div>${exp}</div>` : ''}`;
+    ${exp ? `<div class="hc-sec"><div class="hc-cap">${esc(t('d.expedition'))}</div>${exp}</div>` : ''}
+    <div class="hc-sec">${it.src || it.pal ? '' : ''}${originHtml(it, (g) => named(g), (n) => num(n, 0), esc)}</div>`;
 }
 
 // ------------------------------------------------------------------ Gebäude

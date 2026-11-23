@@ -375,6 +375,78 @@ for (const [tmpl, defSlot] of Object.entries(ITEM_TEMPLATES)) {
 }
 console.log(`  ${items.length} Items`);
 
+// ---------------------------------------------------------------- Item-Herkunft
+// Rückwärts über Pools: Händler (Angebot je Spielphase), Herstellung (Alter Nate …),
+// Expeditionen, Quests, Tauchglocke, Weltausstellung, Tourismus.
+console.log('Item-Herkunft …');
+{
+  const itemByG = new Map(items.map((i) => [i.g, i]));
+  const POOL_T = new Set(['RewardPool', 'AssetPool', 'RewardItemPool', 'ItemReplacementPool']);
+  const guidsIn = (o, out = []) => {
+    if (Array.isArray(o)) for (const x of o) guidsIn(x, out);
+    else if (isObj(o)) for (const [k, x] of Object.entries(o)) {
+      if (k !== 'Standard' && k !== 'Text') guidsIn(x, out);
+    }
+    else if (typeof o === 'number' && (itemByG.has(o) || POOL_T.has(byGuid.get(o)?.t))) out.push(o);
+    return out;
+  };
+  const memo = new Map();
+  const expand = (g, seen = new Set()) => {
+    if (memo.has(g)) return memo.get(g);
+    if (itemByG.has(g)) return [g];
+    const rec = byGuid.get(g);
+    if (!rec || !POOL_T.has(rec.t) || seen.has(g)) return [];
+    seen.add(g);
+    const res = [...new Set(guidsIn(rec.v).flatMap((x) => expand(x, seen)))];
+    memo.set(g, res);
+    return res;
+  };
+  const src = (g) => {
+    const it = itemByG.get(g);
+    it.src ??= {};
+    return it.src;
+  };
+  const count = (key, o) => {
+    for (const g of new Set(guidsIn(o).flatMap((x) => expand(x)))) {
+      const s = src(g);
+      s[key] = (s[key] ?? 0) + 1;
+    }
+  };
+  const PHASES = ['EarlyGame', 'EarlyMidGame', 'MidGame', 'LateMidGame', 'LateGame', 'EndGame'];
+  const REG = { Moderate: 'ow', Colony01: 'nw', Arctic: 'arctic', Africa: 'africa' };
+  for (const rec of byGuid.values()) {
+    const t = rec.t;
+    if (/^Profile_3rdParty/.test(t)) {
+      // Kampagnen-/Szenario-Kopien und Gegner-Profile überspringen (gleiche Händler mehrfach)
+      if (!nameOf(rec) || /Campaign|Sceanrio|Scenario|^S0\d_|Attacks Pirate|enemy/i.test(rec.v.Standard?.Name ?? '')) continue;
+      const prog = rec.v.Trader?.Progression ?? {};
+      PHASES.forEach((ph, idx) => {
+        const pool = prog[ph]?.OfferingItems;
+        if (typeof pool !== 'number') return;
+        for (const g of expand(pool)) {
+          const s = src(g);
+          s.tr ??= [];
+          const e = s.tr.find((x) => x.g === rec.g) ?? (s.tr.push({ g: ref(rec.g), ph: idx }), s.tr[s.tr.length - 1]);
+          e.ph = Math.min(e.ph, idx);
+        }
+      });
+      for (const [reg, entry] of Object.entries(rec.v.ItemCrafter?.CraftableItemsInRegion ?? {})) {
+        for (const g of new Set(guidsIn(entry).flatMap((x) => expand(x)))) {
+          const s = src(g);
+          s.cr ??= [];
+          if (!s.cr.some((x) => x.g === rec.g && x.reg === (REG[reg] ?? reg))) s.cr.push({ g: ref(rec.g), reg: REG[reg] ?? reg });
+        }
+      }
+    } else if (/^Expedition(Decision|Trade|Option)$/.test(t)) count('ex', rec.v);
+    else if (/^A7_QuestDivingBell/.test(t)) count('dv', rec.v.Reward);
+    else if (/^(A7_Quest|Quest$|MainQuest$|TutorialQuest$)/.test(t)) count('qu', rec.v.Reward);
+    else if (t === 'MonumentEventReward') count('wf', rec.v.Reward);
+    else if (t === 'TourismFeature') count('to', rec.v);
+  }
+  const n = items.filter((i) => i.src).length;
+  console.log(`  ${n} Items mit Herkunft, ${items.filter((i) => i.src?.tr).length} bei Händlern, ${items.filter((i) => i.src?.cr).length} herstellbar`);
+}
+
 // ---------------------------------------------------------------- Gebäude
 const SKIP_TEMPLATES = new Set(['QuestLighthouse', 'Slot', 'SimpleBuilding', 'CampaignUncleMansion', 'OrnamentalNotes', 'QuestObjectHarborBuildingAttacker', 'HarborWarehouseSlot7']);
 const CATEGORY = [
@@ -632,6 +704,38 @@ for (const [k, id] of Object.entries(RARITY_LABELS)) {
   if (t) labels.rarity[k] = [t.de, t.en];
 }
 
+// ---------------------------------------------------------------- Speicherstadt (Export/Import)
+// Importhändler mit Waren und Stufe aus den Spieldaten (TradeContractFeature); Tauschwerte je Ware
+// aus dem Anno-1800-Wiki (research/exchange-values.json, nicht in den Spieldateien).
+const docklands = (() => {
+  const f = (byTemplate.get('TradeContractFeature') ?? [])[0]?.v?.TradeContractFeature;
+  if (!f) return undefined;
+  const traders = arr(f.Traders?.Item).map((tr) => ({
+    n: txt(tr.TraderName),
+    d: txt(tr.TraderDesc),
+    i: icon(tr.TraderIcon),
+    goods: arr(tr.TradeLevels?.Item).flatMap((lv, step) =>
+      arr(lv.Trades?.Item).map((x) => ({ p: ref(x.Good), lvl: x.Level ?? 'Common', step })),
+    ),
+  }));
+  const factors = Object.fromEntries(Object.entries(f.TradeUpgrades ?? {}).map(([k, v]) => [k, { f: v.Factor ?? 1, need: v.NeededAmount ?? 0, max: v.MaximumAllowedGoods ?? -1 }]));
+  let values = [];
+  try {
+    values = JSON.parse(readFileSync(join(ROOT, 'research/exchange-values.json'), 'utf8')).goods ?? [];
+  } catch {
+    /* ohne Tauschwerte */
+  }
+  for (const v of values) {
+    ref(v.g);
+    const gd = goods[v.g];
+    if (gd) {
+      gd.ev = v.v;
+      if (v.mi) gd.im = v.mi;
+    }
+  }
+  return { traders, factors, amount: f.DefaultTradeAmount, minutes: Math.round((f.TraderTransferTime ?? 0) / 60000), valuesSource: values.length ? 'https://anno1800.fandom.com/wiki/Exchange_Ratios' : undefined };
+})();
+
 // ---------------------------------------------------------------- Schreiben
 // Nur eigene Ausgaben ersetzen (prod.json von build-prod bleibt erhalten).
 rmSync(ICONS_OUT, { recursive: true, force: true });
@@ -653,7 +757,7 @@ const files = [
   write('items.json', items),
   write('buildings.json', buildings),
   write('names.json', names),
-  write('info.json', { goods, population, pools: targetPools }),
+  write('info.json', { goods, population, pools: targetPools, docklands }),
   write('palace.json', palace),
   write('items-raw.json', itemsRaw),
   write('buildings-raw.json', buildingsRaw),

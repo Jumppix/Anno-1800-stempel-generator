@@ -224,7 +224,7 @@ Palast-Effekte als Einträge mit Platz „Palast“ (`pal`: Ministerium, Richtli
   Prestige, Richtlinien Arbeit/Handel); Rechnung `src/db/palace.ts` (`modsFor`) + `evaluate(..., { palace })`;
   Vorschläge `setupsFI` für Fabrikinspektionen. **Clipping:** Effekte, die über die Handelskammern kommen
   (Ministerium für Arbeit und seine Richtlinien), zählen doppelt wie Items (Nutzer: Basiseffekt 60 % → 120 %;
-  Richtlinien über dieselbe Weiterleitung, im Spiel noch zu bestätigen).
+  Richtlinien über dieselbe Weiterleitung – vom Nutzer im Spiel bestätigt, 23.11.2026).
 - **Seitenweite Einstellungen** (`src/palaceSettings.ts`, Knopf „🏛 Palast“ im Seitenkopf): Attraktivität,
   Palastflügel, Richtlinie je Ministerium im Palast, Regionalministerium (Ministerium + Richtlinie);
   gespeichert unter `anno-palace-settings`, Änderungen gehen per Ereignis an Produktion und Stadtplaner
@@ -234,3 +234,25 @@ Palast-Effekte als Einträge mit Platz „Palast“ (`pal`: Ministerium, Richtli
   für Feuerwehr/Polizei/Hospital“ entfällt (Spieldaten: nicht im Ziel-Pool).
 - Offen: Reichweite des Regionalministeriums (nicht in den Daten; Stadtplaner: halbe Palastreichweite),
   4. Rathaus-Item durch Freigeisterreform im Stadtplaner.
+
+
+## 10. Item-Herkunft, Hafenmeisterei-Items, Speicherstadt (23.11.2026)
+
+- **Herkunft** (`build-db.mjs`, Feld `src` je Item; Anzeige `src/db/origin.ts` im Infofenster und in der
+  Datenbank): rückwärts über Belohnungs-Pools (RewardPool/AssetPool/RewardItemPool/ItemReplacementPool) –
+  Händler (`Profile_3rdParty*` → `Trader.Progression.*.OfferingItems`), Herstellung
+  (`ItemCrafter.CraftableItemsInRegion`), Expeditionen (`ExpeditionDecision/Trade/Option`), Quests
+  (`A7_Quest*`/`Quest` Reward), Tauchglocke, Weltausstellung (`MonumentEventReward`), Tourismus.
+  Kampagnen-/Szenario-Kopien der Händler ausgeblendet. 1.440 von 1.534 Items mit Quelle, 1.108 bei Händlern,
+  93 herstellbar. Die Spielphase des Händlerangebots ist fast immer „Spielbeginn“ (das Spiel filtert zur
+  Laufzeit nach Freischaltung) – daher nicht angezeigt.
+- **Hafenmeisterei-Items** auf der Produktionsseite: zweite Item-Reihe „HM“ für Küstengebäude (Fischerei,
+  Quarzgrube, Salpeterwerk, Perlenfarm …), 3 Plätze, mit Palast-Richtlinie „Hafenverwaltung“ 4; Vorschläge
+  `setupsHO`/`setupsHO4` in prod.json (bester Satz zusätzlich zu den HK-Items derselben Art,
+  `bestSetup(..., base)`). Radien von Hafenmeistereien/Speicherstädten dürfen sich nicht überschneiden
+  (Wiki) → kein Clipping.
+- **Speicherstadt** (`info.json` → `docklands`): 8 Importhändler mit Waren und Stufe aus `TradeContractFeature`,
+  Stufen-Faktoren (1 / 1,2 / 1,4 / 1,6 / 2); Tauschwerte je Ware aus dem Anno-1800-Wiki
+  (`research/exchange-values.json`, 177 Waren, CC BY-SA) → `goods[].ev`/`im`. Formel:
+  Export je Import = V(Import)/V(Export) × M_I(Import) / M_E(Exportstufe).
+- **Clipping** der Ministeriums-Effekte vom Nutzer bestätigt.

@@ -408,3 +408,20 @@ body.with-header #app {
   font: inherit;
   max-width: 100%;
 }
+
+.hc-tag {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.d-sec .hc-cap {
+  margin-top: 6px;
+}
+
+.d-sec .hc-list {
+  margin-bottom: 6px;
+}

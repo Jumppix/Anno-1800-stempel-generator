@@ -210,6 +210,10 @@ export function evaluate(b: Building, items: readonly Item[], opts: ProdOptions,
 /** Item-Plätze, die auf ein Gebäude wirken: Handelskammer, in der Arktis die Arktis-Hütte. */
 export const slotsFor = (b: Building): string[] => (b.reg?.includes('arctic') ? ['Lodge', 'GuildHouse'] : ['GuildHouse']);
 
+/** Hafenmeisterei (Radius 20) bzw. Speicherstadt (Radius 30): 3 Item-Plätze für Küstengebäude. */
+export const HARBOR_OFFICE = 100586;
+export const HARBOR_SLOTS = 3;
+
 export type SetupKind = 'max' | 'noWorkforce' | 'noLegendary';
 export const SETUP_KINDS: SetupKind[] = ['max', 'noWorkforce', 'noLegendary'];
 
@@ -241,6 +245,8 @@ export function bestSetup(
   opts: ProdOptions,
   workforceSet: ReadonlySet<number>,
   slots = SLOTS,
+  /** Feste Items, die immer mitwirken (z. B. Handelskammer-Items beim Suchen der Hafenmeisterei-Items). */
+  base: readonly Item[] = [],
 ): Item[] | null {
   // Items, die das Erzvorkommen durch eine Ware ersetzen (Verrückte Viktoria: Dynamit),
   // schaffen neuen Bedarf – nicht automatisch vorschlagen, nur von Hand wählbar.
@@ -263,7 +269,7 @@ export function bestSetup(
   let best: Item[] | null = null;
   let bestR: ProdResult | null = null;
   const consider = (combo: Item[]): void => {
-    const r = evaluate(b, combo, opts, workforceSet);
+    const r = evaluate(b, base.length ? [...base, ...combo] : combo, opts, workforceSet);
     if (kind === 'noWorkforce' && (workforceTotal(r) > 0 || !r.workforce.length)) return;
     if (better(r, combo.length, bestR, best?.length ?? 0)) {
       best = combo;
