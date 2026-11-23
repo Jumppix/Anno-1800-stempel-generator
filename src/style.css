@@ -1243,3 +1243,23 @@ body:not([data-view='result']) .stage-layer {
 #city-stats small.pos {
   color: #7fc48a;
 }
+
+/* Automatische Schalter: von Hand geändert */
+.auto-manual {
+  box-shadow: inset 3px 0 0 #d9a520;
+  padding-left: 6px;
+}
+
+.auto-info {
+  color: #d9a520;
+}
+
+button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}

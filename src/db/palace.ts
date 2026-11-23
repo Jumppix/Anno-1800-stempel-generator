@@ -31,7 +31,7 @@ export const FACTORY_INSPECTIONS_DECREE = 269194;
 
 export const DEFAULT_PALACE: PalaceState = {
   loc: 'palace',
-  attr: 7600,
+  attr: 33000,
   ministry: 'Productivity',
   decrees: { Productivity: UNION_SUBSIDIES_DECREE },
 };

@@ -52,7 +52,7 @@ unnötig verändern.
   – Produktivität/Strom/Clipping/Arbeitskraft, `bestSetup`; Packer `src/prod/layout.ts` – meiste Gebäude
   je HK-Radius mit Straßennetz, `packMixed` für mehrere Arten im Verhältnis; Vorberechnung `scripts/data/build-prod.mjs`), `baumaterial.html` (Guide Baumaterialinsel: `src/guide/page.ts` Rechner/Karten, Inhalte `src/guide/material.ts`), `planer.html` (bisheriges
   Werkzeug, `src/main.ts`).
-  Gemeinsamer Rahmen `src/site.ts`/`src/site-frame.css` (Navigation, Sprachumschalter, Palast-Einstellungen für die ganze Seite `src/palaceSettings.ts`, Fanprojekt-Hinweis;
+  Gemeinsamer Rahmen `src/site.ts`/`src/site-frame.css` (Navigation, Sprachumschalter, Palast-Einstellungen für die ganze Seite `src/palaceSettings.ts` (Regionalministerium je Inseltyp `regional.city/prod/harbor`, Flügel aus Weltbevölkerung, `harborOfficesDefault`), Fanprojekt-Hinweis;
   auch im Stadtplaner, dort ohne Fußzeile/Sprachwahl), Seitenstile `src/site.css` (Start/Datenbank),
   Sprachen `src/i18n.ts` (de/en, `data-i18n`; der Stadtplaner ist noch nur deutsch).
 - Spieldatenbank (Plan: `docs/PLAN_Datenbank.md`): `scripts/data/build-db.mjs` erzeugt `public/db/*.json`
@@ -112,6 +112,8 @@ unnötig verändern.
   nur bei `PassInput.exact` per dynamischem Import geladen; Worker im ES-Format, `vite.config.js`).
 - Plan bearbeiten (Phase 6): `editCity`/`editTargetAt` in `src/planner.ts`, Ziehen/Tasten in
   `CityUi` (`PlanEditor`, `setEditor`), Verlauf/Neuberechnen in `PlannerUi`.
+- `src/plannerDefaults.ts`: Stadtplaner-Schalter folgen automatisch (Ministerium, Ingenieure, Universität,
+  Drogerie, Post, Lufthafen, Lieferdienst, 4. Item, Schichten); Handänderung bleibt (`anno-planer:overrides:v1`).
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;
   Option Mindest-Ingenieure (250 je Gaskraftwerk).
 - Brücken (`addBridges`, Zelltyp `BRIDGE`, `GridPlan.bridges`) und

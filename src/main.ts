@@ -21,6 +21,7 @@ import { render } from './render';
 import { Camera } from './camera';
 import { assembleParts, type AssembleResult } from './assemble';
 import { loadIsland, persistSettings, saveIsland } from './persist';
+import { initPlannerDefaults } from './plannerDefaults';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
 
 // Kopfleiste der Hilfeseite (Navigation) über dem Werkzeug.
@@ -895,6 +896,7 @@ persistSettings(
   document,
   'input[id^="plan-"], select[id^="plan-"], input[id^="svc-"], select[id^="svc-"], input[id^="rule-"], select[id^="rule-"]',
 );
+initPlannerDefaults();
 
 // Letzte Insel (Teile + Anordnung) und Modus wiederherstellen.
 const savedIsland = loadIsland(() => `p${nextPartId++}`);

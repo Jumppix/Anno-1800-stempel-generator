@@ -425,3 +425,27 @@ body.with-header #app {
 .d-sec .hc-list {
   margin-bottom: 6px;
 }
+
+.pal-reg {
+  border-top: 1px solid var(--line);
+  padding: 8px 0 4px;
+}
+
+.pal-reg > small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pal-reg .pal-list {
+  margin-top: 6px;
+}
+
+.pal-reset {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}

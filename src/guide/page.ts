@@ -296,7 +296,7 @@ function calcControls(): string {
       <label class="gd-chk"><input type="checkbox" data-opt="clip" ${st.clip ? 'checked' : ''} /><span>${esc(t('prod.clip'))}</span></label>
       <button type="button" class="pal-edit" data-act="palace">🏛 ${esc(t('pal.edit'))}</button>
     </div>
-    <p class="note">${esc(t('guide.palaceNow'))}: ${esc(palaceSummary(getPalaceSettings(), palace))} · ${esc(t(`pal.loc.${getPalaceSettings().prod}`))}</p>
+    <p class="note">${esc(t('guide.palaceNow'))}: ${esc(palaceSummary(getPalaceSettings(), palace, 'prod'))} · ${esc(t(`pal.loc.${getPalaceSettings().prod}`))}</p>
     <details class="gd-imports"><summary>${esc(t('guide.importChoose'))}</summary><div class="gd-chks">${imports}</div></details>`;
 }
 

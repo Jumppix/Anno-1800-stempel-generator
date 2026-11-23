@@ -283,9 +283,9 @@ export class CityUi {
   private updateRuleInfo(): void {
     const r = this.rules;
     const ps = getPalaceSettings();
-    const reg = this.palaceData?.ministries.find((m) => m.k === ps.regional.ministry);
+    const reg = this.palaceData?.ministries.find((m) => m.k === ps.regional.city.ministry);
     const pol = POLICIES.find((p) => p.id === r.policy);
-    this.palaceInfo.textContent = `Regionalministerium: ${reg ? pick(reg.n) : ps.regional.ministry}${
+    this.palaceInfo.textContent = `Regionalministerium (Wohninsel): ${reg ? pick(reg.n) : ps.regional.city.ministry}${
       r.ministry === 'none' && reg && ps.attr < reg.at ? ` (gesperrt, ab ${num(reg.at)} Attraktivität)` : ''
     }${pol ? ` · ${pol.name}` : ''} · Flügel ${r.palaceWings} · Prestige ${r.prestige} (Attraktivität ${num(ps.attr)})`;
     const parts = [
@@ -360,6 +360,9 @@ export class CityUi {
     try {
       this.city = cityFromStamp(decodeStampFull(bytes));
       this.sourceName = name;
+      // Automatische Schalter (Schichten „wie im Stempel“)
+      const tiers = this.city.buildings.some((b) => b.entry.tier === 'engineer' || b.entry.tier === 'investor');
+      document.dispatchEvent(new CustomEvent('city-stamp-loaded', { detail: { tiers } }));
       this.edits = { houses: new Map(), groups: new Map(), planned: this.pendingPlanned ?? undefined };
       this.reanalyze();
       this.onShow();
