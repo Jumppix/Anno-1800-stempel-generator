@@ -265,3 +265,25 @@ Stempel enthalten je Straßenkachel nur GUID und Position, kein Gelände. Deshal
 4. Bewertung: Lagerplatz nach 6.1 (Palast-Einstellungen: Handelsministerium, Prestige, Hafenbevorratung),
    Nebenbedingungen 6.2; lokale Suche (verschieben/tauschen) wie bei Rathäusern.
 5. Anzeige: Lagerplatz gesamt und je Quelle, Hafenmeistereien, Depots, Module; Stempel-Export.
+
+## 7. Crown-Falls-Stempel des Nutzers (23.11.2026)
+
+- 14 Teile (4 × Feldweg, 10 × „Kaistraße“; die Teile enthalten Land **und** Küste). Küste mit **Kaistraße
+  (601443)** gestempelt – Kaimauer lässt sich nicht stempeln. Kaistraße ist nur im Hafengebiet baubar
+  („Wasser inkl. Küste“) und eignet sich damit als Markierung: **Feldweg = Land, Kaistraße = Hafengebiet**.
+- Zusammengesetzt (alle Kacheln, auch Kaistraße): 467 × 443, 91.120 Landkacheln, 16.788 Kacheln Hafengebiet;
+  eindeutig, unabhängig von der Ladereihenfolge.
+- Import (`decodeStamp`): `harbor` = Kacheln nur mit Hafen-Straßen (`HARBOR_STREETS`: Kaistraße, Kaimauer, Kai);
+  `combineParts` liefert Land ohne Hafengebiet (`data`) plus `harbor`; ausgerichtet wird mit allen Kacheln.
+  Der Feldweg-GUID für den Export ignoriert Hafen-Straßen. Anordnen-Ansicht: Hafengebiet blau.
+- **Stempel enthalten keine Gebäude** – auch kein Kontor. Das Kontor erscheint als **Lücke**: 7 × 9 direkt an
+  der Landkante (= Kontor 9×7, Anno Designer), davor eine gerade, **5 Kacheln breite Zufahrt** bis zum Rand des
+  Hafengebiets (49 Kacheln). Links/rechts überall Kaistraße → Kontor und Zufahrt liegen im Hafengebiet.
+  `detectKontor` (`src/harbor.ts`) findet das (Crown Falls: 322/356, Zufahrt nach Süden, Sicherheit 96 %);
+  `harborWithKontor` gibt das Hafengebiet inklusive der Flächen unter Kontor und Zufahrt zurück – damit kann der
+  Küstenplaner das Kontor selbst neu platzieren (Regel: 7 × 9 im Hafengebiet, Rückseite an Land mit Straße,
+  5 breite gerade Zufahrt bis ins offene Wasser).
+- Abdeckungslücken der Stempel (gerade Kanten an Teilgrenzen, z. B. Südwest x 216–250 / y 409–430 und der
+  Ostrand x 466) sind kein Hindernis, sondern nicht gestempelt – dort geht das Hafengebiet vermutlich weiter.
+- Offen: ob alle Kontorstufen dieselbe Grundfläche haben; Breite der Zufahrt vor Anlegestellen.
+

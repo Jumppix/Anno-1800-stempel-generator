@@ -3,11 +3,22 @@ import { unzlibSync } from 'fflate';
 export interface ImportedIsland {
   width: number;
   height: number;
+  /** Alle Straßenkacheln (Land und Hafengebiet) – zum Ausrichten der Teile. */
   mask: Uint8Array;
+  /** Kacheln, die nur mit Hafen-Straßen belegt sind (Kaistraße, Kaimauer, Kai) = Hafengebiet. */
+  harbor?: Uint8Array;
+  /** Alle Straßenkacheln des Teils (zum Ausrichten; Land der Insel zählt `combineParts`). */
   landCount: number;
   region: number | null;
+  /** Straßen-GUID für Land (Feldweg …), nicht die Kaistraße. */
   streetGuid: number | null;
 }
+
+/**
+ * Straßen, die nur im Hafengebiet („Wasser inkl. Küste“) gebaut werden können: Kaistraße,
+ * Kaimauer, Kai (Spieldaten, BuildingType Street, Water_Including_Coast).
+ */
+export const HARBOR_STREETS: ReadonlySet<number> = new Set([601443, 100691, 1010567, 117729, 101339, 131865]);
 
 interface Node {
   id: number;
@@ -197,9 +208,40 @@ export function decodeStamp(file: Uint8Array): ImportedIsland {
   const regionNode = roots.find((root) => root.id === 32769);
   const region = regionNode?.raw?.length === 4 ? i32(regionNode.raw) : null;
   const streetGuidNode = street.kids.find((kid) => kid.id === 0x8000 && kid.raw?.length === 4);
-  const streetGuid = streetGuidNode?.raw ? i32(streetGuidNode.raw) : null;
+  let streetGuid = streetGuidNode?.raw ? i32(streetGuidNode.raw) : null;
 
-  return { width, height, mask, landCount: tiles.length, region, streetGuid };
+  // Hafengebiet: Kacheln nur mit Hafen-Straßen (über die GUIDs aus dem vollständigen Lesen).
+  let harbor: Uint8Array | undefined;
+  try {
+    const full = decodeStampFull(file);
+    const land = new Set<string>();
+    const port = new Set<string>();
+    const guidCount = new Map<number, number>();
+    for (const st of full.streets) {
+      const key = `${-Math.round(st.rawY)},${-Math.round(st.rawX)}`;
+      if (HARBOR_STREETS.has(st.guid)) port.add(key);
+      else {
+        land.add(key);
+        guidCount.set(st.guid, (guidCount.get(st.guid) ?? 0) + 1);
+      }
+    }
+    if (port.size) {
+      harbor = new Uint8Array(width * height);
+      for (const key of port) {
+        if (land.has(key)) continue;
+        const [x, y] = key.split(',').map(Number);
+        if (x < minX || y < minY || x > maxX || y > maxY) continue;
+        harbor[(y - minY) * width + (x - minX)] = 1;
+      }
+    }
+    if (streetGuid !== null && HARBOR_STREETS.has(streetGuid)) {
+      streetGuid = [...guidCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    }
+  } catch {
+    /* ohne Hafengebiet */
+  }
+
+  return { width, height, mask, harbor, landCount: tiles.length, region, streetGuid };
 }
 
 // ---------------------------------------------------------------------------

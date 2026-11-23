@@ -1,5 +1,6 @@
 import type { Camera } from './camera';
 import type { CombinedMask, IslandPart } from './island';
+import type { KontorFound } from './harbor';
 
 export interface PlacementView {
   scale: number;
@@ -35,9 +36,11 @@ function partImage(part: IslandPart): HTMLCanvasElement {
     for (let i = 0; i < part.w * part.h; i++) {
       if (!part.mask[i]) continue;
       const o = i * 4;
-      data.data[o] = r;
-      data.data[o + 1] = g;
-      data.data[o + 2] = b;
+      // Hafengebiet (Kaistraße …) blau, Land in der Teilfarbe
+      const port = part.harbor?.[i];
+      data.data[o] = port ? 70 : r;
+      data.data[o + 1] = port ? 150 : g;
+      data.data[o + 2] = port ? 210 : b;
       data.data[o + 3] = 210;
     }
     ctx.putImageData(data, 0, 0);
@@ -97,6 +100,7 @@ export function renderPlacement(
   combined: CombinedMask,
   selectedId: string | null,
   camera?: Camera,
+  kontor?: KontorFound | null,
 ): PlacementView {
   const parent = canvas.parentElement;
   if (!parent) return { scale: 1, originX: 0, originY: 0, minX: combined.minX, minY: combined.minY };
@@ -186,6 +190,24 @@ export function renderPlacement(
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = true;
+
+  // Erkanntes Kontor (Lücke im Hafengebiet) mit freizuhaltender Zufahrt
+  if (kontor) {
+    const box = (r: { x: number; y: number; w: number; h: number }, fill: string, stroke: string, dash: number[]): void => {
+      ctx.fillStyle = fill;
+      ctx.fillRect(originX + r.x * scale, originY + r.y * scale, r.w * scale, r.h * scale);
+      ctx.setLineDash(dash);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = Math.max(1, Math.min(3, scale / 2));
+      ctx.strokeRect(originX + r.x * scale, originY + r.y * scale, r.w * scale, r.h * scale);
+      ctx.setLineDash([]);
+    };
+    box(kontor.fairway, 'rgba(120, 200, 255, 0.18)', 'rgba(150, 215, 255, 0.9)', [4, 3]);
+    box(kontor, 'rgba(240, 199, 94, 0.55)', '#f0c75e', []);
+    ctx.fillStyle = '#f0c75e';
+    ctx.font = '600 12px system-ui, sans-serif';
+    ctx.fillText('Kontor', originX + (kontor.x + kontor.w + 1) * scale, originY + (kontor.y + kontor.h / 2) * scale);
+  }
 
   // One-tile grid on top of the parts. This is deliberately only drawn when
   // tiles are large enough to read, and keeps individual tiles identifiable.

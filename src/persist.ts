@@ -13,6 +13,8 @@ interface StoredPart {
   h: number;
   /** Maske als Bits, Base64. */
   mask: string;
+  /** Hafengebiet als Bits, Base64 (fehlt bei Inseln ohne Kaistraße). */
+  harbor?: string;
   landCount: number;
   offsetX: number;
   offsetY: number;
@@ -52,6 +54,7 @@ export function saveIsland(parts: readonly IslandPart[], region: string, mode: '
         w: p.w,
         h: p.h,
         mask: packBits(p.mask),
+        harbor: p.harbor ? packBits(p.harbor) : undefined,
         landCount: p.landCount,
         offsetX: p.offsetX,
         offsetY: p.offsetY,
@@ -78,6 +81,7 @@ export function loadIsland(nextId: () => string): { parts: IslandPart[]; region:
       w: p.w,
       h: p.h,
       mask: unpackBits(p.mask, p.w * p.h),
+      harbor: p.harbor ? unpackBits(p.harbor, p.w * p.h) : undefined,
       landCount: p.landCount,
       offsetX: p.offsetX,
       offsetY: p.offsetY,

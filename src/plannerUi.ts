@@ -33,6 +33,7 @@ interface PalaceVariant {
 }
 import type { PostReport } from './post';
 import type { ServiceOptions } from './services';
+import { kontorBack, type KontorFound } from './harbor';
 
 const SERVICE_KINDS_UI: BuildingKind[] = [
   'departmentStore',
@@ -60,6 +61,8 @@ export interface IslandSource {
   mask: LandMask;
   streetGuid: number;
   label: string;
+  /** Erkanntes Kontor (Lücke im Hafengebiet des Stempels), Maskenkoordinaten. */
+  kontor?: KontorFound | null;
 }
 
 function el<T extends HTMLElement>(selector: string): T {
@@ -415,7 +418,15 @@ export class PlannerUi {
   private sessionHarbor: { x: number; y: number } | null = null;
 
   currentHarbor(): { x: number; y: number } | null {
-    return this.harborPoint() ?? this.sessionHarbor;
+    return this.harborPoint() ?? this.sessionHarbor ?? this.kontorPoint();
+  }
+
+  /** Ohne gewählte Anlegestelle: Landseite des erkannten Kontors. */
+  private kontorPoint(): { x: number; y: number } | null {
+    const k = this.island()?.kontor;
+    if (!k) return null;
+    const [bx, by] = kontorBack(k)[Math.floor(kontorBack(k).length / 2)];
+    return { x: bx, y: by };
   }
 
   /** Inselinfo aktualisieren (beim Wechsel in den Modus aufrufen). */
@@ -706,6 +717,13 @@ export class PlannerUi {
     }
     items.push(
       `${num(city.houses.length)} Häuser · ${city.townHalls.length} Rathäuser · Restfläche ${((100 * freeTiles(src.mask, city)) / src.mask.landCount).toFixed(1)} %`,
+      ...(src.kontor
+        ? [
+            kontorBack(src.kontor).some(([x, y]) => city.plan.roads[y * city.plan.w + x])
+              ? 'Kontor: Straße an der Landseite vorhanden ✓'
+              : `<strong>Kontor ohne Straße an der Landseite</strong> – im Spiel eine Straße an ${kontorBack(src.kontor)[0].join('/')} anlegen (dort ein Haus weniger).`,
+          ]
+        : []),
     );
     if (r.services) {
       const s = r.services;

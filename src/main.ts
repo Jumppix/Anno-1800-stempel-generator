@@ -21,6 +21,7 @@ import { render } from './render';
 import { Camera } from './camera';
 import { assembleParts, type AssembleResult } from './assemble';
 import { loadIsland, persistSettings, saveIsland } from './persist';
+import { detectKontor, FACING_NAMES, type KontorFound } from './harbor';
 import { initPlannerDefaults } from './plannerDefaults';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
 
@@ -143,6 +144,16 @@ function stampName(index: number): string {
 
 const pct = (part: number, whole: number): string =>
   whole ? `${((part / whole) * 100).toFixed(1)} %` : '0.0 %';
+
+/** Kontor im Hafengebiet (Lücke im Stempel), je zusammengesetzter Insel einmal gesucht. */
+let kontorMemo: { of: CombinedMask; k: KontorFound | null } | null = null;
+function currentKontor(): KontorFound | null {
+  if (!combined?.harbor) return null;
+  // Beim Ziehen eines Teils nicht neu suchen (≈ 0,25 s auf großen Inseln)
+  if (drag) return null;
+  if (kontorMemo?.of !== combined) kontorMemo = { of: combined, k: detectKontor(combined) };
+  return kontorMemo.k;
+}
 
 function placementText(): string {
   const region = REGIONS[regionKey()];
@@ -272,6 +283,14 @@ function updateImportInfo(): void {
   let text = `${parts.length} Teil${parts.length === 1 ? '' : 'e'} · ${combined.w} × ${
     combined.h
   } · ${num(combined.landCount)} Landkacheln`;
+  if (combined.harborCount) {
+    const k = currentKontor();
+    text += ` · ${num(combined.harborCount)} Kacheln Hafengebiet (Kaistraße) · ${
+      k
+        ? `Kontor erkannt (${k.w} × ${k.h} bei ${k.x}/${k.y}, Zufahrt ${k.fairway.w} × ${k.fairway.h} nach ${FACING_NAMES[k.facing]})`
+        : 'kein Kontor erkannt (Lücke in Kontorgröße mit Zufahrt fehlt)'
+    }`;
+  }
   if (regions.size > 1) text += ' · Region gemischt!';
   stampInfo.textContent = text;
 }
@@ -337,7 +356,7 @@ function drawStage(): void {
 
   stageHint.hidden = true;
   if (view === 'arrange') {
-    placementView = renderPlacement(canvas, parts, combined, selectedId, arrangeCamera);
+    placementView = renderPlacement(canvas, parts, combined, selectedId, arrangeCamera, currentKontor());
     const harbor = mode === 'city' ? plannerUi?.currentHarbor() : null;
     const ctx = canvas.getContext('2d');
     if (harbor && ctx) {
@@ -545,6 +564,7 @@ async function loadStamps(files: FileList): Promise<void> {
         w: parsed.width,
         h: parsed.height,
         mask: parsed.mask,
+        harbor: parsed.harbor,
         landCount: parsed.landCount,
         offsetX: 0,
         offsetY: 0,
@@ -839,6 +859,7 @@ plannerUi = new PlannerUi(
       ? {
           mask: { w: combined.w, h: combined.h, data: combined.data, landCount: combined.landCount },
           streetGuid: fieldPathGuid(),
+          kontor: currentKontor(),
           label: `${combined.w} × ${combined.h} · ${num(combined.landCount)} Landkacheln (${parts.length} Teil${
             parts.length === 1 ? '' : 'e'
           })`,

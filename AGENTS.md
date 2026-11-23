@@ -83,7 +83,9 @@ unnötig verändern.
 - `src/stampReader.ts`: zusätzlich `decodeStampFull` (Gebäude + Straßen mit
   GUID; Attribut-IDs über das Namensverzeichnis, da Spiel- und App-Stempel
   verschiedene IDs nutzen).
-- Küsten-/Wassergebäude: Recherche und Optimierer-Plan `docs/PLAN_Kueste.md`.
+- Küsten-/Wassergebäude: Recherche und Optimierer-Plan `docs/PLAN_Kueste.md`. Hafengebiet aus Kaistraße/Kaimauer/Kai
+  (`HARBOR_STREETS` in `stampReader.ts`, `IslandPart.harbor`, `CombinedMask.harbor`; `data` = nur Land),
+  Kontor-Erkennung aus der Lücke im Stempel `src/harbor.ts` (`detectKontor`, Anzeige in `placement.ts`).
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
   `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
   `src/testStamps.ts`. Phase 2: `src/fill.ts` (vollständige Bebauung: Gitter über die ganze

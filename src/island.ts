@@ -6,7 +6,11 @@ export interface IslandPart {
   name: string;
   w: number;
   h: number;
+  /** Alle Straßenkacheln (Land + Hafengebiet), zum Ausrichten. */
   mask: Uint8Array;
+  /** Hafengebiet (Kaistraße/Kaimauer/Kai), kein Bauland für die Stadt. */
+  harbor?: Uint8Array;
+  /** Straßenkacheln des Teils (Land + Hafengebiet; Anker beim Ausrichten). */
   landCount: number;
   offsetX: number;
   offsetY: number;
@@ -18,6 +22,9 @@ export interface IslandPart {
 export interface CombinedMask extends LandMask {
   minX: number;
   minY: number;
+  /** Hafengebiet (1 = Kaistraße/Kaimauer/Kai, kein Land), falls vorhanden. */
+  harbor?: Uint8Array;
+  harborCount?: number;
 }
 
 export interface AlignResult {
@@ -36,7 +43,11 @@ export const PART_COLORS = [
   '#d8d06a',
 ];
 
-export function combineParts(parts: readonly IslandPart[]): CombinedMask | null {
+/**
+ * Teile zu einer Insel zusammenfügen. `data` = Land (ohne Hafengebiet, wo es kein anderes Teil
+ * als Land führt); mit `all` alle Straßenkacheln (zum Ausrichten).
+ */
+export function combineParts(parts: readonly IslandPart[], all = false): CombinedMask | null {
   if (parts.length === 0) return null;
 
   let minX = Infinity;
@@ -53,7 +64,9 @@ export function combineParts(parts: readonly IslandPart[]): CombinedMask | null 
   const w = maxX - minX;
   const h = maxY - minY;
   const data = new Uint8Array(w * h);
+  const port = new Uint8Array(w * h);
   let landCount = 0;
+  let any = false;
 
   for (const part of parts) {
     const ox = part.offsetX - minX;
@@ -64,6 +77,11 @@ export function combineParts(parts: readonly IslandPart[]): CombinedMask | null 
       for (let x = 0; x < part.w; x++) {
         if (!part.mask[srcRow + x]) continue;
         const idx = dstRow + x;
+        if (!all && part.harbor?.[srcRow + x]) {
+          port[idx] = 1;
+          any = true;
+          continue;
+        }
         if (!data[idx]) {
           data[idx] = 1;
           landCount++;
@@ -71,12 +89,18 @@ export function combineParts(parts: readonly IslandPart[]): CombinedMask | null 
       }
     }
   }
-
-  return { w, h, data, landCount, minX, minY };
+  if (!any) return { w, h, data, landCount, minX, minY };
+  // Was ein anderes Teil als Land führt, ist Land.
+  let harborCount = 0;
+  for (let i = 0; i < port.length; i++) {
+    if (data[i]) port[i] = 0;
+    else if (port[i]) harborCount++;
+  }
+  return { w, h, data, landCount, minX, minY, harbor: port, harborCount };
 }
 
 export function overlapCount(parts: readonly IslandPart[], part: IslandPart): number {
-  const union = combineParts(parts.filter((candidate) => candidate.id !== part.id));
+  const union = combineParts(parts.filter((candidate) => candidate.id !== part.id), true);
   if (!union) return 0;
 
   let n = 0;
