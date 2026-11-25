@@ -615,6 +615,22 @@ export class CityUi {
       }
     }
 
+    // Gleise: dunkles Schotterbett mit hellen Schienen
+    if (c.rail) {
+      for (let y = Math.max(0, vis.y0); y < Math.min(c.h, vis.y1); y++) {
+        for (let x = Math.max(0, vis.x0); x < Math.min(c.w, vis.x1); x++) {
+          if (!c.rail[y * c.w + x]) continue;
+          ctx.fillStyle = '#2a2622';
+          ctx.fillRect(ox + x * scale, oy + y * scale, scale + 0.3, scale + 0.3);
+          if (scale >= 4) {
+            ctx.fillStyle = '#b8b0a0';
+            const t = Math.max(1, scale / 8);
+            ctx.fillRect(ox + x * scale + scale / 2 - t / 2, oy + y * scale + scale / 2 - t / 2, t, t);
+          }
+        }
+      }
+    }
+
     // Radius des angewählten Gebäudes: Fläche leicht aufhellen, Linie folgt nach den Gebäuden.
     const sel = this.selected >= 0 ? c.buildings[this.selected] : null;
     const selRadius = sel?.entry.radius ?? 0;

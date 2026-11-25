@@ -333,3 +333,27 @@ ein Schienennetz Raffinerien ↔ Ölhafen/Öllager ↔ alle Ölkraftwerke (Bahn�
 Anzahl Raffinerien aus dem Ölbedarf der Kraftwerke. Braucht vom Nutzer: Teststempel mit Ölhafen + Schienen +
 Bahnübergang (Ausrichtung, welche Kacheln Wasser/Land), Ölverbrauch eines Kraftwerks im Spiel.
 
+## 9. Öl-Teststempel des Nutzers (25.11.2026)
+
+Stempel „Ölraffinerie“: 2 Raffinerien (eine mit 3, eine mit 1 Bohrturm), Kraftwerk, Tankhof, Kleiner Ölhafen,
+2 Öllager, Gleise über einen Fluss (Eisenbahnbrücke im Spiel automatisch).
+
+- **Gleise stehen nicht bei den Straßen**, sondern im eigenen Abschnitt `RailwayInfos`: je Eintrag ein gerades
+  Gleisstück mit zwei Endpunkten (je 2 × int32, Rohachsen wie Straßen, Attribut ohne Namen 0x8000). Hier 23 Stücke,
+  137 Gleiskacheln. Lesen: `decodeStampFull(...).rails`, Kacheln `railTiles`; Schreiben: `buildGenericStamp(...,
+  rails)` (`StampRail`). Rundreise (lesen → schreiben → lesen) verlustfrei. Plan-/Analyse-Ansicht zeichnet Gleise.
+- **Gleis durch Bahnhofsgebäude**: Raffinerie (5×5) mittlere Reihe + 1 Kachel hinaus, Kraftwerk und Tankhof (5×5)
+  mittlere Spalte, Kleiner Ölhafen (10×7) von der Landseite durch die Mitte. Im Spiel heißt das „RailsUnderBuilding“
+  (1010584). Öllager (8×4) stehen im Wasser ohne Gleis.
+- **Bohrtürme** hängen über `ComplexOwnerID` an ihrer Raffinerie (wie Module).
+- **Tankhof** (118571) = Tankstelle (Öl → Treibstoff 270042), für Kraftwerke nicht nötig.
+- **Schiene × Straße** (Spieldaten): Schiene `OverbuildRule Rail`, Bahnübergang (1010165) `OverbuildRule
+  Railcrossing`, Qualität 1 (wie Feldweg). Kreuzen Schiene und Straße, setzt das Spiel an der Kreuzungskachel selbst
+  einen Bahnübergang; längs überlagern geht nicht; Häuser nicht auf Gleisen; Gleise geben keinen Straßenanschluss.
+  Offen (Teststempel nötig): wie der Bahnübergang im Stempel steht und ob er auf Pflasterstraße die Reichweite
+  schwächt.
+
+**Ölplaner – Bausteine:** Hauptlinie vom Ölhafen ins Land; Raffinerien (je bis 3 Bohrtürme im Radius 12, Bohrtürme
+verschiebbar) als Block an der Linie nahe der Küste; Ölkraftwerke als Stichgleise an der Linie statt verteilter
+Gaskraftwerke; Kreuzungen mit dem Straßenraster als Bahnübergang; Anzahl Raffinerien aus dem Ölbedarf.
+

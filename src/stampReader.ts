@@ -272,11 +272,37 @@ export interface RawStreet {
   rawY: number;
 }
 
+/** Gleisstück (gerade, Endpunkte in Stempel-Rohachsen, ganzzahlig). */
+export interface RawRail {
+  a: [number, number];
+  b: [number, number];
+}
+
 export interface DecodedStamp {
   region: number | null;
   icon: number | null;
   buildings: RawBuilding[];
   streets: RawStreet[];
+  /** Gleisstücke (Abschnitt RailwayInfos) – Schienen sind keine Straßen. */
+  rails: RawRail[];
+}
+
+/** Alle Gleiskacheln eines Stempels in Kachelachsen (x, y) = (−rawY, −rawX). */
+export function railTiles(rails: readonly RawRail[]): Array<[number, number]> {
+  const seen = new Set<string>();
+  const out: Array<[number, number]> = [];
+  for (const { a, b } of rails) {
+    const n = Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+    for (let k = 0; k <= n; k++) {
+      const rx = a[0] + Math.sign(b[0] - a[0]) * k;
+      const ry = a[1] + Math.sign(b[1] - a[1]) * k;
+      const key = `${rx},${ry}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push([-ry, -rx]);
+    }
+  }
+  return out;
 }
 
 /**
@@ -341,11 +367,23 @@ export function decodeStampFull(file: Uint8Array): DecodedStamp {
     for (const [fx, fy] of pairs) streets.push({ guid: currentGuid, rawX: fx, rawY: fy });
   }
 
+  // Gleise: je Eintrag zwei Endpunkte (je 2 × int32, Rohachsen)
+  const rails: RawRail[] = [];
+  const railRoot = roots.find((r) => r.id === tagId('RailwayInfos', 4) && r.kids);
+  for (const seg of railRoot?.kids ?? []) {
+    const pts = (seg.kids ?? []).filter((k) => k.raw && k.raw.length === 8).map((k) => {
+      const dv = new DataView((k.raw as Uint8Array).buffer, (k.raw as Uint8Array).byteOffset, 8);
+      return [dv.getInt32(0, true), dv.getInt32(4, true)] as [number, number];
+    });
+    if (pts.length === 2) rails.push({ a: pts[0], b: pts[1] });
+  }
+
   return {
     region: intOf(roots.find((r) => r.id === A_STAMP)),
     icon: intOf(roots.find((r) => r.id === A_ICON)),
     buildings,
     streets,
+    rails,
   };
 }
 

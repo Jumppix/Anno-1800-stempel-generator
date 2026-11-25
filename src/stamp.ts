@@ -288,13 +288,22 @@ export interface StampBuilding {
  * Koordinatenkonvention wie buildStamp: Rohposition = (−(cy − Ky), −(cx − Kx))
  * mit dem Flächenmittelpunkt (cx, cy) und einem ganzzahligen Bezugspunkt K.
  */
+/** Gerades Gleisstück in Kachelachsen (Endpunkte einschließlich; waagrecht oder senkrecht). */
+export interface StampRail {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export function buildGenericStamp(
   items: ReadonlyArray<StampBuilding>,
   region: RegionKey,
   streets: readonly StampStreet[] = [],
   icon?: number,
+  rails: readonly StampRail[] = [],
 ): Uint8Array {
-  if (items.length === 0 && streets.length === 0) throw new Error('empty stamp');
+  if (items.length === 0 && streets.length === 0 && rails.length === 0) throw new Error('empty stamp');
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -310,6 +319,12 @@ export function buildGenericStamp(
     minY = Math.min(minY, st.y);
     maxX = Math.max(maxX, st.x + 1);
     maxY = Math.max(maxY, st.y + 1);
+  }
+  for (const r of rails) {
+    minX = Math.min(minX, r.x1, r.x2);
+    minY = Math.min(minY, r.y1, r.y2);
+    maxX = Math.max(maxX, r.x1 + 1, r.x2 + 1);
+    maxY = Math.max(maxY, r.y1 + 1, r.y2 + 1);
   }
   const kx = Math.round((minX + maxX) / 2);
   const ky = Math.round((minY + maxY) / 2);
@@ -350,9 +365,26 @@ export function buildGenericStamp(
     tag(T_BUILDING, buildings),
     tag(T_STREETS, streetNodes),
     attr(A_STREET_COUNT, i32(streets.length)),
-    tag(T_RAIL, []),
+    // Gleise: je Stück zwei Endpunkte (int32-Paare in Rohachsen, wie im Spiel-Stempel)
+    tag(
+      T_RAIL,
+      rails.map((r) =>
+        tag(T_ITEM, [
+          attr(A_STREET, i32pair(-(r.y1 - ky), -(r.x1 - kx))),
+          attr(A_STREET, i32pair(-(r.y2 - ky), -(r.x2 - kx))),
+        ]),
+      ),
+    ),
   ];
   return compress(serialize(roots));
+}
+
+function i32pair(a: number, b: number): Uint8Array {
+  const out = new Uint8Array(8);
+  const dv = new DataView(out.buffer);
+  dv.setInt32(0, a, true);
+  dv.setInt32(4, b, true);
+  return out;
 }
 
 function compress(raw: Uint8Array): Uint8Array {

@@ -2,7 +2,7 @@
 // Reichweitensuche über Straßen.
 
 import { footprint, lookup, quarterTurns, STREET_GUIDS, type CatalogEntry } from './catalog';
-import type { DecodedStamp } from './stampReader';
+import { railTiles, type DecodedStamp } from './stampReader';
 
 export interface CityBuilding {
   index: number;
@@ -32,6 +32,8 @@ export interface City {
   region: number | null;
   /** Stempelkacheln, die sowohl Straße als auch Gebäude sind. */
   conflicts: number;
+  /** Gleiskacheln (1 = Schiene), falls der Stempel Gleise enthält. */
+  rail?: Uint8Array;
 }
 
 /** Leerer Rand um das Stadtmodell (Kacheln). */
@@ -59,6 +61,7 @@ export function cityFromStamp(stamp: DecodedStamp): City {
     };
   });
   const roads = stamp.streets.map((s) => ({ guid: s.guid, x: -Math.round(s.rawY), y: -Math.round(s.rawX) }));
+  const rails = railTiles(stamp.rails ?? []);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -75,6 +78,12 @@ export function cityFromStamp(stamp: DecodedStamp): City {
     minY = Math.min(minY, r.y);
     maxX = Math.max(maxX, r.x + 1);
     maxY = Math.max(maxY, r.y + 1);
+  }
+  for (const [x, y] of rails) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + 1);
+    maxY = Math.max(maxY, y + 1);
   }
   if (!Number.isFinite(minX)) throw new Error('Der Stempel enthält weder Gebäude noch Straßen.');
 
@@ -96,6 +105,10 @@ export function cityFromStamp(stamp: DecodedStamp): City {
     }
     road[i] = r.guid || STREET_GUIDS.dirt;
   }
+
+  // Gleise (eigene Ebene; zählen nicht als Straße, laufen auch durch Bahnhofsgebäude)
+  const rail = new Uint8Array(w * h);
+  for (const [x, y] of rails) rail[(y - oy) * w + (x - ox)] = 1;
 
   let conflicts = 0;
   const buildings: CityBuilding[] = placed.map((p, index) => {
@@ -122,7 +135,7 @@ export function cityFromStamp(stamp: DecodedStamp): City {
     };
   });
 
-  return { w, h, buildings, road, occ, roadCount, pavedCount, region: stamp.region, conflicts };
+  return { w, h, buildings, road, occ, roadCount, pavedCount, region: stamp.region, conflicts, rail: rails.length ? rail : undefined };
 }
 
 /** Straßenkacheln, die die Grundfläche seitlich (nicht diagonal) berühren. */

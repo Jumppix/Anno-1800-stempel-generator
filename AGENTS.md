@@ -82,7 +82,8 @@ unnötig verändern.
   Gebäude mit Drehung), `StreetInfo`/`BuildingInfo`-Writer.
 - `src/stampReader.ts`: zusätzlich `decodeStampFull` (Gebäude + Straßen mit
   GUID; Attribut-IDs über das Namensverzeichnis, da Spiel- und App-Stempel
-  verschiedene IDs nutzen).
+  verschiedene IDs nutzen) und Gleise (`rails`, Abschnitt `RailwayInfos`, `railTiles`);
+  Schreiben der Gleise in `buildGenericStamp(..., rails)`.
 - Küsten-/Wassergebäude: Recherche und Optimierer-Plan `docs/PLAN_Kueste.md`. Hafengebiet aus Kaistraße/Kaimauer/Kai
   (`HARBOR_STREETS` in `stampReader.ts`, `IslandPart.harbor`, `CombinedMask.harbor`; `data` = nur Land),
   Kontor-Erkennung aus der Lücke im Stempel `src/harbor.ts` (`detectKontor`, Anzeige in `placement.ts`).
