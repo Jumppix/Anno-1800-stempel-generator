@@ -416,6 +416,33 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   expect('Ausrichten: Insel 3 (Nähte ohne Überlappung) wie im Screenshot ±3, Unsicheres gemeldet',
     near('Feldweg', -80, -34, 0) && near('Feldweg_02', 0, -80, 1) && near('Kaistrasse', 50, 80, 3) && r3.spread.size > 0,
     `${JSON.stringify(g3)} unsicher: ${[...r3.spread].map(([k, v]) => `${k}±${v}`).join(', ')}`);
+  // Unabhängig vom Ankerteil: jede Startwahl ergibt dieselbe Anordnung (Insel 2 und 3).
+  let anchorOk = 0;
+  let anchorRuns = 0;
+  for (const [dir, names, ref] of [
+    ['insel2', ['Feldweg_01', 'Feldweg_02', 'Feldweg_03', 'Kaistrasse'], 'Feldweg_01'],
+    ['insel3', ['Kaistrasse', 'Feldweg', 'Kaistrasse_02', 'Feldweg_02'], 'Kaistrasse_02'],
+  ]) {
+    const sigs = new Set();
+    for (let anchor = 0; anchor < names.length; anchor++) {
+      const ps = names.map((n) => load(`test-parts/${dir}/${n}`, n));
+      assembleParts(ps, undefined, { anchor });
+      const g = rel(ps, ref);
+      sigs.add(names.map((n) => g[n].join(',')).join(' '));
+      anchorRuns++;
+    }
+    if (sigs.size === 1) anchorOk += names.length;
+  }
+  expect('Ausrichten: jedes Ankerteil ergibt dieselbe Anordnung (Insel 2, 3)', anchorOk === anchorRuns, `${anchorOk}/${anchorRuns}`);
+  // Falsche Anordnung wird gemeldet: Feldweg_02 40 Kacheln daneben festgehalten.
+  {
+    const ps = ['Feldweg_01', 'Feldweg_02', 'Feldweg_03', 'Kaistrasse'].map((n) => load(`test-parts/insel2/${n}`, n));
+    ps[1].offsetX = 101 + 40;
+    ps[1].offsetY = 71;
+    const rw = assembleParts(ps, new Set(['Feldweg_01', 'Feldweg_02']));
+    const rOk = assembleParts(['Feldweg_01', 'Feldweg_02', 'Feldweg_03', 'Kaistrasse'].map((n) => load(`test-parts/insel2/${n}`, n)));
+    expect('Ausrichten: falsche Anordnung gemeldet, richtige nicht', rw.weak.size > 0 && rOk.weak.size === 0, `falsch: ${[...rw.weak].join(', ')} · richtig: ${[...rOk.weak].join(', ') || '–'}`);
+  }
   const a = load('test-parts/Insel_Teil_A', 'A');
   const b = load('test-parts/Insel_Teil_B', 'B');
   assembleParts([a, b]);

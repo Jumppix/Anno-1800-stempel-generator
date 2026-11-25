@@ -70,7 +70,9 @@ unnötig verändern.
   `(x, y) = (−rawY, −rawX)`, Gebäude/Straßen/GUIDs.
 - `src/island.ts`: `combineParts`, `overlapCount`, `alignPartTo`/`scanOffsets` (Einzelteil).
 - `src/assemble.ts`: `assembleParts` – alle Teile gemeinsam zusammensetzen (Paarbewertung per FFT
-  inkl. Nähte und Schnittkanten, Strahlsuche, unsichere Teile melden); Referenzen
+  inkl. Nähte und Schnittkanten, Strahlsuche von jedem Teil aus (schmal) + volle Suche von den zwei
+  besten Ankern, Gewinner nach Gesamtbewertung → unabhängig vom Ankerteil; unsichere Teile und schwach
+  gestützte Teile `weak` (viel offener Land-Rand, `openCutsPerPart`) melden); Referenzen
   `test-parts/insel2/` (exakt) und `test-parts/insel3/` (Kante an Kante).
 - `src/solver.ts`: `solve` (Gitter-Starts → Iterated Local Search mit
   (1,2)-Tausch → Simulated-Annealing-Politur der Abdeckung), `validateLayout`,

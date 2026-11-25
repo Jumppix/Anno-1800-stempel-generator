@@ -548,6 +548,11 @@ function alignmentNote(r: AssembleResult): string {
   if (r.missed.size) {
     notes.push(`${[...r.missed].map(name).join(', ')} ohne passenden Nachbarn – rechts abgelegt, bitte von Hand ziehen.`);
   }
+  if (r.weak.size) {
+    notes.push(
+      `${[...r.weak].map(name).join(', ')} passt kaum zu den Nachbarn (viel Land am Stempelrand ohne Anschluss) – Anordnung bitte prüfen und ggf. von Hand ziehen.`,
+    );
+  }
   if (r.spread.size) {
     notes.push(
       `Nicht eindeutig: ${[...r.spread].map(([id, d]) => `${name(id)} (±${d} Kachel${d === 1 ? '' : 'n'})`).join(', ')} – ` +

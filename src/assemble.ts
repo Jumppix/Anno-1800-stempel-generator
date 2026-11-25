@@ -43,6 +43,14 @@ function isTouching(A: IslandPart, B: IslandPart, dx: number, dy: number): boole
  * quer durchs Land geschnittener Stempel braucht dort einen Nachbarn.
  */
 export function openCuts(parts: readonly IslandPart[], pos: ReadonlyArray<readonly [number, number] | null>): number {
+  return openCutsPerPart(parts, pos).reduce((a, c) => a + c.open, 0);
+}
+
+/** Offene Schnittkanten je Teil (`open`) und Landkacheln am Rand des Teils (`border`). */
+export function openCutsPerPart(
+  parts: readonly IslandPart[],
+  pos: ReadonlyArray<readonly [number, number] | null>,
+): Array<{ open: number; border: number }> {
   const placed = parts.map((p, i) => ({ p, at: pos[i] })).filter((e) => e.at) as Array<{
     p: IslandPart;
     at: readonly [number, number];
@@ -60,11 +68,13 @@ export function openCuts(parts: readonly IslandPart[], pos: ReadonlyArray<readon
     }
     return seen;
   };
-  let open = 0;
+  const out = parts.map(() => ({ open: 0, border: 0 }));
   for (const { p, at } of placed) {
+    const c = out[parts.indexOf(p)];
     const edge = (x: number, y: number, ox: number, oy: number): void => {
       if (!p.mask[y * p.w + x]) return;
-      if (landAt(at[0] + x + ox, at[1] + y + oy, p) !== 1) open++;
+      c.border++;
+      if (landAt(at[0] + x + ox, at[1] + y + oy, p) !== 1) c.open++;
     };
     for (let x = 0; x < p.w; x++) {
       edge(x, 0, 0, -1);
@@ -75,7 +85,7 @@ export function openCuts(parts: readonly IslandPart[], pos: ReadonlyArray<readon
       edge(p.w - 1, y, 1, 0);
     }
   }
-  return open;
+  return out;
 }
 
 interface PairMap {
@@ -379,84 +389,162 @@ export interface AssembleResult {
   uncertain: Set<string>;
   /** Je unsicherem Teil: um wie viele Kacheln die Lage gleich gut passt. */
   spread: Map<string, number>;
+  /**
+   * Platzierte Teile, die an ihrer Stelle kaum zu ihren Nachbarn passen (Summe ihrer
+   * Paarbewertungen weit unter ihrem besten Paar) – Hinweis auf eine falsche Anordnung.
+   */
+  weak: Set<string>;
   score: number;
 }
 
 /**
  * Setzt alle Teile zusammen. `fixed`: Teile, die liegen bleiben (z. B. von
- * Hand ausgerichtet); sonst bleibt das größte Teil liegen.
+ * Hand ausgerichtet); sonst bleibt das größte Teil liegen. Ohne feste Teile ist das Ergebnis
+ * unabhängig davon, von welchem Teil die Suche ausgeht. `opts.anchor`/`opts.beam` nur für Tests.
  */
-export function assembleParts(parts: IslandPart[], fixed?: ReadonlySet<string>): AssembleResult {
+export function assembleParts(parts: IslandPart[], fixed?: ReadonlySet<string>, opts: { anchor?: number; beam?: number } = {}): AssembleResult {
   const n = parts.length;
-  const result: AssembleResult = { missed: new Set(), uncertain: new Set(), spread: new Map(), score: 0 };
+  const result: AssembleResult = { missed: new Set(), uncertain: new Set(), spread: new Map(), weak: new Set(), score: 0 };
   if (n <= 1) return result;
 
   // Paarbewertungen (B = j relativ zu A = i, nur i < j; Gegenrichtung gespiegelt).
-  const maps = new Map<string, PairMap>();
-  const key = (i: number, j: number): string => `${i},${j}`;
-  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) maps.set(key(i, j), pairMap(parts[i], parts[j]));
+  const pm: Array<PairMap | null> = new Array(n * n).fill(null);
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pm[i * n + j] = pairMap(parts[i], parts[j]);
   const S = (i: number, j: number, dx: number, dy: number): number =>
-    i < j ? lookup(maps.get(key(i, j)) as PairMap, dx, dy) : lookup(maps.get(key(j, i)) as PairMap, -dx, -dy);
-  const cands = new Map<string, Array<{ dx: number; dy: number; s: number }>>();
+    i < j ? lookup(pm[i * n + j] as PairMap, dx, dy) : lookup(pm[j * n + i] as PairMap, -dx, -dy);
+  const cand: Array<Array<{ dx: number; dy: number; s: number }>> = new Array(n * n);
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       if (i === j) continue;
-      const m = maps.get(key(Math.min(i, j), Math.max(i, j))) as PairMap;
-      const list = topCandidates(m, 24, 4).map((c) => (i < j ? c : { dx: -c.dx, dy: -c.dy, s: c.s }));
-      cands.set(key(i, j), list);
+      const m = pm[Math.min(i, j) * n + Math.max(i, j)] as PairMap;
+      cand[i * n + j] = topCandidates(m, 24, 4).map((c) => (i < j ? c : { dx: -c.dx, dy: -c.dy, s: c.s }));
     }
   }
 
-  // Strahlsuche über Anordnungen.
-  type State = { pos: Array<[number, number] | null>; score: number };
-  const kept = fixed && fixed.size ? parts.map((p, i) => (fixed.has(p.id) ? i : -1)).filter((i) => i >= 0) : [];
-  const start: State = { pos: parts.map(() => null), score: 0 };
-  if (kept.length) {
-    for (const i of kept) start.pos[i] = [parts[i].offsetX, parts[i].offsetY];
-    for (const i of kept) for (const j of kept) if (i < j) start.score += S(i, j, parts[j].offsetX - parts[i].offsetX, parts[j].offsetY - parts[i].offsetY);
-  } else {
-    let anchor = 0;
-    for (let i = 1; i < n; i++) if (parts[i].landCount > parts[anchor].landCount) anchor = i;
-    start.pos[anchor] = [parts[anchor].offsetX, parts[anchor].offsetY];
-  }
-  const BEAM = 400;
-  let beam: State[] = [start];
-  for (;;) {
-    const next = new Map<string, State>();
-    let expanded = false;
-    for (const st of beam) {
-      const placed = st.pos.map((p, i) => (p ? i : -1)).filter((i) => i >= 0);
-      for (let j = 0; j < n; j++) {
-        if (st.pos[j]) continue;
-        for (const i of placed) {
-          const [px, py] = st.pos[i] as [number, number];
-          for (const c of cands.get(key(i, j)) ?? []) {
-            const x = px + c.dx;
-            const y = py + c.dy;
-            let add = 0;
-            for (const k of placed) {
-              const [kx, ky] = st.pos[k] as [number, number];
-              add += S(k, j, x - kx, y - ky);
+  // Strahlsuche über Anordnungen. Doppelte Anordnungen erkennt eine reihenfolgeunabhängige
+  // Prüfsumme (Summe je platziertem Teil), neue Zustände entstehen nur für die besten.
+  type State = { pos: Array<[number, number] | null>; score: number; hash: number };
+  const mix = (i: number, x: number, y: number): number => {
+    let h = Math.imul(i + 1, 0x9e3779b1) ^ Math.imul(x | 0, 0x85ebca6b) ^ Math.imul(y | 0, 0xc2b2ae35);
+    h ^= h >>> 16;
+    h = Math.imul(h, 0x7feb352d);
+    h ^= h >>> 15;
+    return h >>> 0;
+  };
+  const runBeam = (start: State, BEAM = opts.beam ?? 400): State[] => {
+    let beam: State[] = [start];
+    for (;;) {
+      const index = new Map<number, number>();
+      const cs: number[] = [];
+      const cj: number[] = [];
+      const cx: number[] = [];
+      const cy: number[] = [];
+      const ct: number[] = [];
+      for (let si = 0; si < beam.length; si++) {
+        const st = beam[si];
+        const placed: number[] = [];
+        for (let i = 0; i < n; i++) if (st.pos[i]) placed.push(i);
+        for (let j = 0; j < n; j++) {
+          if (st.pos[j]) continue;
+          for (const i of placed) {
+            const [px, py] = st.pos[i] as [number, number];
+            for (const c of cand[i * n + j]) {
+              const x = px + c.dx;
+              const y = py + c.dy;
+              let add = 0;
+              for (const k of placed) {
+                const pk = st.pos[k] as [number, number];
+                add += S(k, j, x - pk[0], y - pk[1]);
+              }
+              const total = st.score + add;
+              const h = (st.hash + mix(j, x, y)) >>> 0;
+              const prev = index.get(h);
+              if (prev === undefined) {
+                index.set(h, cs.length);
+                cs.push(si);
+                cj.push(j);
+                cx.push(x);
+                cy.push(y);
+                ct.push(total);
+              } else if (ct[prev] < total) {
+                cs[prev] = si;
+                cj[prev] = j;
+                cx[prev] = x;
+                cy[prev] = y;
+                ct[prev] = total;
+              }
             }
-            const pos = st.pos.slice();
-            pos[j] = [x, y];
-            const sig = pos.map((p) => (p ? `${p[0]}:${p[1]}` : '-')).join('|');
-            const total = st.score + add;
-            const prev = next.get(sig);
-            if (!prev || prev.score < total) next.set(sig, { pos, score: total });
-            expanded = true;
           }
         }
       }
+      if (!cs.length) break;
+      // Die besten BEAM Kandidaten (Schwelle per Auswahl statt vollständiger Sortierung)
+      let keep: number[];
+      if (cs.length <= BEAM) keep = cs.map((_, k) => k);
+      else {
+        const t = kthLargest(Float64Array.from(ct), BEAM);
+        keep = [];
+        for (let k = 0; k < ct.length && keep.length < BEAM; k++) if (ct[k] > t) keep.push(k);
+        for (let k = 0; k < ct.length && keep.length < BEAM; k++) if (ct[k] === t) keep.push(k);
+      }
+      keep.sort((a, b) => ct[b] - ct[a]);
+      beam = keep.map((k) => {
+        const st = beam[cs[k]];
+        const pos = st.pos.slice();
+        pos[cj[k]] = [cx[k], cy[k]];
+        return { pos, score: ct[k], hash: (st.hash + mix(cj[k], cx[k], cy[k])) >>> 0 };
+      });
     }
-    if (!expanded) break;
-    beam = [...next.values()].sort((a, b) => b.score - a.score).slice(0, BEAM);
-  }
-  // Endauswahl: Paarbewertung minus offene Schnittkanten.
+    return beam;
+  };
+
+  const kept = fixed && fixed.size ? parts.map((p, i) => (fixed.has(p.id) ? i : -1)).filter((i) => i >= 0) : [];
+  const startFrom = (anchors: number[]): State => {
+    const st: State = { pos: parts.map(() => null), score: 0, hash: 0 };
+    for (const i of anchors) {
+      st.pos[i] = [parts[i].offsetX, parts[i].offsetY];
+      st.hash = (st.hash + mix(i, parts[i].offsetX, parts[i].offsetY)) >>> 0;
+    }
+    for (const i of anchors) for (const j of anchors) if (i < j) st.score += S(i, j, parts[j].offsetX - parts[i].offsetX, parts[j].offsetY - parts[i].offsetY);
+    return st;
+  };
+  // Endauswahl: Paarbewertung minus offene Schnittkanten (hängt nicht vom Anker ab).
   const finalScore = (st: State): number => st.score - OPEN_CUT * openCuts(parts, st.pos);
-  const ranked = beam
-    .map((st) => ({ st, placed: st.pos.filter(Boolean).length, value: finalScore(st) }))
-    .sort((a, b) => b.placed - a.placed || b.value - a.value);
+  const rank = (states: State[]): Array<{ st: State; placed: number; value: number }> =>
+    states
+      .map((st) => ({ st, placed: st.pos.filter(Boolean).length, value: finalScore(st) }))
+      .sort((a, b) => b.placed - a.placed || b.value - a.value);
+  // Größtes Teil: bleibt ohne feste Teile an seiner Stelle (Ursprung stabil).
+  let largest = 0;
+  for (let i = 1; i < n; i++) if (parts[i].landCount > parts[largest].landCount) largest = i;
+  let beam: State[];
+  if (kept.length) beam = runBeam(startFrom(kept));
+  else if (opts.anchor !== undefined) beam = runBeam(startFrom([opts.anchor]));
+  else {
+    // Unabhängig vom Ankerteil: schmale Suche von jedem Teil aus (bei sehr vielen Teilen von den
+    // 16 mit den stärksten Paarbewertungen), dann volle Suche von den zwei besten Ankern; es gewinnt
+    // die Anordnung mit der höchsten Gesamtbewertung. Mit nur einem Anker konnte die Suche an einer
+    // Insel mit vielen Streifen-Teilen falsch abbiegen, ohne dass ein Teil als unsicher galt.
+    const support = parts.map((_, i) => {
+      let t = 0;
+      for (let j = 0; j < n; j++) if (j !== i) t += Math.max(0, ...cand[i * n + j].map((c) => c.s));
+      return t;
+    });
+    const anchors = [...parts.keys()].sort((a, b) => support[b] - support[a] || a - b).slice(0, 16);
+    const quick = anchors.map((a) => ({ a, best: rank(runBeam(startFrom([a]), 40))[0] }));
+    quick.sort((p, q) => q.best.placed - p.best.placed || q.best.value - p.best.value || p.a - q.a);
+    const all = quick.map((q) => q.best.st);
+    for (const q of quick.slice(0, 2)) all.push(rank(runBeam(startFrom([q.a])))[0].st);
+    // Ursprung: größtes Teil auf seine bisherige Lage schieben
+    beam = all.map((st) => {
+      const at = st.pos[largest];
+      if (!at) return st;
+      const dx = parts[largest].offsetX - at[0];
+      const dy = parts[largest].offsetY - at[1];
+      return { ...st, pos: st.pos.map((p) => (p ? ([p[0] + dx, p[1] + dy] as [number, number]) : null)) };
+    });
+  }
+  const ranked = rank(beam);
   const best = ranked[0].st;
   result.score = ranked[0].value;
 
@@ -495,6 +583,26 @@ export function assembleParts(parts: IslandPart[], fixed?: ReadonlySet<string>):
   };
   const finalPos = parts.map((p, i) => (best.pos[i] ? ([p.offsetX, p.offsetY] as [number, number]) : null));
   const base = evaluate(finalPos);
+  // Schwach gestützt: (a) viel Land am Stempelrand ohne Nachbarn dahinter (≥ 30 Kacheln und
+  // ≥ 25 % des Land-Rands; richtige Anordnungen liegen bei ≤ 16 %, falsche bei 27–95 %, gemessen
+  // an Crown Falls), oder (b) Summe der Paarbewertungen unter 25 % des besten Paars dieses Teils.
+  const cuts = openCutsPerPart(parts, finalPos);
+  cuts.forEach((c, i) => {
+    if (finalPos[i] && c.open >= 30 && c.open >= 0.25 * c.border) result.weak.add(parts[i].id);
+  });
+  parts.forEach((p, i) => {
+    const a = finalPos[i];
+    if (!a) return;
+    let have = 0;
+    let bestPair = 0;
+    for (let j = 0; j < n; j++) {
+      if (j === i) continue;
+      bestPair = Math.max(bestPair, ...cand[i * n + j].map((c) => c.s));
+      const b = finalPos[j];
+      if (b) have += S(i, j, b[0] - a[0], b[1] - a[1]);
+    }
+    if (bestPair >= 20 && have < 0.25 * bestPair) result.weak.add(p.id);
+  });
   parts.forEach((p, i) => {
     if (!finalPos[i] || (fixed && fixed.has(p.id))) return;
     let spread = 0;
@@ -530,3 +638,31 @@ export function assembleParts(parts: IslandPart[], fixed?: ReadonlySet<string>):
   // Ursprung stabil halten: wenn nichts fest war, Anker bleibt (0,0)-nah.
   return result;
 }
+
+/** k-größter Wert (1 = Maximum) per Quickselect; verändert das Feld. */
+function kthLargest(a: Float64Array, k: number): number {
+  let lo = 0;
+  let hi = a.length - 1;
+  const target = k - 1;
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >> 1];
+    let i = lo;
+    let j = hi;
+    while (i <= j) {
+      while (a[i] > pivot) i++;
+      while (a[j] < pivot) j--;
+      if (i <= j) {
+        const t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (target <= j) hi = j;
+    else if (target >= i) lo = i;
+    else break;
+  }
+  return a[target];
+}
+
