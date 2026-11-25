@@ -132,6 +132,20 @@ export function analyzeCity(
   const search = new RoadSearch(city);
   const roadsOf = city.buildings.map((b) => adjacentRoads(city, b));
 
+  // --- Gleise: höchstens 2 Bahnübergänge (Straße + Gleis) direkt nebeneinander (Spiel).
+  if (city.rail) {
+    const { w, h, rail, road } = city;
+    const cross = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && !!rail[y * w + x] && !!road[y * w + x];
+    let bad = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!cross(x, y)) continue;
+        if ((cross(x + 1, y) && cross(x + 2, y) && !cross(x - 1, y)) || (cross(x, y + 1) && cross(x, y + 2) && !cross(x, y - 1))) bad++;
+      }
+    }
+    if (bad) warnings.push(`${bad}× mehr als 2 Bahnübergänge nebeneinander – im Spiel nicht erlaubt (nach 2 Übergängen braucht es ein reines Gleisstück).`);
+  }
+
   // --- Regionalministerium bzw. Palast: welche Gebäude liegen in seiner Straßenreichweite?
   // Palastinsel: Reichweite mit den gebauten Flügeln, Anschluss über Palast und Flügel.
   const palaces = city.buildings.filter((b) => b.entry.kind === 'palace');

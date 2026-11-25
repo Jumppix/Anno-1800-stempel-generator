@@ -106,9 +106,18 @@ export function cityFromStamp(stamp: DecodedStamp): City {
     road[i] = r.guid || STREET_GUIDS.dirt;
   }
 
-  // Gleise (eigene Ebene; zählen nicht als Straße, laufen auch durch Bahnhofsgebäude)
+  // Gleise (eigene Ebene; zählen nicht als Straße, laufen auch durch Bahnhofsgebäude).
+  // Straße + Gleis auf derselben Kachel = Bahnübergang (setzt das Spiel selbst); er hat die
+  // Qualität eines Feldwegs (Spieldaten 1010165, Quality 1).
   const rail = new Uint8Array(w * h);
-  for (const [x, y] of rails) rail[(y - oy) * w + (x - ox)] = 1;
+  for (const [x, y] of rails) {
+    const i = (y - oy) * w + (x - ox);
+    rail[i] = 1;
+    if (road[i]) {
+      if (road[i] === STREET_GUIDS.paved) pavedCount--;
+      road[i] = STREET_GUIDS.dirt;
+    }
+  }
 
   let conflicts = 0;
   const buildings: CityBuilding[] = placed.map((p, index) => {

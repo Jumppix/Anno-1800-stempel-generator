@@ -350,8 +350,14 @@ Stempel „Ölraffinerie“: 2 Raffinerien (eine mit 3, eine mit 1 Bohrturm), Kr
 - **Schiene × Straße** (Spieldaten): Schiene `OverbuildRule Rail`, Bahnübergang (1010165) `OverbuildRule
   Railcrossing`, Qualität 1 (wie Feldweg). Kreuzen Schiene und Straße, setzt das Spiel an der Kreuzungskachel selbst
   einen Bahnübergang; längs überlagern geht nicht; Häuser nicht auf Gleisen; Gleise geben keinen Straßenanschluss.
-  Offen (Teststempel nötig): wie der Bahnübergang im Stempel steht und ob er auf Pflasterstraße die Reichweite
-  schwächt.
+  **Kreuzungs-Teststempel (25.11.2026):** Ein Bahnübergang steht im Stempel nicht eigens – auf der Kachel liegen
+  eine Straßenkachel (Feldweg oder Pflaster, Abschnitt StreetInfo) **und** eine Gleiskachel. **Höchstens 2
+  Übergänge direkt nebeneinander**, dann muss eine reine Gleiskachel folgen (`X r X X r X X r …`); breite Straßen
+  werden am Gleis also unterbrochen. Die Analyse wertet Übergänge als Feldweg (Qualität 1) und warnt bei mehr als 2
+  nebeneinander. Ob der Übergang die Pflaster-Reichweite wirklich schwächt, ist im Spiel unbestätigt.
+- **Nachbau-Test (Nutzer):** Der von der App geschriebene Öl-Stempel funktioniert, nur die Bohrtürme mussten neu
+  gesetzt werden → Ursache: jede Kachel bekam eine eigene `ComplexOwnerID`; im Spiel-Stempel teilen Raffinerie und
+  Bohrtürme eine. `decodeStampFull` liest jetzt `owner`, `buildGenericStamp` schreibt ihn (`StampBuilding.owner`).
 
 **Ölplaner – Bausteine:** Hauptlinie vom Ölhafen ins Land; Raffinerien (je bis 3 Bohrtürme im Radius 12, Bohrtürme
 verschiebbar) als Block an der Linie nahe der Küste; Ölkraftwerke als Stichgleise an der Linie statt verteilter

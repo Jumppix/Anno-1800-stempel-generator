@@ -264,6 +264,8 @@ export interface RawBuilding {
   rawY: number;
   /** Drehung in Radiant (0, π/2, π, 3π/2). */
   dir: number;
+  /** ComplexOwnerID: gleiche Zahl = ein Komplex (z. B. Raffinerie mit Bohrtürmen); 0 = keiner. */
+  owner?: number;
 }
 
 export interface RawStreet {
@@ -323,6 +325,7 @@ export function decodeStampFull(file: Uint8Array): DecodedStamp {
   const A_POS = attrId('Pos', 0x8003);
   const A_DIR = attrId('Dir', 0x8007);
   const A_GUID = attrId('GUID', 0x8004);
+  const A_OWNER = attrId('ComplexOwnerID', 0x8006);
   const A_STAMP = attrId('StampPath', 0x8001);
   const A_ICON = attrId('IconGUID', 0x8002);
   const T_BUILDING = tagId('BuildingInfo', 2);
@@ -339,6 +342,7 @@ export function decodeStampFull(file: Uint8Array): DecodedStamp {
     let rawX = 0;
     let rawY = 0;
     let dir = 0;
+    let owner: number | undefined;
     for (const a of entry.kids) {
       if (!a.raw) continue;
       const dv = new DataView(a.raw.buffer, a.raw.byteOffset, a.raw.byteLength);
@@ -349,9 +353,11 @@ export function decodeStampFull(file: Uint8Array): DecodedStamp {
         dir = dv.getFloat32(0, true);
       } else if (a.id === A_GUID && a.raw.length === 4) {
         guid = dv.getInt32(0, true);
+      } else if (a.id === A_OWNER && a.raw.length === 8) {
+        owner = dv.getInt32(4, true) * 4294967296 + dv.getUint32(0, true);
       }
     }
-    if (guid) buildings.push({ guid, rawX, rawY, dir });
+    if (guid) buildings.push({ guid, rawX, rawY, dir, ...(owner !== undefined ? { owner } : {}) });
   }
 
   const streets: RawStreet[] = [];
