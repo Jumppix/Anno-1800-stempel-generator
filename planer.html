@@ -129,11 +129,23 @@
               <label class="check-row"><input id="svc-furnitureStore" type="checkbox" checked />Einrichtungshaus</label>
               <label class="check-row"><input id="svc-drugStore" type="checkbox" checked />Drogerie</label>
               <label class="check-row"><input id="svc-university" type="checkbox" checked />Universität</label>
-              <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Gaskraftwerk</label>
+              <label class="check-row"><input id="svc-powerPlant" type="checkbox" checked />Kraftwerk</label>
               <label class="check-row"><input id="plan-post" type="checkbox" checked />Briefkästen</label>
               <label class="check-row"><input id="plan-airport" type="checkbox" checked />Lufthafen</label>
               <label class="check-row"><input id="plan-ministry" type="checkbox" checked />Ministerium</label>
             </div>
+            <label class="select-row" title="Ölkraftwerke (5×5, Reichweite etwas kleiner, 150 statt 250 Ingenieure) bekommen ihr Öl per Zug: der Planer setzt einen Ölhafen ins Hafengebiet und verbindet ihn mit Gleisen (Bahnübergänge über Straßen) mit allen Kraftwerken.">Kraftwerke
+              <select id="plan-power-fuel">
+                <option value="gas" selected>Gaskraftwerke</option>
+                <option value="oil">Ölkraftwerke (Ölhafen + Gleise)</option>
+              </select>
+            </label>
+            <label class="select-row" title="Eigene Ölquellen: die Bohrtürme aus dem Stempel (mit „Bahnbrechende Entdeckungen“ verschiebbar) – je Raffinerie bis zu 3 – nahe dem Ölhafen. Per Schiff: nur Ölhafen und Kraftwerke, das Öl kommt von anderen Inseln.">Ölquelle
+              <select id="plan-oil-source">
+                <option value="own" selected>Eigene Ölquellen der Insel (Raffinerien)</option>
+                <option value="ship">Öl per Schiff (nur Ölhafen)</option>
+              </select>
+            </label>
             <div class="harbor-row">
               <button id="plan-harbor" class="ghost" type="button">⚓ Hauptanlegestelle wählen</button>
               <span id="plan-harbor-info" class="micro">nicht gesetzt</span>

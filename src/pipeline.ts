@@ -22,6 +22,8 @@ import {
   planPost,
   planServices,
   planToStampItems,
+  planOil,
+  railSegments,
   refillAroundTownHalls,
   townHallProblem,
   type CityPlan,
@@ -29,6 +31,7 @@ import {
 import type { PostReport } from './post';
 import type { ProductionOptions } from './production';
 import type { ServiceOptions } from './services';
+import type { OilOptions, OilReport } from './oil';
 import { mailResidentsFor, mailTypes, type RuleConfig } from './rules';
 import type { MipSolver, ServiceReport } from './services';
 import { solve, type LandMask } from './solver';
@@ -57,6 +60,8 @@ export interface PassInput {
   culture?: ServiceOptions['culture'];
   /** Lehmgruben-Cluster (verschiebbare Vorkommen aus dem Stempel). */
   clay?: ServiceOptions['clay'];
+  /** Ölmodus: Ölkraftwerke statt Gaskraftwerke, Ölhafen und Gleise (`oil.ts`). */
+  oil?: OilOptions;
   /** Minen aus dem Stempel (Straßenanschluss + Lagerhaus). */
   mines?: ServiceOptions['mines'];
   airport?: { harbor: { x: number; y: number } | null };
@@ -91,6 +96,8 @@ export interface PassResult {
   insert: InsertReport | null;
   /** M5: Nachverdichtung nach Einwohnern (Häuser-Bilanz, Einwohner-Gewinn, übernommen?). */
   valueCompact: { gained: number; residents: number; accepted: boolean } | null;
+  /** Ölmodus: Ölhafen, Raffinerien, Gleise. */
+  oil?: OilReport | null;
   ms: number;
 }
 
@@ -101,7 +108,7 @@ export type PassEvent =
 
 const stampCity = (mask: LandMask, city: CityPlan, bridges: boolean): ReturnType<typeof cityFromStamp> => {
   const items = planToStampItems(mask, city, { coast: false, coastGuid: 1000178, bridges });
-  return cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets)));
+  return cityFromStamp(decodeStampFull(buildGenericStamp(items.buildings, 'ow', items.streets, undefined, railSegments(items.rails))));
 };
 
 const toArray = (planned: Planned): Array<[number, number, number]> =>
@@ -186,6 +193,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     ministry: input.ministry,
     culture: input.culture,
     clay: input.clay,
+    oilPower: !!input.oil,
     mines: input.mines,
     airport: input.airport,
     production: input.production,
@@ -205,9 +213,10 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
   const withMail = input.post && rules.mail !== 'none';
   const levels = (c: CityPlan, seedOffset: number): LevelResult => {
     const analysis = analyzeCity(stampCity(mask, c, true), rules);
-    const plants = (c.services ?? []).filter((sv) => sv.kind === 'powerPlant').length;
+    // Ingenieure je Kraftwerk (Spieldaten): Gas 250, Öl 150
+    const engineers = (c.services ?? []).filter((sv) => sv.kind === 'powerPlant').reduce((a, sv) => a + (sv.guid === 100780 ? 150 : 250), 0);
     return optimizeLevels(analysis.residences, rules, input.levelMode, input.levelMs, 11 + input.seed * 977 + seedOffset, {
-      minEngineers: input.selfWorkforce ? plants * 250 : 0,
+      minEngineers: input.selfWorkforce ? engineers : 0,
       mailTypes: withMail ? mailTypes(rules.mail) : undefined,
     });
   };
@@ -279,6 +288,16 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
       }
     } else valueCompact = { gained: 0, residents: 0, accepted: false };
   }
+  // 7c. Ölversorgung: Ölhafen, Raffinerien mit Bohrtürmen, Gleise zu allen Ölkraftwerken
+  let oil: OilReport | null = null;
+  if (input.oil && services) {
+    emit({ kind: 'step', label: 'Ölversorgung (Ölhafen, Gleise)' });
+    const r = planOil(mask, city, input.oil);
+    oil = r.report;
+    const changed = r.city.houses.length !== city.houses.length;
+    city = { ...r.city, removedHouses: city.removedHouses };
+    if (changed) lv = levels(city, 7);
+  }
   snap(city, lv.planned);
 
   // 8. Briefkästen
@@ -320,6 +339,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     thin,
     insert,
     valueCompact,
+    oil,
     ms: performance.now() - t0,
   };
 }

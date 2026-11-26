@@ -79,6 +79,11 @@ const RULES: readonly AutoRule[] = [
     why: 'nur mit Verwaltung + Freigeisterreform',
   },
   {
+    id: 'plan-oil-source',
+    hidden: () => value('plan-power-fuel') !== 'oil',
+    why: 'nur bei Ölkraftwerken',
+  },
+  {
     id: 'palace-attr',
     hidden: () => value('rule-island') !== 'palace',
     why: 'nur auf der Palastinsel',
@@ -172,7 +177,7 @@ export function initPlannerDefaults(): void {
     });
   }
   // Abhängigkeiten
-  for (const id of ['plan-levels', 'rule-mail', 'rule-items', 'rule-island']) $(id)?.addEventListener('change', () => apply());
+  for (const id of ['plan-levels', 'rule-mail', 'rule-items', 'rule-island', 'plan-power-fuel']) $(id)?.addEventListener('change', () => apply());
   onPalaceSettings(() => apply());
   document.addEventListener('city-stamp-loaded', (e) => {
     stampTiers = !!(e as CustomEvent<{ tiers: boolean }>).detail?.tiers;

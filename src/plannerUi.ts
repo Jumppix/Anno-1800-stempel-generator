@@ -4,7 +4,7 @@
 
 import { CITY_PAD } from './city';
 import type { CityUi } from './cityUi';
-import { editCity, editTargetAt, freeTiles, planToStampItems, splitBands, type CityPlan, type Orientation } from './planner';
+import { editCity, editTargetAt, freeTiles, planToStampItems, railSegments, splitBands, type CityPlan, type Orientation } from './planner';
 import type { PassInput, PassResult } from './pipeline';
 import type { PipelineJob, PipelineMessage } from './pipeline.worker';
 import type { LandMask } from './solver';
@@ -67,6 +67,9 @@ export interface IslandSource {
   deposits?: { clay: number; oil: number };
   /** Minen aus dem Stempel (fest), Maskenkoordinaten. */
   mines?: ReadonlyArray<{ guid: number; x: number; y: number; w: number; h: number }>;
+  /** Hafengebiet (Kaistraße …) und gesperrte Flächen (Kontor + Zufahrt), Maskenkoordinaten. */
+  harbor?: Uint8Array;
+  blocked?: Uint8Array;
 }
 
 function el<T extends HTMLElement>(selector: string): T {
@@ -295,7 +298,7 @@ export class PlannerUi {
     const on = (id: string): boolean => el<HTMLInputElement>(id).checked;
     const main = ['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'].filter((k) => on(`#svc-${k}`)).length;
     const opt = ['fireStation', 'policeStation', 'hospital', 'bank', 'varietyTheatre', 'membersClub'].filter((k) => on(`#svc-${k}`)).length;
-    const extra = [on('#plan-post') ? 'Post' : '', on('#plan-airport') ? 'Lufthafen' : '', on('#plan-ministry') ? 'Ministerium' : '']
+    const extra = [el<HTMLSelectElement>('#plan-power-fuel').value === 'oil' ? 'Öl' : '', on('#plan-post') ? 'Post' : '', on('#plan-airport') ? 'Lufthafen' : '', on('#plan-ministry') ? 'Ministerium' : '']
       .filter(Boolean)
       .join(', ');
     el<HTMLElement>('#sum-svc').textContent = `${main}/5${extra ? ` · ${extra}` : ''}${opt ? ` · +${opt} opt.` : ''}`;
@@ -547,6 +550,7 @@ export class PlannerUi {
       culture: this.cultureOption(rules, variant?.wings),
       clay: this.clayOption(src),
       mines: src.mines?.length ? src.mines : undefined,
+      oil: this.oilOption(src),
       airport: el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined,
       production,
       levelMode: this.levelMode.value as LevelMode,
@@ -664,6 +668,13 @@ export class PlannerUi {
   }
 
   /** Regionalministerium (Reichweite, Wohlfahrt, Stadtweites Netz) aus den Regeln. */
+  /** Ölmodus: Ölkraftwerke mit Ölhafen und Gleisen; Öl aus eigenen Quellen oder per Schiff. */
+  private oilOption(src: IslandSource): PassInput['oil'] {
+    if (el<HTMLSelectElement>('#plan-power-fuel').value !== 'oil') return undefined;
+    const own = el<HTMLSelectElement>('#plan-oil-source').value === 'own';
+    return { wells: own ? (src.deposits?.oil ?? 0) : 0, harbor: src.harbor, blocked: src.blocked };
+  }
+
   /** Lehmgruben: Feld oder (leer) Anzahl aus dem Stempel. */
   private clayOption(src: IslandSource): ServiceOptions['clay'] {
     const raw = el<HTMLInputElement>('#plan-clay').value.trim();
@@ -776,6 +787,14 @@ export class PlannerUi {
           .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · ${this.cityUi.currentRules().palace ? 'Palast' : 'Regionalministerium'} (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
           s.mines ? ` · Minen: ${s.mines.connected} angeschlossen${s.mines.roads ? ` (${s.mines.roads} Straßenkacheln neu, ${s.mines.houses} Häuser verdrängt)` : ''}${s.mines.unreachable ? ` – <strong>${s.mines.unreachable} ohne Weg</strong>` : ''}` : ''
         }${
+          r.oil
+            ? ` · Öl: ${r.oil.harbor ? 'Ölhafen' : '<strong>kein Ölhafen</strong>'}${
+                r.oil.refineries ? `, ${r.oil.refineries} Raffinerie${r.oil.refineries === 1 ? '' : 'n'} mit ${r.oil.wells} Bohrtürmen` : ', Öl per Schiff'
+              }, ${r.oil.connected} Bahnhöfe angeschlossen, ${num(r.oil.railTiles)} Gleiskacheln (${r.oil.crossings} Bahnübergänge${
+                r.oil.bridges ? `, ${r.oil.bridges} Brückenkacheln` : ''
+              }), ${r.oil.houses} Häuser verdrängt${r.oil.notes.length ? ` – <strong>${r.oil.notes.join('; ')}</strong>` : ''}`
+            : ''
+        }${
           s.clay
             ? ` · Lehmgruben: ${s.clay.pits} in ${s.clay.clusters} Cluster${s.clay.clusters === 1 ? '' : 'n'} mit Handelskammer + ${s.clay.warehouses} Lagerh${
                 s.clay.warehouses === 1 ? 'aus' : 'äusern'
@@ -843,9 +862,9 @@ export class PlannerUi {
     if (!this.watch.checked) return;
     try {
       const items = planToStampItems(mask, city, { coast: false, coastGuid: 1000178, bridges: true });
-      const bytes = buildGenericStamp(items.buildings, 'ow', items.streets);
-      const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((st) => st.x)];
-      const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y)];
+      const bytes = buildGenericStamp(items.buildings, 'ow', items.streets, undefined, railSegments(items.rails));
+      const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((st) => st.x), ...items.rails.map((r) => r[0])];
+      const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y), ...items.rails.map((r) => r[1])];
       const minX = xs.reduce((m, v) => Math.min(m, v), Infinity);
       const minY = ys.reduce((m, v) => Math.min(m, v), Infinity);
       this.cityUi.show(
@@ -928,12 +947,12 @@ export class PlannerUi {
     const items = planToStampItems(mask, city, { coast: false, coastGuid: streetGuid, bridges: true });
     // Export ohne Brücken (die baust du im Spiel über den Fluss).
     const exportItems = planToStampItems(mask, city, { coast: false, coastGuid: streetGuid });
-    const full = buildGenericStamp(items.buildings, 'ow', items.streets);
+    const full = buildGenericStamp(items.buildings, 'ow', items.streets, undefined, railSegments(items.rails));
     const bands = splitBands(exportItems, this.split.checked ? 13500 : Infinity);
-    this.stamps = bands.map((b) => buildGenericStamp(b.buildings, 'ow', b.streets));
+    this.stamps = bands.map((b) => buildGenericStamp(b.buildings, 'ow', b.streets, undefined, railSegments(b.rails)));
     // Maske → Stadtkachel: das Stadtmodell beginnt CITY_PAD Kacheln vor dem kleinsten Element.
-    const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((st) => st.x)];
-    const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y)];
+    const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((st) => st.x), ...items.rails.map((r) => r[0])];
+    const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((st) => st.y), ...items.rails.map((r) => r[1])];
     const minX = xs.reduce((m, v) => Math.min(m, v), Infinity);
     const minY = ys.reduce((m, v) => Math.min(m, v), Infinity);
     this.offset = { dx: CITY_PAD - minX, dy: CITY_PAD - minY };

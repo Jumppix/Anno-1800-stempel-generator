@@ -82,6 +82,9 @@ export const CATALOG_LIST: readonly CatalogEntry[] = [
   E({ guid: 1010361, kind: 'varietyTheatre', name: 'Varieté', size: [4, 5], roadRange: 56, welfare: true }),
   E({ guid: 1010364, kind: 'membersClub', name: 'Clubhaus', size: [6, 6], roadRange: 49, welfare: true }),
   E({ guid: 117547, kind: 'powerPlant', name: 'Gasbetriebenes Kraftwerk', size: [5, 6], roadRange: 59, welfare: true, needsWarehouse: true }),
+  // Ölkraftwerk (Spieldaten 100780, 5×5): Versorgung 35 statt 42 beim Gaskraftwerk → Pflaster ≈ 59 × 35/42;
+  // Öl kommt per Zug (Gleis durch die Mittellinie), kein Lagerhaus nötig.
+  E({ guid: 100780, kind: 'powerPlant', name: 'Ölkraftwerk', size: [5, 5], roadRange: 49, welfare: true }),
   E({ guid: 1010463, kind: 'fireStation', name: 'Feuerwache', size: [5, 3], roadRange: 71 }),
   E({ guid: 1010462, kind: 'policeStation', name: 'Polizeiwache', size: [4, 6], roadRange: 71 }),
   E({ guid: 1010464, kind: 'hospital', name: 'Hospital', size: [6, 6], roadRange: 71 }),

@@ -18,7 +18,8 @@ import { placeServices, SERVICE_SPECS, type PlacedService, type ServiceOptions, 
 import { thinCrossRoads, type ThinOptions, type ThinReport } from './thin';
 import { insertCrossRoads, type InsertReport } from './codesign';
 import type { LandMask, OverlapPenalty } from './solver';
-import type { StampBuilding, StampStreet } from './stamp';
+import type { StampBuilding, StampRail, StampStreet } from './stamp';
+import { planOilSupply, type OilOptions, type OilReport } from './oil';
 
 export type Orientation = 'vertical' | 'horizontal';
 
@@ -322,6 +323,8 @@ export interface CityPlan {
   droppedTownHalls: number;
   /** Versorgungsgebäude und Lagerhäuser (Phase 3). */
   services?: PlacedService[];
+  /** Gleiskacheln (Maskenindex; Ölmodus). Auf Straßen = Bahnübergang. */
+  rails?: number[];
 }
 
 /**
@@ -403,7 +406,7 @@ export function planToStampItems(
   mask: LandMask,
   city: CityPlan,
   options: PlanStampOptions,
-): { buildings: StampBuilding[]; streets: StampStreet[] } {
+): { buildings: StampBuilding[]; streets: StampStreet[]; rails: Array<[number, number]> } {
   const { w } = city.plan;
   const buildings: StampBuilding[] = [];
   const occupied = new Uint8Array(city.plan.roads.length);
@@ -437,15 +440,40 @@ export function planToStampItems(
       streets.push({ x: i % w, y: Math.floor(i / w), guid: options.coastGuid });
     }
   }
-  return { buildings, streets };
+  const rails: Array<[number, number]> = (city.rails ?? []).map((i) => [i % w, Math.floor(i / w)]);
+  return { buildings, streets, rails };
+}
+
+/**
+ * Gleiskacheln → gerade Gleisstücke für den Stempel (waagrechte und senkrechte Läufe aus
+ * mindestens 2 Kacheln; Ecken gehören zu beiden).
+ */
+export function railSegments(tiles: ReadonlyArray<readonly [number, number]>): StampRail[] {
+  const set = new Set(tiles.map(([x, y]) => `${x},${y}`));
+  const has = (x: number, y: number): boolean => set.has(`${x},${y}`);
+  const out: StampRail[] = [];
+  for (const [x, y] of tiles) {
+    // waagrecht: Lauf beginnt hier, wenn links keine Gleiskachel liegt
+    if (!has(x - 1, y) && has(x + 1, y)) {
+      let e = x;
+      while (has(e + 1, y)) e++;
+      out.push({ x1: x, y1: y, x2: e, y2: y });
+    }
+    if (!has(x, y - 1) && has(x, y + 1)) {
+      let e = y;
+      while (has(x, e + 1)) e++;
+      out.push({ x1: x, y1: y, x2: x, y2: e });
+    }
+  }
+  return out;
 }
 
 /** Teilt Gebäude/Straßen in waagerechte Bänder mit höchstens `maxArea` Kacheln. */
 export function splitBands(
-  items: { buildings: StampBuilding[]; streets: StampStreet[] },
+  items: { buildings: StampBuilding[]; streets: StampStreet[]; rails?: Array<[number, number]> },
   maxArea: number,
-): Array<{ buildings: StampBuilding[]; streets: StampStreet[] }> {
-  if (!Number.isFinite(maxArea)) return [items];
+): Array<{ buildings: StampBuilding[]; streets: StampStreet[]; rails: Array<[number, number]> }> {
+  if (!Number.isFinite(maxArea)) return [{ ...items, rails: items.rails ?? [] }];
   const xs = [...items.buildings.map((b) => b.x), ...items.streets.map((s) => s.x)];
   const xe = [...items.buildings.map((b) => b.x + b.w), ...items.streets.map((s) => s.x + 1)];
   const ys = [...items.buildings.map((b) => b.y), ...items.streets.map((s) => s.y)];
@@ -453,12 +481,12 @@ export function splitBands(
   const width = Math.max(...xe) - Math.min(...xs);
   const band = Math.max(8, Math.floor(maxArea / Math.max(1, width)) - 4);
   const y0 = Math.min(...ys);
-  const bands = new Map<number, { buildings: StampBuilding[]; streets: StampStreet[] }>();
-  const get = (y: number): { buildings: StampBuilding[]; streets: StampStreet[] } => {
+  const bands = new Map<number, { buildings: StampBuilding[]; streets: StampStreet[]; rails: Array<[number, number]> }>();
+  const get = (y: number): { buildings: StampBuilding[]; streets: StampStreet[]; rails: Array<[number, number]> } => {
     const k = Math.floor((y - y0) / band);
     let b = bands.get(k);
     if (!b) {
-      b = { buildings: [], streets: [] };
+      b = { buildings: [], streets: [], rails: [] };
       bands.set(k, b);
     }
     return b;
@@ -468,6 +496,7 @@ export function splitBands(
   for (const b of items.buildings) if (b.owner !== undefined) ownerY.set(b.owner, Math.min(ownerY.get(b.owner) ?? Infinity, b.y));
   for (const b of items.buildings) get(b.owner !== undefined ? (ownerY.get(b.owner) as number) : b.y).buildings.push(b);
   for (const s of items.streets) get(s.y).streets.push(s);
+  for (const r of items.rails ?? []) get(r[1]).rails.push(r);
   return [...bands.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
 }
 
@@ -563,6 +592,8 @@ function cityToState(mask: LandMask, city: CityPlan): FillState {
     for (let dy = 0; dy < sv.h; dy++) for (let dx = 0; dx < sv.w; dx++) cell[(sv.y + dy) * w + sv.x + dx] = SERVICE;
   }
   for (const i of city.plan.bridges ?? []) cell[i] = BRIDGE;
+  // Gleise (außer Bahnübergängen) sind belegt
+  for (const i of city.rails ?? []) if (cell[i] === FREE) cell[i] = SERVICE;
   return s;
 }
 
@@ -734,6 +765,15 @@ export function planServices(
   extendRoads(s);
   const next = stateToCity(s, city, [...city.townHalls]);
   return { city: { ...next, services: [...(city.services ?? []), ...services] }, report, refilled: s.houses.length - before };
+}
+
+/** Ölversorgung (Ölhafen, Raffinerien, Gleise) als letzter Planungsschritt – `oil.ts`. */
+export function planOil(mask: LandMask, city: CityPlan, options: OilOptions): { city: CityPlan; report: OilReport } {
+  const s = cityToState(mask, city);
+  const before = s.houses.length;
+  const r = planOilSupply(mask, s, city.services ?? [], options);
+  const next = s.houses.length !== before ? stateToCity(s, city, [...city.townHalls]) : city;
+  return { city: { ...next, services: r.services, rails: r.rails }, report: r.report };
 }
 
 /** Überflüssige Straßenstummel durch Häuser ersetzen (fill.ts `replaceRoadStubs`). */

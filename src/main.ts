@@ -876,6 +876,14 @@ plannerUi = new PlannerUi(
           kontor: currentKontor(),
           deposits: combined.buildings ? { clay: depositSummary(combined.buildings).clay, oil: depositSummary(combined.buildings).oil } : undefined,
           mines: combined.buildings?.filter((b) => b.kind === 'mine').map(({ guid, x, y, w, h }) => ({ guid, x, y, w, h })),
+          harbor: combined.harbor,
+          blocked: (() => {
+            const k = currentKontor();
+            if (!k || !combined) return undefined;
+            const b = new Uint8Array(combined.w * combined.h);
+            for (const r of [k, k.fairway]) for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) b[y * combined.w + x] = 1;
+            return b;
+          })(),
           label: `${combined.w} × ${combined.h} · ${num(combined.landCount)} Landkacheln (${parts.length} Teil${
             parts.length === 1 ? '' : 'e'
           })`,

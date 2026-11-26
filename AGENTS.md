@@ -91,6 +91,9 @@ unnötig verändern.
   Kontor-Erkennung aus der Lücke im Stempel `src/harbor.ts` (`detectKontor`, Anzeige in `placement.ts`).
   Rohstoffe aus dem Stempel `src/deposits.ts` (Minen fest, Lehmgruben/Bohrtürme/Raffinerie verschiebbar → Bauland),
   Lehmgruben-Cluster `options.clay` (Gruben je Lagerhaus, Strom) und Minen-Anschluss `options.mines` in `services.ts`.
+  Ölmodus: `src/oil.ts` `planOilSupply` (Ölhafen 100783, Raffinerie-Blöcke mit Bohrtürmen, Gleise per Dijkstra
+  mit Abbiegekosten, Bahnübergänge, Brücken), Hülle `planOil` in `planner.ts`, `CityPlan.rails`, `railSegments`;
+  Ölkraftwerke über `ServiceOptions.oilPower`; UI `plan-power-fuel`/`plan-oil-source` (eigene Quellen / Schiff).
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
   `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
   `src/testStamps.ts`. Phase 2: `src/fill.ts` (vollständige Bebauung: Gitter über die ganze

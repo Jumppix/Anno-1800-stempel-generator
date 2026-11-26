@@ -80,6 +80,8 @@ export const SERVICE_SPECS: readonly ServiceSpec[] = [
 ];
 
 export const WAREHOUSE_GUID = 1010371;
+/** Ölkraftwerk (Ölmodus). */
+export const OIL_POWER_GUID = 100780;
 export const TRADE_UNION_GUID = 1010516;
 export const CLAY_PIT_GUID = 100416;
 export const MINISTRY_GUID = 269602;
@@ -247,6 +249,8 @@ export interface ServiceOptions {
    * (kürzester Weg zum Netz, Häuser weichen) und ein Lagerhaus in Reichweite.
    */
   mines?: ReadonlyArray<{ guid: number; x: number; y: number; w: number; h: number }>;
+  /** Ölkraftwerke (100780) statt Gaskraftwerke; Öl, Ölhafen und Gleise plant `oil.ts` danach. */
+  oilPower?: boolean;
   /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
   keepRoads?: boolean;
   /**
@@ -1166,7 +1170,9 @@ export function placeServices(
   };
 
   // --- Versorgungsgebäude je Art: gierig, dann lokale Suche (entfernen, verlegen)
-  const specs = SERVICE_SPECS.filter((sp) => options.kinds.has(sp.kind));
+  const specs = SERVICE_SPECS.filter((sp) => options.kinds.has(sp.kind)).map((sp) =>
+    sp.kind === 'powerPlant' && options.oilPower ? { ...sp, guid: OIL_POWER_GUID } : sp,
+  );
   /** Wirkungsanteil je Haus über die schon stehenden Gebäude einer Art (mit den aktuellen Straßen). */
   const baselineOf = (spec: ServiceSpec): Float32Array => {
     const base = new Float32Array(s.houses.length);
@@ -1564,7 +1570,7 @@ export function placeServices(
   refreshMinistry();
 
   // --- Strom für die Produktion: jedes Produktionsgebäude in Reichweite eines Kraftwerks.
-  const POWER_GUID = SERVICE_SPECS.find((sp) => sp.kind === 'powerPlant')?.guid ?? 117547;
+  const POWER_GUID = options.oilPower ? OIL_POWER_GUID : (SERVICE_SPECS.find((sp) => sp.kind === 'powerPlant')?.guid ?? 117547);
   const prodPower = !!(options.production?.power && report.production);
   const clayPower = !!(options.clay?.power && report.clay);
   if (prodPower || clayPower) {

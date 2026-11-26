@@ -363,3 +363,35 @@ Stempel „Ölraffinerie“: 2 Raffinerien (eine mit 3, eine mit 1 Bohrturm), Kr
 verschiebbar) als Block an der Linie nahe der Küste; Ölkraftwerke als Stichgleise an der Linie statt verteilter
 Gaskraftwerke; Kreuzungen mit dem Straßenraster als Bahnübergang; Anzahl Raffinerien aus dem Ölbedarf.
 
+
+## 10. Ölmodus im Stadtplaner (umgesetzt 26.11.2026)
+
+**Bedienung:** Versorgung → *Kraftwerk*: „Gas“ (bisher) oder „Öl“. Bei Öl zusätzlich *Öl beschaffen*:
+„eigene Ölquellen“ (Anzahl aus den Bohrtürmen im Stempel, je 3 eine Raffinerie) oder „per Schiff“ (nur Ölhafen,
+Kraftwerke und Gleise; Herkunft des Öls kümmert den Planer nicht). Hat die Insel keine Ölquellen, wird wie „per
+Schiff“ geplant.
+
+**Ablauf** (`src/oil.ts` `planOilSupply`, Hülle `planOil` in `planner.ts`, Schritt 7c in `pipeline.ts` nach
+Versorgung/Nachverdichtung, vor Post):
+1. Versorgung setzt Ölkraftwerke 100780 (5×5, Reichweite 49 statt 59, 150 Ingenieure statt 250) statt
+   Gaskraftwerken (`ServiceOptions.oilPower`); Mindest-Ingenieure in `levels` entsprechend.
+2. **Kleiner Ölhafen 100783** (7×10, Gleis 7 Kacheln von der Landseite, Ausgang landseitig): alle vier Drehungen
+   im Hafengebiet (Kaistraße) bzw. ohne Hafeninfo im zum Rand offenen Meer (Flutfüllung vom Kartenrand, 12 Kacheln
+   freies Wasser vor der Wasserseite) – Flüsse/Binnenseen fallen weg; Kontor und Fahrrinne sind gesperrt
+   (`blocked`). Kosten: Abstand zum Schwerpunkt der Kraftwerke.
+3. **Raffinerien** 101331 (bei eigenem Öl): Block 14×5 mit Raffinerie und 3 Bohrtürmen 101332 (gemeinsame
+   `ComplexOwnerID` 9300+r), nur auf freiem Land oder Häusern; der Raffinerieausgang muss erreichbar sein.
+4. **Gleise:** schrittweiser Steinerbaum per Dijkstra über Kachel × Richtung (Abbiegen kostet extra → gerade
+   Strecken statt Treppen), Häuser kosten 6, Straßen werden nur quer und höchstens 2 Kacheln breit überquert
+   (Bahnübergänge), Wasser bis 12 Kacheln per Brücke. Kraftwerke wählen die günstigste der vier Seiten, ihre
+   Drehung folgt der Ausgangsseite. Häuser auf der Strecke werden entfernt, Stufen neu verteilt.
+5. Stempel: `CityPlan.rails`, `railSegments` fasst Gleiskacheln zu waagrechten/senkrechten Abschnitten
+   (Abschnitt RailwayInfos).
+
+**Ergebnisse:** Testinsel (3 Bohrtürme): Ölhafen in der Bucht, 1 Raffinerie, 4 Kraftwerke angeschlossen, rund 76
+Häuser weniger. Crown Falls mit Minen-Stempel (5 Bohrtürme, 40 Flügel): 14 Ölkraftwerke (statt 10 Gas),
+2 Raffinerien, alle 16 Stationen angeschlossen, 1 687 Gleiskacheln, 119 Bahnübergänge, 280 Häuser weniger →
+2,61 Mio. statt 2,72 Mio. Einwohner.
+
+**Offen:** Ölverbrauch je Kraftwerk gegen Raffinerieleistung ungeprüft (Anzahl Raffinerien folgt nur den
+Bohrtürmen); Öllager 100784 nicht geplant; Gleise noch nicht nach der Nachverdichtung mitoptimiert.
