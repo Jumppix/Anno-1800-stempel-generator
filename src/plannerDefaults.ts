@@ -84,17 +84,7 @@ const RULES: readonly AutoRule[] = [
     why: 'nur bei Ölkraftwerken',
   },
   {
-    id: 'plan-oil-corridor',
-    hidden: () => value('plan-power-fuel') !== 'oil',
-    why: 'nur bei Ölkraftwerken',
-  },
-  {
     id: 'palace-attr',
-    hidden: () => value('rule-island') !== 'palace',
-    why: 'nur auf der Palastinsel',
-  },
-  {
-    id: 'plan-wings',
     hidden: () => value('rule-island') !== 'palace',
     why: 'nur auf der Palastinsel',
   },

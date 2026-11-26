@@ -96,34 +96,99 @@
           <p class="hint">Nach <code>Documents\Anno 1800\stamps\&lt;Region&gt;\&lt;Ordner&gt;</code> kopieren und Anno neu starten.</p>
         </section>
         <section class="card" data-mode="city" data-ctab="plan" hidden>
-          <h2>Wohnraster planen</h2>
+          <h2>Stadt planen</h2>
           <p id="plan-island" class="hint">–</p>
-          <label class="select-row">Bauweise
-            <select id="plan-levels">
-              <option value="auto" selected>Automatisch (meiste Einwohner)</option>
-              <option value="45">4-5 (Investoren Stufe 4/5)</option>
-              <option value="335">3-3-5 (Ing./Inv. 3 + Inv. 5)</option>
-              <option value="free">Frei gemischt (Stufe 3–5)</option>
-              <option value="l3">Nur Stufe 3</option>
-            </select>
-          </label>
-          <label class="select-row">Häuser je Linie
-            <select id="plan-line">
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6" selected>6 (meiste Einwohner)</option>
-              <option value="8">8</option>
-              <option value="10">10</option>
-              <option value="12">12</option>
-              <option value="16">16</option>
-              <option value="24">24</option>
-              <option value="35">35 (lange Reihen)</option>
-            </select>
-          </label>
+          <div class="setup-row">
+            <button id="plan-setup" class="ghost" type="button">🧭 Einrichtung (ein paar Fragen) …</button>
+          </div>
+          <p class="micro">Was der Planer selbst ausprobiert (Häuser je Reihe, Gitterlage, Bauweise, Palastflügel und Reformen, Querstraßen, Gleisführung …), stellst du nicht ein – er nimmt das Ergebnis mit den meisten Einwohnern.</p>
 
           <details class="group">
-            <summary>Versorgung &amp; Pflichtgebäude <span id="sum-svc" class="sum"></span></summary>
+            <summary>Insel &amp; Strom <span id="sum-island" class="sum"></span></summary>
+            <label class="select-row" title="Wohninsel: das Regionalministerium der Wohninsel aus dem Spielstand wirkt. Crown Falls: Palast mit Flügeln, alle Ministerien, Museen für die Attraktivität.">Insel
+              <select id="rule-island">
+                <option value="city" selected>Wohninsel (Regionalministerium)</option>
+                <option value="palace">Crown Falls / Palastinsel (Palast)</option>
+              </select>
+            </label>
+            <label class="select-row" title="Ölkraftwerke (5×5, Reichweite etwas kleiner, 150 statt 250 Ingenieure) bekommen ihr Öl per Zug: der Planer setzt einen Ölhafen ins Hafengebiet und verbindet ihn mit Gleisen (Bahnübergänge über Straßen) mit allen Kraftwerken.">Kraftwerke
+              <select id="plan-power-fuel">
+                <option value="gas" selected>Gaskraftwerke</option>
+                <option value="oil">Ölkraftwerke (Ölhafen + Gleise)</option>
+              </select>
+            </label>
+            <label class="select-row" title="Eigene Ölquellen: die Bohrtürme aus dem Stempel (mit „Bahnbrechende Entdeckungen“ verschiebbar) – je Raffinerie bis zu 3. Per Schiff: nur Ölhafen und Kraftwerke, das Öl kommt von anderen Inseln.">Ölquelle
+              <select id="plan-oil-source">
+                <option value="own" selected>Eigene Ölquellen der Insel (Raffinerien)</option>
+                <option value="ship">Öl per Schiff (nur Ölhafen)</option>
+              </select>
+            </label>
+            <div class="harbor-row" title="Nur für den Lufthafen: bei Gleichstand näher an der Anlegestelle.">
+              <button id="plan-harbor" class="ghost" type="button">⚓ Hauptanlegestelle wählen</button>
+              <span id="plan-harbor-info" class="micro">nicht gesetzt</span>
+            </div>
+          </details>
+
+          <details class="group">
+            <summary>Spielstand dieser Stadt <span id="sum-rules" class="sum"></span></summary>
+            <label class="select-row" title="Automatisch: der Planer vergleicht die Bauweisen (4-5, 3-3-5, frei gemischt) und nimmt die mit den meisten Einwohnern.">Hochhäuser
+              <select id="plan-levels">
+                <option value="auto" selected>Stufe 4/5 freigeschaltet – Planer wählt die Bauweise</option>
+                <option value="l3">Nur Stufe 3 (4/5 noch nicht freigeschaltet)</option>
+                <optgroup label="Feste Bauweise vorgeben">
+                  <option value="45">4-5 (Investoren Stufe 4/5)</option>
+                  <option value="335">3-3-5 (Ing./Inv. 3 + Inv. 5)</option>
+                  <option value="free">Frei gemischt (Stufe 3–5)</option>
+                </optgroup>
+              </select>
+            </label>
+            <label class="select-row">Post für die Häuser
+              <select id="rule-mail">
+                <option value="all" selected>Lokal + Regional + Übersee</option>
+                <option value="regional">Lokal + Regional</option>
+                <option value="local">Nur Lokal</option>
+                <option value="none">Keine Post</option>
+              </select>
+            </label>
+            <label class="check-row">
+              <input id="rule-items" type="checkbox" checked />
+              Rathaus-Items: Zofe + Lieferdienst, Saint D'Artois
+            </label>
+            <label class="select-row">4. Rathaus-Item (Freigeisterreform)
+              <select id="rule-fourth">
+                <option value="3" selected>Päpstliches Papier (+3 je Bedürfnis)</option>
+                <option value="2">Vorschriften zur Empfängnisverhütung (+2)</option>
+                <option value="1">Interruptus-Gesetzeszusatz (+1)</option>
+                <option value="0">keins</option>
+              </select>
+            </label>
+            <label class="check-row">
+              <input id="rule-delivery" type="checkbox" />
+              Kaugummi &amp; Violinen nur über den Lieferdienst
+            </label>
+            <label class="select-row">Zeitung: Verbrauch −%
+              <input id="rule-reduction" type="number" min="0" max="90" step="1" value="68" />
+            </label>
+            <p id="rule-palace" class="micro"></p>
+            <button id="rule-palace-edit" class="ghost" type="button">🏛 Spielstand: Palast &amp; Ministerien …</button>
+            <p id="rule-info" class="micro"></p>
+            <p class="micro">Waren-Bedürfnisse (falls dein Spielstand abweicht) stehen unter „Weitere Funktionen“.</p>
+          </details>
+
+          <details id="palace-attr" class="group">
+            <summary>Crown Falls: Attraktivität</summary>
+            <label class="select-row" title="Prestige-Stufe 25 ab 33.000 Attraktivität">Ziel-Attraktivität
+              <input id="plan-attr-target" type="number" min="0" max="99999" step="500" value="33000" />
+            </label>
+            <label class="select-row" title="Was im Spiel sonst noch zur Attraktivität beiträgt (Zierde, Zufriedenheit, Strom, Monumente, Speicherstadt …) – Wert aus der Attraktivitäts-Anzeige im Spiel. Museen decken nur den Rest.">Weitere Attraktivität (Zierde, Zufriedenheit …)
+              <input id="plan-attr-extra" type="number" min="-99999" max="99999" step="100" value="0" />
+            </label>
+            <label class="check-row"><input id="plan-museums" type="checkbox" checked />Museen für den Rest einplanen</label>
+            <p class="micro">Palastflügel und Rathaus-/Freigeisterreform vergleicht der Planer selbst (gebaute Flügel laut Spielstand, die erlaubten und die Hälfte).</p>
+          </details>
+
+          <details class="group">
+            <summary>Gebäude <span id="sum-svc" class="sum"></span></summary>
             <div class="check-grid">
               <label class="check-row"><input id="svc-departmentStore" type="checkbox" checked />Kaufhaus</label>
               <label class="check-row"><input id="svc-furnitureStore" type="checkbox" checked />Einrichtungshaus</label>
@@ -133,23 +198,6 @@
               <label class="check-row"><input id="plan-post" type="checkbox" checked />Briefkästen</label>
               <label class="check-row"><input id="plan-airport" type="checkbox" checked />Lufthafen</label>
               <label class="check-row"><input id="plan-ministry" type="checkbox" checked />Ministerium</label>
-            </div>
-            <label class="select-row" title="Ölkraftwerke (5×5, Reichweite etwas kleiner, 150 statt 250 Ingenieure) bekommen ihr Öl per Zug: der Planer setzt einen Ölhafen ins Hafengebiet und verbindet ihn mit Gleisen (Bahnübergänge über Straßen) mit allen Kraftwerken.">Kraftwerke
-              <select id="plan-power-fuel">
-                <option value="gas" selected>Gaskraftwerke</option>
-                <option value="oil">Ölkraftwerke (Ölhafen + Gleise)</option>
-              </select>
-            </label>
-            <label class="select-row" title="Eigene Ölquellen: die Bohrtürme aus dem Stempel (mit „Bahnbrechende Entdeckungen“ verschiebbar) – je Raffinerie bis zu 3 – nahe dem Ölhafen. Per Schiff: nur Ölhafen und Kraftwerke, das Öl kommt von anderen Inseln.">Ölquelle
-              <select id="plan-oil-source">
-                <option value="own" selected>Eigene Ölquellen der Insel (Raffinerien)</option>
-                <option value="ship">Öl per Schiff (nur Ölhafen)</option>
-              </select>
-            </label>
-            <label class="check-row" title="Zweiter Durchgang: Die Gleise des ersten Durchgangs werden als gerader Korridor schon vor der Bebauung freigehalten – das Straßengitter bekommt dort freie Zeilen/Spalten, die Häuser werden darum herum gebaut. Doppelte Rechenzeit; das bessere Ergebnis gilt."><input id="plan-oil-corridor" type="checkbox" checked />Gleiskorridor vorab freihalten (2. Durchgang)</label>
-            <div class="harbor-row">
-              <button id="plan-harbor" class="ghost" type="button">⚓ Hauptanlegestelle wählen</button>
-              <span id="plan-harbor-info" class="micro">nicht gesetzt</span>
             </div>
             <label class="check-row">
               <input id="plan-engineers" type="checkbox" checked />
@@ -165,12 +213,11 @@
               <label class="check-row"><input id="svc-membersClub" type="checkbox" />Clubhaus</label>
             </div>
             <p id="auto-info" class="micro auto-info" hidden><span></span> <button id="auto-reset" class="linkish" type="button">Automatik wiederherstellen</button></p>
-            <p class="micro">Ministerium, Ingenieure, Universität, Drogerie, Briefkästen und Lufthafen folgen automatisch den Palast-Einstellungen (Wohninsel), der Bauweise und der Post – Tooltip zeigt den Grund. Von Hand geändert bleibt deine Wahl.</p>
-            <p class="micro">Lufthafen mit Item-Terminal und Luftpostlager dort, wo er am wenigsten Häuser und Rathaus-Fläche kostet (Abstand zur Anlegestelle nur als Entscheider bei Gleichstand). Briefkästen nur in Restkacheln. Optionale Gebäude so, dass fast alle Häuser erreicht werden.</p>
+            <p class="micro">Ministerium, Ingenieure, Universität, Drogerie, Briefkästen und Lufthafen folgen automatisch dem Spielstand (Insel, Hochhäuser, Post) – Tooltip zeigt den Grund. Von Hand geändert bleibt deine Wahl.</p>
           </details>
 
           <details class="group">
-            <summary>Produktion (Clipping) <span id="sum-prod" class="sum"></span></summary>
+            <summary>Produktion &amp; Rohstoffe <span id="sum-prod" class="sum"></span></summary>
             <div class="prod-add">
               <select id="prod-type" aria-label="Produktionsgebäude"></select>
               <input id="prod-count" type="number" min="1" max="60" step="1" value="4" aria-label="Anzahl" />
@@ -191,141 +238,15 @@
             <p class="micro">Jedes Gebäude genau zwischen zwei Handelskammern (Mitten 30 auseinander) – quadratisch, Raute oder versetzte Raute; nur gerade Breite und Länge, schräge Formen nur für quadratische. Handelskammern und Lagerhaus werden ergänzt.</p>
           </details>
 
-          <details class="group">
-            <summary>Palast, Ministerium &amp; Items <span id="sum-rules" class="sum"></span></summary>
-            <label class="select-row">Insel
-              <select id="rule-island">
-                <option value="city" selected>Wohninsel (Regionalministerium)</option>
-                <option value="palace">Crown Falls / Palastinsel (Palast)</option>
-              </select>
-            </label>
-            <label class="select-row" title="Jeder Flügel: +3 Reichweite (Pflaster), +15 Attraktivität, 9 Kacheln (≈ 230 Einwohner auf der Testinsel). Mehr als die Profilstufe erlaubt (Palast-Einstellungen) geht nicht.">Palastflügel auf dieser Insel
-              <input id="plan-wings" type="number" min="0" max="200" step="1" value="16" />
-            </label>
-            <div id="palace-attr" class="palace-only">
-              <label class="select-row" title="Prestige-Stufe 25 ab 33.000 Attraktivität">Ziel-Attraktivität
-                <input id="plan-attr-target" type="number" min="0" max="99999" step="500" value="33000" />
-              </label>
-              <label class="select-row" title="Was im Spiel sonst noch zur Attraktivität beiträgt (Zierde, Zufriedenheit, Strom, Monumente, Speicherstadt …) – Wert aus der Attraktivitäts-Anzeige im Spiel. Museen decken nur den Rest.">Weitere Attraktivität (Zierde, Zufriedenheit …)
-                <input id="plan-attr-extra" type="number" min="-99999" max="99999" step="100" value="0" />
-              </label>
-              <label class="check-row"><input id="plan-museums" type="checkbox" checked />Museen für den Rest einplanen</label>
-              <label class="check-row" title="Rechnet parallel: Flügel wie eingestellt und so viele wie erlaubt, jeweils mit Rathausreform und mit Freigeisterreform – der Plan mit den meisten Einwohnern gewinnt.">
-                <input id="plan-variants" type="checkbox" checked />Varianten vergleichen (Flügel, Rathaus-/Freigeisterreform)
-              </label>
-            </div>
-            <p id="rule-palace" class="micro"></p>
-            <button id="rule-palace-edit" class="ghost" type="button">🏛 Palast-Einstellungen …</button>
-            <label class="check-row">
-              <input id="rule-items" type="checkbox" checked />
-              Rathaus-Items: Zofe + Lieferdienst, Saint D'Artois
-            </label>
-            <label class="select-row">4. Rathaus-Item (Freigeisterreform)
-              <select id="rule-fourth">
-                <option value="3" selected>Päpstliches Papier (+3 je Bedürfnis)</option>
-                <option value="2">Vorschriften zur Empfängnisverhütung (+2)</option>
-                <option value="1">Interruptus-Gesetzeszusatz (+1)</option>
-                <option value="0">keins</option>
-              </select>
-            </label>
-            <label class="select-row">Post für die Häuser
-              <select id="rule-mail">
-                <option value="all" selected>Lokal + Regional + Übersee</option>
-                <option value="regional">Lokal + Regional</option>
-                <option value="local">Nur Lokal</option>
-                <option value="none">Keine Post</option>
-              </select>
-            </label>
-            <label class="select-row">Zeitung: Verbrauch −%
-              <input id="rule-reduction" type="number" min="0" max="90" step="1" value="68" />
-            </label>
-            <label class="check-row">
-              <input id="rule-delivery" type="checkbox" />
-              Kaugummi &amp; Violinen nur über den Lieferdienst
-            </label>
-            <p id="rule-info" class="micro"></p>
-          </details>
-
-          <details class="group">
-            <summary>Erweitert</summary>
-            <label class="select-row">Brücken
-              <select id="plan-bridges">
-                <option value="0">keine</option>
-                <option value="8">über Wasser bis 8 Kacheln</option>
-                <option value="12" selected>über Wasser bis 12 Kacheln</option>
-                <option value="20">über Wasser bis 20 Kacheln</option>
-              </select>
-            </label>
-            <label class="select-row">Versorgungsziel
-              <select id="svc-goal">
-                <option value="0" selected>Max. Einwohner</option>
-                <option value="30">Vollversorgung</option>
-              </select>
-            </label>
-            <label class="select-row">Gruppen
-              <select id="plan-orientation">
-                <option value="auto">Automatisch</option>
-                <option value="vertical">Senkrecht</option>
-                <option value="horizontal">Waagerecht</option>
-              </select>
-            </label>
-            <label class="check-row">
-              <input id="plan-townhalls" type="checkbox" checked />
-              Rathäuser einplanen
-            </label>
-            <label class="select-row">Min. Häuser je Rathaus
-              <input id="plan-mincover" type="number" min="0" max="200" step="1" value="12" />
-            </label>
-            <label class="select-row">Rechenzeit Rathäuser
-              <select id="plan-budget">
-                <option value="2000">2 s</option>
-                <option value="6000" selected>6 s</option>
-                <option value="20000">20 s</option>
-              </select>
-            </label>
-            <label class="select-row">Nachverdichtung
-              <select id="plan-compact">
-                <option value="0">Aus</option>
-                <option value="10000">10 s</option>
-                <option value="20000" selected>20 s</option>
-                <option value="60000">60 s</option>
-              </select>
-            </label>
-            <label class="select-row">Rechenzeit Stufen
-              <select id="plan-levels-time">
-                <option value="6000">6 s</option>
-                <option value="15000" selected>15 s</option>
-                <option value="45000">45 s</option>
-              </select>
-            </label>
-            <label class="select-row">Durchläufe
-              <select id="plan-passes">
-                <option value="1">1 (schnell)</option>
-                <option value="3">3</option>
-                <option value="5">5</option>
-                <option value="10" selected>10 (gründlich, gleichzeitig)</option>
-              </select>
-            </label>
-            <label class="check-row">
-              <input id="plan-insert" type="checkbox" checked />
-              Querstraßen nach Bedarf (dort, wo Läden/Strom sie brauchen)
-            </label>
-            <label class="check-row">
-              <input id="plan-exact" type="checkbox" />
-              Läden zusätzlich exakt prüfen (Löser HiGHS, langsamer, meist gleiches Ergebnis)
-            </label>
-            <label class="check-row">
-              <input id="plan-thin" type="checkbox" checked />
-              Querstraßen ausdünnen (Reihen zusammenschieben)
-            </label>
-            <label class="check-row">
-              <input id="plan-watch" type="checkbox" checked />
-              Beim Planen zuschauen (Zwischenstände)
-            </label>
-            <p class="micro">Stufe 4/5 brauchen Schreibmaschinen, Billardtische, Spielzeug, Violinen, Aufzüge und für Investoren 5 eine Drogerie. Brücken: Wasserstreifen zwischen Inselteilen werden überbrückt (genaue Lage baust du im Spiel).</p>
-          </details>
-
-          <button id="plan-run" class="primary" type="button">Wohnraster planen</button>
+          <label class="select-row" title="Wie lange der Planer sucht. Mehr Zeit = mehr Durchläufe gleichzeitig (andere Reihenlängen, Zufall, Varianten) und längere Nachverdichtung; der Plan mit den meisten Einwohnern gewinnt.">Rechenzeit
+            <select id="plan-effort">
+              <option value="fast">Schnell (1 Durchlauf)</option>
+              <option value="normal">Normal (3 Durchläufe)</option>
+              <option value="thorough" selected>Gründlich (10 Durchläufe; Öl: mit Gleiskorridor)</option>
+              <option value="max">Maximal (längere Suche, exakter Löser)</option>
+            </select>
+          </label>
+          <button id="plan-run" class="primary" type="button">Stadt planen</button>
           <div id="plan-progress" class="progress" hidden>
             <div class="progress-label"><span class="progress-step"></span><span class="progress-time"></span></div>
             <div class="progress-bar"><i></i></div>
@@ -372,12 +293,16 @@
 
         <section class="card" data-mode="city" data-ctab="more" hidden>
           <h2>Waren-Bedürfnisse</h2>
-          <p class="micro">Nur ändern, wenn dein Spielstand abweicht. Standard: alle Grundwaren vorhanden (stecken im Grundwert der Hochhäuser), Lebensstil-Waren aus (im Spiel einzeln einzuschalten; bei Hochhäusern +5 Einwohner je Stufe). Post stellst du unter „Palast, Ministerium &amp; Items“ ein.</p>
+          <p class="micro">Nur ändern, wenn dein Spielstand abweicht. Standard: alle Grundwaren vorhanden (stecken im Grundwert der Hochhäuser), Lebensstil-Waren aus (im Spiel einzeln einzuschalten; bei Hochhäusern +5 Einwohner je Stufe). Post stellst du unter „Planen → Spielstand dieser Stadt“ ein.</p>
           <div id="goods-panel"></div>
         </section>
 
         <section class="card" data-mode="city" data-ctab="more" hidden>
           <h2>Ansicht &amp; Bedienung</h2>
+          <label class="check-row">
+            <input id="plan-watch" type="checkbox" checked />
+            Beim Planen zuschauen (Zwischenstände)
+          </label>
           <label class="select-row">Schichten
             <select id="rule-tiers">
               <option value="groups">nach Gruppen / Plan</option>

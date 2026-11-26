@@ -116,7 +116,7 @@ beiden Modi; die Insel ist zwischen den Modi geteilt. Der Tab „Plan / Analyse�
 zeigt Plan bzw. analysierten Stadt-Stempel. Der HK/RH-Solver rechnet nur im
 Modus „Verwaltung“.
 
-**Wohnraster planen** (Phase 2): Die **gesamte Landfläche** der geladenen
+**Stadt planen** (Phase 2): Die **gesamte Landfläche** der geladenen
 Insel wird bebaut (`src/fill.ts`):
 1. 8er-Raster aus Pflasterstraßen (eine Linie aus 4 Ingenieuren, eine aus 4
    Investoren; senkrecht oder waagerecht) über die ganze Insel – auch
@@ -185,30 +185,45 @@ Optionale Gebäude (Feuerwache, Polizei, Hospital, Bank, Varieté, Clubhaus)
 lassen sich zuschalten; nach dem Planen zeigt „Bauliste & Einwohner-Bericht“
 die Anzahl je Gebäude und die Einwohner-Aufschlüsselung (als Text speicherbar).
 
-Leiste im Stadtplaner: Reiter „Planen“ (Insel, alle Einstellungen in
-aufklappbaren Gruppen mit Kurzinfo – Versorgung, Produktion, Palast/
-Ministerium/Items, Erweitert – direkt über „Wohnraster planen“, darunter
-Ladeanzeige, Ergebnis & Export) und „Weitere Funktionen“ (Stadt-Stempel
-analysieren, Beispielstadt, Katalog-Teststempel, Bedienung). Die Ebene der
-Plan-Ansicht wählt man oben rechts im Bild. Die Ladeanzeige (Schritt x/y,
-Balken, Zeit, Details) erscheint unter dem Button und groß über dem Bild.
+Leiste im Stadtplaner: Reiter „Planen“ (Insel laden, **🧭 Einrichtung**, dann
+aufklappbare Gruppen mit Kurzinfo – *Insel & Strom*, *Spielstand dieser Stadt*,
+*Crown Falls: Attraktivität* (nur Palastinsel), *Gebäude*, *Produktion &
+Rohstoffe* – und eine einzige Auswahl **Rechenzeit** direkt über „Stadt planen“,
+darunter Ladeanzeige, Ergebnis & Export) und „Weitere Funktionen“ (Stadt-Stempel
+analysieren, Waren-Bedürfnisse, Ansicht & Bedienung inkl. „Beim Planen zuschauen“).
+Die Ebene der Plan-Ansicht wählt man oben rechts im Bild.
 
-Gründlichkeit (unter „Erweitert“): **Durchläufe** 1/3/5/10 – die ganze Planung
-läuft mehrmals mit anderer Linienlänge bzw. anderem Zufall, gleichzeitig in
-eigenen Workern (so viele wie CPU-Kerne frei sind); der Plan mit den meisten
-Einwohnern gewinnt (Standard 10). **Querstraßen nach Bedarf**: nach der
-Versorgung Querstraßen dort einfügen, wo sie Läden/Strom mehr Häuser
-erreichen lassen, als sie kosten (+0,7 % auf Insel 2). **Querstraßen ausdünnen**: nach der
-Versorgung entbehrliche Querstraßen-Stücke entfernen und Reihen
-zusammenschieben, ohne Versorgung, Lagerwege oder Netz zu verschlechtern.
-**Läden zusätzlich exakt prüfen** (Standard aus): nach der gierigen Wahl ein
-ganzzahliges Modell mit dem Löser HiGHS (WebAssembly, wird nur dann geladen);
-die bessere Lösung bleibt. Gemessen fast immer dieselbe Auswahl, Durchlauf
-deutlich länger (Abschnitt 27, M4).
+**Einrichtung (Assistent, `src/setupWizard.ts`):** erscheint nach dem Laden neuer
+Stempel im Stadtplaner (sonst beim Wechsel in den Stadtplaner) und jederzeit über
+„🧭 Einrichtung“. Ein paar Fragen – Inselart (Wohninsel / Crown Falls), Strom
+(Gas / Öl von der Insel / Öl per Schiff, mit den Ölquellen aus dem Stempel),
+Stufe 4/5 freigeschaltet, Post, Rathaus-Items, auf Crown Falls die Ziel-
+Attraktivität, Lehmgruben (nur wenn im Stempel), Rechenzeit – stellen alle
+Einstellungen für diese Insel ein; automatische Schalter folgen wieder der
+Automatik. Zum Schluss eine Übersicht mit dem Spielstand und „Übernehmen &
+planen“.
+
+**Spielstand (oben rechts, für die ganze Seite):** 1. Fortschritt
+(Attraktivität der Palaststadt, Weltbevölkerung → erlaubte Palastflügel, gebaute
+Flügel), 2. Palast auf Crown Falls (je Ministerium eine Richtlinie),
+3. Regionalministerien je Inseltyp (was du auf Wohn-, Produktions- und
+Hafeninsel baust; jedes Werkzeug nimmt das passende).
+
+**Was der Optimierer selbst entscheidet** (keine Einstellung mehr): Häuser je Reihe
+(Durchläufe mit 6, 12 und 8), Gitterlage/-richtung, Brücken (bis 12 Kacheln),
+Rathäuser (nur mit Items oder Rathausreform, mindestens 12 Häuser je Rathaus),
+Versorgungsziel (meiste Einwohner), Querstraßen einfügen und ausdünnen,
+Bauweise (bei „Stufe 4/5 freigeschaltet“), auf Crown Falls Palastflügel (gebaut,
+erlaubt, die Hälfte) × Rathaus-/Freigeisterreform, im Ölmodus Gleisführung,
+Kraftwerk-Verschiebung und Gleiskorridor. **Rechenzeit**: Schnell (1 Durchlauf),
+Normal (3), Gründlich (10, Standard; Öl mit Gleiskorridor), Maximal (längere
+Rathaus-/Nachverdichtungs-/Stufensuche und zusätzlich der exakte Löser HiGHS für
+die Läden). Die Durchläufe laufen gleichzeitig in eigenen Workern; der Plan mit
+den meisten Einwohnern gewinnt.
 Getrennte Inselteile bekommen je ein eigenes Raster. Messungen und Grenzen:
 `docs/PLAN_Stadtplaner.md`, Abschnitt 25.
 
-Beim Planen zuschauen (Standard an): Nach jedem Schritt (Bebauung,
+Beim Planen zuschauen (Standard an, unter „Weitere Funktionen → Ansicht & Bedienung“): Nach jedem Schritt (Bebauung,
 Rathäuser – während der Suche etwa alle 2 s –, Nachverdichtung, Versorgung,
 Stufen) zeigt die Plan-Ansicht den Zwischenstand.
 
@@ -286,7 +301,8 @@ Reines TypeScript + Vite, keine Framework-Abhängigkeit außer `fflate` für ZIP
 | `src/cityUi.ts` | Oberfläche der Stadt-Analyse |
 | `src/testStamps.ts` | Katalog-Teststempel und Beispielstadt |
 | `src/planner.ts` | Wohnraster (Gitter, Gruppen), Rathaus-Problem, Plan → Stempel, Bänder |
-| `src/plannerUi.ts` | Oberfläche „Wohnraster planen“ |
+| `src/plannerUi.ts` | Oberfläche „Stadt planen“ |
+| `src/setupWizard.ts` | Einrichtungs-Assistent nach dem Stempel-Laden |
 | `src/coast.ts` | äußerer Inselrand (Verwaltung und Stadtplaner) |
 | `src/stamp.ts` | Anno-Stempel schreiben: `BuildingInfo`, `StreetInfo`, `StreetCount`, Region |
 | `src/render.ts` | Ergebnisansicht: Abdeckung, Lücken, Küstenrahmen, HKs, Radien |

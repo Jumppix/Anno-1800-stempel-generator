@@ -1268,3 +1268,109 @@ button.linkish {
   border-top: 1px solid var(--line);
   padding-top: 8px;
 }
+
+/* Einrichtungs-Assistent (setupWizard.ts) */
+.setup-row {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 6px;
+}
+
+.setup-row button {
+  flex: 1;
+}
+
+.wz-box {
+  width: min(560px, 100%);
+}
+
+.wz-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wz-dots i {
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.wz-dots i.done {
+  background: var(--green);
+}
+
+.wz-dots i.cur {
+  background: var(--gold);
+}
+
+.wz-dots span {
+  margin-left: 6px;
+}
+
+.wz-choices {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.wz-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.wz-choice:hover {
+  border-color: var(--gold);
+}
+
+.wz-choice.on {
+  border-color: var(--gold);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.wz-choice small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wz-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wz-actions > * {
+  flex: 1 1 140px;
+  width: auto;
+}
+
+.wz-sum {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+
+.wz-sum td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.wz-sum td:first-child {
+  color: var(--muted);
+}

@@ -60,7 +60,7 @@ const DICT: Record<string, [string, string]> = {
   'guide.deOnly': ['', 'The guide texts are only available in German for now; numbers and names follow your language.'],
   'guide.source': ['Idee und Aufbau nach dem Video', 'Idea and structure based on the video'],
   'guide.sourceNote': [
-    'Alle Zahlen rechnet diese Seite selbst aus den Spieldaten (Items, Zykluszeiten, Palast-Einstellungen).',
+    'Alle Zahlen rechnet diese Seite selbst aus den Spieldaten (Items, Zykluszeiten, Spielstand: Palast & Ministerien).',
     'All numbers are calculated here from the game data (items, cycle times, palace settings).',
   ],
   'guide.toc.overview': ['Auf einen Blick', 'At a glance'],
@@ -71,7 +71,7 @@ const DICT: Record<string, [string, string]> = {
     'Enter target amounts – the calculator resolves the whole chain including intermediate goods. By-products of items (e.g. steel beams from the foreman) are offset. Items of the groups as below, suppliers with the suggestion from the production page.',
   ],
   'guide.hkNote': [
-    'Eine Handelskammer je Gruppe, Items wie im Video; mit Gewerkschaftsförderung kommt der beste 4. Platz dazu. Werte je Gebäude mit den Palast-Einstellungen und dem Strom/Clipping oben.',
+    'Eine Handelskammer je Gruppe, Items wie im Video; mit Gewerkschaftsförderung kommt der beste 4. Platz dazu. Werte je Gebäude mit dem Spielstand (Palast & Ministerien) und dem Strom/Clipping oben.',
     'One trade union per group, items as in the video; with Union Subsidies the best 4th slot is added. Values per building with the palace settings and power/clipping above.',
   ],
   'guide.foot': [
@@ -284,7 +284,7 @@ const DICT: Record<string, [string, string]> = {
   ],
   'prod.clip': ['Geclippt (Item- und Palast-Effekte ×2)', 'Clipped (item and palace effects ×2)'],
   // Palast & Regionalministerium
-  'pal.title': ['Palast & Regionalministerium', 'Palace & Local Department'],
+  'pal.title': ['Spielstand: Palast & Ministerien', 'Save game: palace & ministries'],
   'pal.loc': ['Wirkung durch', 'Effect from'],
   'pal.loc.none': ['kein Palast-Effekt', 'no palace effect'],
   'pal.loc.palace': ['Palast (Palastinsel)', 'Palace (palace island)'],
@@ -307,16 +307,16 @@ const DICT: Record<string, [string, string]> = {
     'Auf der Palastinsel wirken alle freigeschalteten Ministerien (Basiseffekt) und je Ministerium eine Richtlinie.',
     'On the palace island every unlocked ministry applies its base effect, plus one policy per ministry.',
   ],
-  'pal.noteRegional': [
-    'Ein Regionalministerium wirkt mit einem Ministerium und einer seiner Richtlinien (nicht auf der Palastinsel, je Insel höchstens eins).',
-    'A local department applies one ministry and one of its policies (not on the palace island, at most one per island).',
-  ],
+  'pal.noteRegional': ['Je Inseltyp: welches Ministerium mit welcher Richtlinie du dort baust (je Insel höchstens eins, nicht auf der Palastinsel). Jedes Werkzeug nimmt das passende an: der Stadtplaner das der Wohninsel (auf Crown Falls gilt stattdessen der Palast), Produktion & Handelskammer und der Baumaterial-Guide das der Produktionsinsel, die Hafeninsel bestimmt die Hafenmeistereien.', 'Per island type: which ministry and policy you build there (at most one per island, not on the palace island). Each tool uses the matching one: the city planner the residential island (on Crown Falls the palace applies instead), production & trade union and the building-material guide the production island, the harbour island decides the harbourmasters.'],
   'pal.note': [
     'Ministerium für Arbeit und seine Richtlinien wirken über die Handelskammern in Straßenreichweite des Palasts/Ministeriums auf Gebäude im Handelskammer-Radius (15); Küstenreformen über Hafenmeisterei (20) bzw. Speicherstadt (30). Freischaltung und Werte aus den Spieldateien. Geclippt zählen Ministerium für Arbeit und seine Richtlinien doppelt (wie Items, sie kommen über beide Handelskammern).',
     'The Ministry of Labour and its policies act through trade unions within street range of the palace/department on buildings in the trade-union radius (15); Coastal reforms via harbourmaster (20) or Speicherstadt (30). Unlocks and values from the game files. When clipped, the Ministry of Labour and its policies count twice (like items, they arrive via both trade unions).',
   ],
   'pal.fx.eb': ['Strombonus', 'Power bonus'],
-  'pal.button': ['Palast', 'Palace'],
+  'pal.sec.progress': ['1. Fortschritt', '1. Progress'],
+  'pal.sec.palace': ['2. Palast auf Crown Falls – je Ministerium eine Richtlinie', '2. Palace on Crown Falls – one policy per ministry'],
+  'pal.sec.regional': ['3. Regionalministerien je Inseltyp', '3. Local departments per island type'],
+  'pal.button': ['Spielstand', 'Save game'],
   'pal.attrShort': ['Attraktivität {n}', 'attractiveness {n}'],
   'pal.wings': ['Palastflügel', 'Palace wings'],
   'pal.rangeInfo': [
@@ -324,10 +324,7 @@ const DICT: Record<string, [string, string]> = {
     'Paved range: palace ≈ {p}, local department ≈ {r} (game value dirt road {b} + {w} per wing)',
   ],
   'pal.decree': ['Richtlinie', 'Policy'],
-  'pal.globalLead': [
-    'Einmal einstellen – gilt auf der ganzen Seite (Produktion & Handelskammer, Stadtplaner) und bleibt im Browser gespeichert.',
-    'Set once – applies across the whole site (production & trade union, city planner) and is kept in your browser.',
-  ],
+  'pal.globalLead': ['Was in deinem Spielstand gebaut und freigeschaltet ist. Einmal einstellen – gilt auf der ganzen Seite (Produktion & Handelskammer, Baumaterial, Stadtplaner) und bleibt im Browser gespeichert. Was nur eine Insel betrifft (Inselart, Strom, Post, Items …), fragt der Stadtplaner beim Einrichten.', 'What is built and unlocked in your save game. Set once – applies across the whole site (production & trade union, building material, city planner) and is kept in your browser. Things that only concern one island (island type, power, mail, items …) are asked by the city planner during setup.'],
   'pal.usedBy': [
     'Produktion & Handelskammer und Baumaterial-Guide nutzen das Regionalministerium der Produktionsinsel (oder den Palast, falls dort „Palast“ gewählt ist). Der Stadtplaner nutzt das der Wohninsel (Wohlfahrt: Reichweite öffentlicher Gebäude, Stadtweites Netz: Kraftwerke; Verwaltung: Arbeitskraft je Rathaus, Freigeisterreform: 4. Rathaus-Item). Die Hafeninsel bestimmt, ob Hafenmeistereien standardmäßig eingeplant werden.',
     'Production & trade union and the building-material guide use the local department of the production island (or the palace if “palace” is chosen there). The city planner uses the residential island (Welfare: public building range, City-wide web: power plants; City Affairs: workforce per town hall, Freethinkers: 4th town-hall item). The harbour island decides whether harbourmasters are planned by default.',
@@ -345,7 +342,7 @@ const DICT: Record<string, [string, string]> = {
   'pal.islandNote.harbor': ['Hafenplaner (geplant) · Handel: Hafenmeistereien an', 'Harbour planner (planned) · Trade: harbourmasters on'],
   'pal.overview': ['Alle Ministerien und Richtlinien kurz erklärt', 'All ministries and policies explained briefly'],
   'pal.reset': ['Auf Standardwerte zurücksetzen', 'Reset to defaults'],
-  'pal.edit': ['Palast-Einstellungen …', 'Palace settings …'],
+  'pal.edit': ['Spielstand: Palast & Ministerien …', 'Save game: palace & ministries …'],
   'pal.fx.socket': ['+{n} Item-Platz in der Handelskammer', '+{n} item slot in the trade union'],
   'pal.fx.extra': ['Zusatzware jede {n}. Produktion:', 'Extra good every {n}th production:'],
   'slot.Palace': ['Palast', 'Palace'],

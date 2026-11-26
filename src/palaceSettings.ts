@@ -353,6 +353,7 @@ export async function openPalaceDialog(): Promise<void> {
     };
     box.innerHTML = `<h2>🏛 ${esc(t('pal.title'))}</h2>
       <p class="pal-lead">${esc(t('pal.globalLead'))}</p>
+      <h3>${esc(t('pal.sec.progress'))}</h3>
       <div class="pal-grid2">
         <label><span>${esc(t('pal.attr'))}</span><input type="number" data-k="attr" min="0" max="99999" step="50" value="${s.attr}" />
           <small>${esc(t('pal.prestige', { n: prestigeOf(s.attr, data) }))}${esc(t('pal.prestigeInfo', { a: num(data.paragon.first), b: num(data.paragon.step) }))}</small></label>
@@ -363,7 +364,7 @@ export async function openPalaceDialog(): Promise<void> {
             level && auto !== s.wings ? ` · ${esc(t('pal.wingsManual', { w: auto }))}` : ''
           }</small></label>
       </div>
-      <h3>${esc(t('pal.loc.palace'))}</h3>
+      <h3>${esc(t('pal.sec.palace'))}</h3>
       <p class="pal-note">${esc(t('pal.notePalace'))}</p>
       <div class="pal-list">${data.ministries
         .map((m) => {
@@ -372,10 +373,9 @@ export async function openPalaceDialog(): Promise<void> {
             <select data-k="palace" data-m="${m.k}" ${ok ? '' : 'disabled'}>${decreeOptions(m.k, s.palace[m.k] ?? 0)}</select>${desc(m.k, s.palace[m.k] ?? 0)}</label>`;
         })
         .join('')}</div>
-      <h3>${esc(t('pal.loc.regional'))}</h3>
+      <h3>${esc(t('pal.sec.regional'))}</h3>
       <p class="pal-note">${esc(t('pal.noteRegional'))}</p>
       ${ISLAND_TYPES.map(regRow).join('')}
-      <p class="pal-note">${esc(t('pal.usedBy'))}</p>
       <details class="pal-overview"><summary>${esc(t('pal.overview'))}</summary>${overview}</details>
       <p><button type="button" class="pal-reset" data-k="reset">${esc(t('pal.reset'))}</button></p>`;
   };

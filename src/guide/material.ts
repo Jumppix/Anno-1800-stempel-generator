@@ -125,7 +125,7 @@ export const CHAPTERS: ReadonlyArray<{ id: string; title: string; html: string }
     html: `<ul>
       <li>Eine große Insel in der Alten Welt nur für Baumaterial – getrennt von den Wohninseln. So bleiben Handelskammer-Radien frei für die Produktion.</li>
       <li><b>Arbeitskraft am Anfang:</b> Ein Pendlerkai holt Arbeitskraft von anderen Inseln, solange die Items noch fehlen. Später senken Items und der Palast-Erlass „Fabrikinspektionen“ den Bedarf so stark, dass viele Ketten ohne Arbeiter laufen.</li>
-      <li><b>Palast / Regionalministerium:</b> Auf der Baumaterialinsel lohnt ein Regionalministerium mit dem Ministerium für Arbeit (+10 % Produktivität, mit Prestige bis +60 %). Richtlinie: „Fabrikinspektionen“ (−50 % Arbeitskraft, ab 5.200 Attraktivität der Palaststadt) – oder auf der Palastinsel „Gewerkschaftsförderung“ für einen 4. Item-Platz. Beides gleichzeitig geht auf einer Insel nicht (gleiches Ministerium). Einstellung oben über „🏛 Palast“.</li>
+      <li><b>Palast / Regionalministerium:</b> Auf der Baumaterialinsel lohnt ein Regionalministerium mit dem Ministerium für Arbeit (+10 % Produktivität, mit Prestige bis +60 %). Richtlinie: „Fabrikinspektionen“ (−50 % Arbeitskraft, ab 5.200 Attraktivität der Palaststadt) – oder auf der Palastinsel „Gewerkschaftsförderung“ für einen 4. Item-Platz. Beides gleichzeitig geht auf einer Insel nicht (gleiches Ministerium). Einstellung oben über „🏛 Spielstand“.</li>
       <li><b>Hafen:</b> Speicherstadt und mindestens zwei fortschrittliche Anlegestellen, dazu Hafendepots – über diese Insel läuft sehr viel Ware.</li>
     </ul>`,
   },

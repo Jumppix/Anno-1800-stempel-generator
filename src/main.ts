@@ -23,6 +23,7 @@ import { assembleParts, type AssembleResult } from './assemble';
 import { loadIsland, persistSettings, saveIsland } from './persist';
 import { detectKontor, FACING_NAMES, type KontorFound } from './harbor';
 import { depositSummary } from './deposits';
+import { openSetupWizard, type WizardIsland } from './setupWizard';
 import { initPlannerDefaults } from './plannerDefaults';
 import { clearPlacementCache, renderPlacement, type PlacementView } from './placement';
 
@@ -609,7 +610,36 @@ async function loadStamps(files: FileList): Promise<void> {
   if (errors.length) stampInfo.textContent = errors.join(' ');
   else if (note) stampInfo.textContent += ` · ${note}`;
   stampFile.value = '';
+  if (added > 0) requestSetup();
 }
+
+// Einrichtungs-Assistent: nach dem Laden neuer Stempel (im Stadtplaner sofort, sonst beim
+// Wechsel in den Stadtplaner) und über „🧭 Einrichtung“.
+let pendingSetup = false;
+function setupInfo(): WizardIsland | null {
+  if (!combined || !parts.length) return null;
+  const dep = combined.buildings ? depositSummary(combined.buildings) : null;
+  return {
+    label: `${combined.w} × ${combined.h}, ${num(combined.landCount)} Landkacheln`,
+    oil: dep?.oil ?? 0,
+    clay: dep?.clay ?? 0,
+    mines: (combined.buildings ?? []).filter((b) => b.kind === 'mine').length,
+    harbor: !!combined.harbor?.some((v) => v),
+    kontor: !!currentKontor(),
+  };
+}
+function openSetup(): void {
+  pendingSetup = false;
+  void openSetupWizard(setupInfo(), () => {
+    const run = document.getElementById('plan-run') as HTMLButtonElement | null;
+    if (run && !run.disabled) run.click();
+  });
+}
+function requestSetup(): void {
+  if (mode === 'city') openSetup();
+  else pendingSetup = true;
+}
+el<HTMLButtonElement>('#plan-setup').addEventListener('click', openSetup);
 
 function hitPart(px: number, py: number): IslandPart | null {
   if (!placementView) return null;
@@ -915,6 +945,7 @@ function setMode(next: 'admin' | 'city'): void {
     brandTitle.textContent = 'Stadtplaner';
     plannerUi?.refreshIsland();
     drawStage();
+    if (pendingSetup && parts.length) openSetup();
   } else {
     // Zurück in „Verwaltung“: HK/RH für die aktuelle Insel (neu) berechnen.
     update();

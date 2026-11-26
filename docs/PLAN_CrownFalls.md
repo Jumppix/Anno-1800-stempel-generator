@@ -187,7 +187,7 @@ er bleibt nur Obergrenze.
 
 ## 11. Umsetzung Stufe 1 (23.11.2026)
 
-- Stadtplaner → „Palast, Ministerium & Items“ → **Insel: Crown Falls / Palastinsel**. Dann wirken alle
+- Stadtplaner → „🧭 Einrichtung“ bzw. „Insel & Strom“ → **Insel: Crown Falls / Palastinsel**. Dann wirken alle
   freigeschalteten Ministerien gleichzeitig (Verwaltung, Wohlfahrt, Arbeit) mit den Palast-Richtlinien aus dem
   seitenweiten Palast-Dialog (`cityPalaceRules(…, 'palace')`, `RuleConfig.palace`, `hasMinistry`/`hasPolicy`).
 - Der Planer setzt statt des Regionalministeriums den **Palast mit Flügeln** als ein Rechteck

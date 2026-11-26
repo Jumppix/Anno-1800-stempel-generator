@@ -130,6 +130,11 @@ unnötig verändern.
   `hasMinistry`/`hasPolicy`/`ministryReach` in `rules.ts`), Palast + Flügel als Komplex `palaceComplex`/`ministryRect`
   in `services.ts` (Besitzer 9002), Museen mit Modulen `options.culture`/`MUSEUM_SPEC` (Besitzer 9100+, Ringstraße um
   große Blöcke `validRinged`), Varianten Flügel × Reform in `PlannerUi.palaceVariants`, Attraktivitäts-Bilanz `src/attractiveness.ts`.
+- `src/setupWizard.ts`: Einrichtungs-Assistent (nach dem Stempel-Laden im Stadtplaner, Knopf `plan-setup`): Inselart,
+  Strom/Öl, Stufe 4/5, Post, Items, Crown-Falls-Attraktivität, Lehmgruben, Rechenzeit → setzt die Felder. Optimierer-interne
+  Werte sind keine Einstellungen mehr (`PlannerUi.effort()` aus `plan-effort`: Durchläufe, Zeiten, HiGHS, Gleiskorridor;
+  Reihenlänge 6/12/8, Gitter auto, Brücken 12, Rathäuser nur mit Items/Rathausreform, Flügel-Varianten aus dem Spielstand).
+  Dialog oben rechts heißt „Spielstand“ (Fortschritt, Palast, Regionalministerien je Inseltyp).
 - `src/plannerDefaults.ts`: Stadtplaner-Schalter folgen automatisch (Ministerium, Ingenieure, Universität,
   Drogerie, Post, Lufthafen, Lieferdienst, 4. Item, Schichten); Handänderung bleibt (`anno-planer:overrides:v1`).
 - `src/levels.ts`: Hochhaus-Stufen (3-3-5/4-5) per Simulated Annealing;

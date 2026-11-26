@@ -1,10 +1,10 @@
-// Oberfläche „Wohnraster planen“ (Stadtplaner Phase 2). Nutzt die geladene
+// Oberfläche „Stadt planen“ (Stadtplaner Phase 2). Nutzt die geladene
 // Inselform (in beiden Modi dieselbe), plant Raster + Rathäuser und zeigt das Ergebnis
 // in der Stadt-Ansicht (CityUi) mit allen Analyse-Ebenen.
 
 import { CITY_PAD } from './city';
 import type { CityUi } from './cityUi';
-import { editCity, editTargetAt, freeTiles, planToStampItems, railSegments, splitBands, type CityPlan, type Orientation } from './planner';
+import { editCity, editTargetAt, freeTiles, planToStampItems, railSegments, splitBands, type CityPlan } from './planner';
 import type { PassInput, PassResult } from './pipeline';
 import type { PipelineJob, PipelineMessage } from './pipeline.worker';
 import type { LandMask } from './solver';
@@ -24,7 +24,7 @@ import {
   TOWN_HALL_REFORM_ATTR,
   WING_ATTR,
 } from './attractiveness';
-import { getPalaceSettings, setPalaceSettings } from './palaceSettings';
+import { getPalaceSettings, setPalaceSettings, wingsForPopulation } from './palaceSettings';
 
 /** Palastinsel-Variante eines Durchlaufs. */
 interface PalaceVariant {
@@ -223,13 +223,7 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 export class PlannerUi {
   private readonly progress = new Progress();
   private readonly islandInfo = el<HTMLElement>('#plan-island');
-  private readonly orientation = el<HTMLSelectElement>('#plan-orientation');
-  private readonly perLine = el<HTMLSelectElement>('#plan-line');
-  private readonly townHalls = el<HTMLInputElement>('#plan-townhalls');
-  private readonly minCover = el<HTMLInputElement>('#plan-mincover');
-  private readonly budget = el<HTMLSelectElement>('#plan-budget');
-  private readonly compactBudget = el<HTMLSelectElement>('#plan-compact');
-  private readonly svcGoal = el<HTMLSelectElement>('#svc-goal');
+  private readonly effortSelect = el<HTMLSelectElement>('#plan-effort');
   private readonly runButton = el<HTMLButtonElement>('#plan-run');
   private readonly status = el<HTMLElement>('#plan-status');
   private readonly exportBox = el<HTMLElement>('#plan-export');
@@ -281,13 +275,11 @@ export class PlannerUi {
     this.status.addEventListener('click', (e) => {
       if (!(e.target as HTMLElement).closest('[data-adopt]') || !this.adopt) return;
       const v = this.adopt;
-      const wings = el<HTMLInputElement>('#plan-wings');
-      wings.value = String(v.wings);
-      wings.dispatchEvent(new Event('change'));
-      if (v.reform) {
-        const ps = getPalaceSettings();
-        setPalaceSettings({ palace: { ...ps.palace, City: v.reform === 'townHallReform' ? 269176 : 269175 } });
-      }
+      const ps = getPalaceSettings();
+      setPalaceSettings({
+        wings: v.wings,
+        ...(v.reform ? { palace: { ...ps.palace, City: v.reform === 'townHallReform' ? 269176 : 269175 } } : {}),
+      });
       (e.target as HTMLElement).replaceWith(document.createTextNode('übernommen ✓'));
       this.adopt = null;
     });
@@ -298,7 +290,7 @@ export class PlannerUi {
     const on = (id: string): boolean => el<HTMLInputElement>(id).checked;
     const main = ['departmentStore', 'furnitureStore', 'drugStore', 'university', 'powerPlant'].filter((k) => on(`#svc-${k}`)).length;
     const opt = ['fireStation', 'policeStation', 'hospital', 'bank', 'varietyTheatre', 'membersClub'].filter((k) => on(`#svc-${k}`)).length;
-    const extra = [el<HTMLSelectElement>('#plan-power-fuel').value === 'oil' ? 'Öl' : '', on('#plan-post') ? 'Post' : '', on('#plan-airport') ? 'Lufthafen' : '', on('#plan-ministry') ? 'Ministerium' : '']
+    const extra = [on('#plan-post') ? 'Post' : '', on('#plan-airport') ? 'Lufthafen' : '', on('#plan-ministry') ? 'Ministerium' : '']
       .filter(Boolean)
       .join(', ');
     el<HTMLElement>('#sum-svc').textContent = `${main}/5${extra ? ` · ${extra}` : ''}${opt ? ` · +${opt} opt.` : ''}`;
@@ -310,9 +302,15 @@ export class PlannerUi {
     const ministry = r.palace
       ? 'Palast (Crown Falls)'
       : r.ministry === 'welfare' ? 'Wohlfahrt' : r.ministry === 'labour' ? 'Arbeit' : r.ministry === 'city' ? 'Verwaltung' : 'ohne Ministerium';
-    el<HTMLElement>('#sum-rules').textContent = `${ministry} · Zeitung −${
-      el<HTMLInputElement>('#rule-reduction').value || 0
-    } %`;
+    const oil = el<HTMLSelectElement>('#plan-power-fuel').value === 'oil';
+    el<HTMLElement>('#sum-island').textContent = `${r.palace ? 'Crown Falls' : 'Wohninsel'} · ${
+      oil ? (el<HTMLSelectElement>('#plan-oil-source').value === 'own' ? 'Öl (eigene Quellen)' : 'Öl per Schiff') : 'Gas'
+    }`;
+    const levels = el<HTMLSelectElement>('#plan-levels').value;
+    const mail = el<HTMLSelectElement>('#rule-mail').value;
+    el<HTMLElement>('#sum-rules').textContent = `${ministry} · ${levels === 'l3' ? 'nur Stufe 3' : 'Stufe 5'} · ${
+      mail === 'none' ? 'ohne Post' : mail === 'local' ? 'Post lokal' : mail === 'regional' ? 'Post regional' : 'Post Übersee'
+    } · ${r.townHallItems ? 'Items' : 'ohne Items'} · Zeitung −${el<HTMLInputElement>('#rule-reduction').value || 0} %`;
   }
 
   // --- Produktion (Clipping): Auswahl der Gebäude, gespeichert im Browser.
@@ -442,6 +440,12 @@ export class PlannerUi {
     this.harborInfo.textContent = h ? `bei ${h.x}, ${h.y}` : 'nicht gesetzt';
     const src = this.island();
     this.runButton.disabled = !src || this.running;
+    // Lehmgruben-Felder nur, wenn der Stempel Lehmgruben (Blaupausen) enthält
+    const clay = (src?.deposits?.clay ?? 0) > 0;
+    for (const id of ['#plan-clay', '#plan-clay-wh', '#plan-clay-power']) {
+      const row = el<HTMLElement>(id).closest<HTMLElement>('label');
+      if (row) row.hidden = !clay;
+    }
     this.islandInfo.textContent = src
       ? `Insel: ${src.label}`
       : 'Keine Insel geladen – oben unter „Inselform aus Stempeln“ die Feldweg-Stempel laden und im Tab „Anordnen“ ausrichten.';
@@ -455,9 +459,10 @@ export class PlannerUi {
   /** Palastinsel: Varianten Flügel × Reform (Rathausreform / Freigeisterreform). */
   private palaceVariants(): PalaceVariant[] {
     const rules = this.cityUi.currentRules();
-    if (!rules.palace || !el<HTMLInputElement>('#plan-variants').checked) return [];
-    const set = Math.max(0, Math.min(rules.palaceWings, Math.round(Number(el<HTMLInputElement>('#plan-wings').value) || 0)));
-    const wings = [...new Set([set, rules.palaceWings])];
+    if (!rules.palace) return [];
+    // Gebaute Flügel laut Spielstand, die erlaubten (Weltbevölkerung) und die Hälfte davon
+    const max = this.maxWings(rules);
+    const wings = [...new Set([Math.min(rules.palaceWings, max), max, Math.ceil(max / 2)])];
     const reforms: Array<PalaceVariant['reform']> = rules.palace.ministries.includes('city') ? ['townHallReform', 'freethinkers'] : [undefined];
     return wings.flatMap((w) => reforms.map((reform) => ({ wings: w, reform })));
   }
@@ -465,8 +470,8 @@ export class PlannerUi {
   private passList(): Array<{ lines: number; seed: number; label: string; variant?: PalaceVariant }> {
     const variants = this.palaceVariants();
     if (variants.length) {
-      const lines = Number(this.perLine.value) || 6;
-      const n = Math.max(variants.length, Math.min(10, Number(el<HTMLSelectElement>('#plan-passes').value) || 1));
+      const lines = 6;
+      const n = Math.max(variants.length, this.effort().passes);
       const out: Array<{ lines: number; seed: number; label: string; variant?: PalaceVariant }> = [];
       for (let k = 0; out.length < n && k < 10 * variants.length; k++) {
         const v = variants[k % variants.length];
@@ -480,9 +485,10 @@ export class PlannerUi {
   }
 
   private basePassList(): Array<{ lines: number; seed: number; label: string }> {
-    const lines = Number(this.perLine.value) || 6;
-    const alt = lines === 12 ? 6 : 12;
-    const third = lines === 8 ? 16 : 8;
+    // Häuser je Reihe probiert der Planer selbst (6 meist am besten, dazu 12 und 8)
+    const lines = 6;
+    const alt = 12;
+    const third = 8;
     const all = [
       { lines, seed: 0 },
       { lines: alt, seed: 0 },
@@ -495,7 +501,7 @@ export class PlannerUi {
       { lines, seed: 3 },
       { lines: alt, seed: 3 },
     ];
-    const n = Math.max(1, Math.min(all.length, Number(el<HTMLSelectElement>('#plan-passes').value) || 1));
+    const n = Math.max(1, Math.min(all.length, this.effort().passes));
     return all.slice(0, n).map((p) => ({ ...p, label: `${p.lines}er${p.seed ? ` (Variante ${p.seed + 1})` : ''}` }));
   }
 
@@ -503,17 +509,18 @@ export class PlannerUi {
   private passSteps(): Array<{ label: string; est: number }> {
     const kinds = SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked);
     const withServices = kinds.length > 0 || this.production.some((r) => r.count > 0);
-    const lvMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
+    const eff = this.effort();
+    const lvMs = eff.levelMs;
     const steps: Array<{ label: string; est: number }> = [{ label: 'Bebauung (Raster, Gittersuche)', est: 9000 }];
-    if (this.townHalls.checked) steps.push({ label: 'Rathäuser optimieren', est: Number(this.budget.value) || 6000 });
-    const cMs = Number(this.compactBudget.value) || 0;
+    if (this.withTownHalls()) steps.push({ label: 'Rathäuser optimieren', est: eff.rhBudget });
+    const cMs = eff.compactMs;
     if (cMs > 0) steps.push({ label: 'Nachverdichtung', est: cMs });
     if (withServices) steps.push({ label: 'Produktion, Lufthafen & Versorgung', est: 9000 });
     steps.push({ label: 'Hochhaus-Stufen', est: lvMs });
     if (kinds.length && this.levelMode.value !== 'l3') {
       steps.push({ label: 'Versorgung an Stufen anpassen', est: 9000 }, { label: 'Hochhaus-Stufen erneut', est: lvMs });
     }
-    if (withServices && (el<HTMLInputElement>('#plan-thin').checked || el<HTMLInputElement>('#plan-insert').checked)) {
+    if (withServices) {
       steps.push({ label: 'Querstraßen anpassen', est: 20000 }, { label: 'Hochhaus-Stufen nach Straßenanpassung', est: lvMs });
     }
     const oil = withServices && el<HTMLSelectElement>('#plan-power-fuel').value === 'oil';
@@ -521,12 +528,13 @@ export class PlannerUi {
     if (el<HTMLInputElement>('#plan-post').checked) steps.push({ label: 'Briefkästen', est: 3000 });
     steps.push({ label: 'Fertigstellen', est: 1500 });
     // Ölmodus mit Gleiskorridor: alles ein zweites Mal
-    if (oil && el<HTMLInputElement>('#plan-oil-corridor').checked) return [...steps, { label: '2. Durchgang: Bebauung um den Gleiskorridor', est: 500 }, ...steps];
+    if (oil && eff.corridor) return [...steps, { label: '2. Durchgang: Bebauung um den Gleiskorridor', est: 500 }, ...steps];
     return steps;
   }
 
   /** Alle Einstellungen eines Durchlaufs aus der Oberfläche. */
   private passInput(src: IslandSource, lines: number, seed: number, snapshots: boolean, variant?: PalaceVariant): PassInput {
+    const eff = this.effort();
     let rules = this.cityUi.currentRules();
     if (variant?.reform && rules.palace) {
       const other = variant.reform === 'townHallReform' ? 'freethinkers' : 'townHallReform';
@@ -540,14 +548,14 @@ export class PlannerUi {
       mask: src.mask,
       lines,
       seed,
-      orientation: this.orientation.value as 'auto' | Orientation,
-      bridgeLen: Number(el<HTMLSelectElement>('#plan-bridges').value) || 0,
-      townHalls: this.townHalls.checked,
-      minCover: Math.max(0, Number(this.minCover.value) || 0),
-      rhBudget: Number(this.budget.value) || 6000,
-      compactMs: Number(this.compactBudget.value) || 0,
+      orientation: 'auto',
+      bridgeLen: 12,
+      townHalls: rules.townHallItems || hasPolicy(rules, 'townHallReform'),
+      minCover: 12,
+      rhBudget: eff.rhBudget,
+      compactMs: eff.compactMs,
       kinds: SERVICE_KINDS_UI.filter((k) => el<HTMLInputElement>(`#svc-${k}`).checked),
-      goal: Number(this.svcGoal.value) || 0,
+      goal: 0,
       deliveryGoods: el<HTMLInputElement>('#rule-delivery').checked,
       townHallItems: rules.townHallItems,
       ministry: this.ministryOption(rules, variant?.wings),
@@ -555,16 +563,16 @@ export class PlannerUi {
       clay: this.clayOption(src),
       mines: src.mines?.length ? src.mines : undefined,
       oil: this.oilOption(src),
-      oilCorridor: el<HTMLInputElement>('#plan-oil-corridor').checked,
+      oilCorridor: eff.corridor,
       airport: el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined,
       production,
       levelMode: this.levelMode.value as LevelMode,
-      levelMs: Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000,
+      levelMs: eff.levelMs,
       selfWorkforce: el<HTMLInputElement>('#plan-engineers').checked,
       post: el<HTMLInputElement>('#plan-post').checked,
-      insert: el<HTMLInputElement>('#plan-insert').checked,
-      thin: el<HTMLInputElement>('#plan-thin').checked,
-      exact: el<HTMLInputElement>('#plan-exact').checked,
+      insert: true,
+      thin: true,
+      exact: eff.exact,
       rules,
       snapshots,
     };
@@ -695,8 +703,33 @@ export class PlannerUi {
 
   /** Gebaute Palastflügel: Feld „Palastflügel auf dieser Insel“, höchstens so viele wie erlaubt. */
   private wingsBuilt(rules: RuleConfig, override?: number): number {
-    const v = override ?? Math.round(Number(el<HTMLInputElement>('#plan-wings').value) || 0);
-    return Math.max(0, Math.min(rules.palaceWings, v));
+    return Math.max(0, Math.min(this.maxWings(rules), override ?? rules.palaceWings));
+  }
+
+  /** Erlaubte Palastflügel: aus der Weltbevölkerung (Spielstand), sonst die gebauten. */
+  private maxWings(rules: RuleConfig): number {
+    const pop = getPalaceSettings().population;
+    return Math.max(rules.palaceWings, pop > 0 ? wingsForPopulation(pop) : 0);
+  }
+
+  /** Rathäuser nur, wenn sie etwas bringen: Rathaus-Items oder Rathausreform (Attraktivität). */
+  private withTownHalls(): boolean {
+    const rules = this.cityUi.currentRules();
+    return rules.townHallItems || hasPolicy(rules, 'townHallReform');
+  }
+
+  /** Rechenzeit: Durchläufe und Zeiten der einzelnen Schritte aus einer Auswahl. */
+  private effort(): { passes: number; rhBudget: number; compactMs: number; levelMs: number; exact: boolean; corridor: boolean } {
+    switch (this.effortSelect.value) {
+      case 'fast':
+        return { passes: 1, rhBudget: 2000, compactMs: 10000, levelMs: 6000, exact: false, corridor: false };
+      case 'normal':
+        return { passes: 3, rhBudget: 6000, compactMs: 20000, levelMs: 15000, exact: false, corridor: false };
+      case 'max':
+        return { passes: 10, rhBudget: 20000, compactMs: 60000, levelMs: 45000, exact: true, corridor: true };
+      default:
+        return { passes: 10, rhBudget: 6000, compactMs: 20000, levelMs: 15000, exact: false, corridor: true };
+    }
   }
 
   /** Palastinsel: Museen für die Attraktivität, die bis zum Ziel fehlt. */
@@ -1089,13 +1122,13 @@ export class PlannerUi {
       // Briefkästen neu planen (sie hängen von den Einwohnern ab).
       let city: CityPlan = { ...this.result.city, services: (this.result.city.services ?? []).filter((sv) => sv.kind !== 'postBox') };
       const postOn = el<HTMLInputElement>('#plan-post').checked;
-      const lvMsNow = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
+      const lvMsNow = this.effort().levelMs;
       this.progress.start([
         { label: 'Hochhaus-Stufen', est: lvMsNow },
         ...(postOn ? [{ label: 'Briefkästen', est: 3000 }] : []),
       ]);
       this.progress.step('Hochhaus-Stufen', 'Nach deinen Änderungen');
-      const levelMs = Number(el<HTMLSelectElement>('#plan-levels-time').value) || 15000;
+      const levelMs = this.effort().levelMs;
       const levels = await this.levels(mask, city, this.levelMode.value as LevelMode, levelMs);
       let planned = levels.planned;
       const rules = this.cityUi.currentRules();

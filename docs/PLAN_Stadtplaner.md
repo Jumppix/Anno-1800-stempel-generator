@@ -1015,3 +1015,30 @@ Palast-Dialog: je ein Regionalministerium für Wohninsel (Stadtplaner), Produkti
 Freigeisterreform / Arbeit + Fabrikinspektionen / Handel + Hafenbevorratung, Attraktivität 33.000,
 Flügel aus Weltbevölkerung (Profilstufe).
 
+## 32. Einstellungen aufgeräumt, Einrichtungs-Assistent (26.11.2026)
+
+Wunsch des Nutzers: Die Leiste war unübersichtlich, manche Schalter steuerten nur den Optimierer, und unter „Palast“
+standen auch Inselstandards. Grundsatz jetzt: **Eingestellt wird nur, was der Planer nicht selbst ausprobieren kann**
+(Spielstand und Wünsche); alles andere entscheidet der Optimierer nach Einwohnern.
+
+- **Entfernt** (fest bzw. vom Optimierer): Häuser je Linie (Durchläufe mit 6/12/8), Gruppen-Richtung (auto), Brücken
+  (12), Versorgungsziel (max. Einwohner), Rathäuser einplanen (nur mit Items oder Rathausreform), Min. Häuser je
+  Rathaus (12), Querstraßen einfügen/ausdünnen (immer an), Palastflügel auf dieser Insel und „Varianten vergleichen“
+  (immer: gebaute Flügel laut Spielstand, erlaubte aus der Weltbevölkerung, die Hälfte × beide Reformen; „übernehmen“
+  setzt die Flügel im Spielstand), Gleiskorridor-Schalter.
+- **Zusammengelegt:** Rechenzeit Rathäuser/Nachverdichtung/Stufen, Durchläufe und „exakt prüfen“ → eine Auswahl
+  **Rechenzeit** (Schnell 1 Durchlauf · Normal 3 · Gründlich 10 mit Gleiskorridor · Maximal mit längeren Zeiten
+  und HiGHS).
+- **Neue Gruppen:** Insel & Strom · Spielstand dieser Stadt (Hochhäuser, Post, Items, Lieferdienst, Zeitung, Link
+  zum Spielstand) · Crown Falls: Attraktivität (nur Palastinsel) · Gebäude · Produktion & Rohstoffe (Lehmgruben nur,
+  wenn im Stempel). „Beim Planen zuschauen“ steht unter „Weitere Funktionen → Ansicht & Bedienung“.
+- **Spielstand-Dialog** (vorher „Palast“): 1. Fortschritt, 2. Palast auf Crown Falls, 3. Regionalministerien je
+  Inseltyp – mit Erklärung, welches Werkzeug welches nimmt.
+- **Einrichtungs-Assistent** (`src/setupWizard.ts`): nach dem Laden neuer Stempel (im Stadtplaner sofort, sonst
+  beim Wechsel), Knopf „🧭 Einrichtung“. Fragen: Inselart, Strom (Gas / Öl eigene Quellen mit Anzahl aus dem Stempel /
+  Öl per Schiff), Stufe 4/5, Post, Rathaus-Items, Crown Falls: Ziel-Attraktivität bzw. keine Museen, Lehmgruben
+  (nur wenn im Stempel), Rechenzeit. Übersicht mit Spielstand-Zusammenfassung, „Übernehmen“ / „Übernehmen &
+  planen“; automatische Schalter werden zurückgesetzt und folgen den Antworten.
+- Test über die Oberfläche (Insel 189 × 290, Assistent → Wohninsel, Gas, Schnell → planen): 783 753 Einwohner in
+  72 s, keine Fehler.
+
