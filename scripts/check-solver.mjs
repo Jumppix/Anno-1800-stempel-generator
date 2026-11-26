@@ -169,6 +169,34 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
     serviced.report.warehouses > 0, `${serviced.report.warehouses} Lagerhäuser, ${serviced.report.removedHouses} Häuser ersetzt`);
   const city = serviced.city;
   {
+    // Ölmodus: Ölkraftwerke, Ölhafen (offenes Meer), 1 Raffinerie mit 3 Bohrtürmen, Gleise.
+    const { planOil } = await server.ssrLoadModule('/src/planner.ts');
+    const oilSv = planServices(mask, dense, { kinds, fullCoverageValue: 30, oilPower: true });
+    const { city: oc, report: or } = planOil(mask, oilSv.city, { wells: 3, budgetMs: 2000, seed: 1 });
+    const W = mask.w;
+    const onHouse = new Uint8Array(W * mask.h);
+    for (const hs of oc.houses) for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) onHouse[(hs.y + dy) * W + hs.x + dx] = 1;
+    const svAt = new Int32Array(W * mask.h).fill(-1);
+    oc.services.forEach((sv, k) => { for (let dy = 0; dy < sv.h; dy++) for (let dx = 0; dx < sv.w; dx++) svAt[(sv.y + dy) * W + sv.x + dx] = k; });
+    const rail = new Uint8Array(W * mask.h);
+    for (const i of oc.rails) rail[i] = 1;
+    const stations = new Set([100780, 101331, 100783]);
+    let bad = 0;
+    for (const i of oc.rails) {
+      if (onHouse[i]) bad++;
+      if (svAt[i] >= 0 && !stations.has(oc.services[svAt[i]].guid)) bad++;
+    }
+    // höchstens 2 Bahnübergänge nebeneinander (waagrecht oder senkrecht)
+    let triple = 0;
+    const cross = (x, y) => x >= 0 && y >= 0 && x < W && y < mask.h && rail[y * W + x] && oc.plan.roads[y * W + x];
+    for (let y = 0; y < mask.h; y++) for (let x = 0; x < W; x++) {
+      if (cross(x, y) && ((cross(x + 1, y) && cross(x + 2, y)) || (cross(x, y + 1) && cross(x, y + 2)))) triple++;
+    }
+    expect('Ölmodus: Ölhafen, alle Bahnhöfe angeschlossen, Gleise frei, ≤ 2 Übergänge nebeneinander',
+      or.harbor && or.connected === or.plants + or.refineries && or.wells === 3 && !or.notes.length && !bad && !triple && oc.plan.networks === oilSv.city.plan.networks,
+      `${or.plants} Kraftwerke, ${or.connected} angeschlossen, ${or.railTiles} Gleiskacheln, ${or.houses} Häuser verdrängt, Fehler ${bad}/${triple}${or.notes.length ? ' – ' + or.notes.join('; ') : ''}`);
+  }
+  {
     // Lufthafen mit Modulen weit weg von einer Anlegestelle im Süden; Ministerium gesetzt.
     const air = planServices(mask, dense, {
       kinds,

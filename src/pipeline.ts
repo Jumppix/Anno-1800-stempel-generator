@@ -11,7 +11,7 @@ import { analyzeCity } from './analysis';
 import type { BuildingKind } from './catalog';
 import { cityFromStamp } from './city';
 import type { InsertReport } from './codesign';
-import { addBridges, searchFill, type Orientation } from './fill';
+import { addBridges, FREE, searchFill, WATER, type Orientation } from './fill';
 import { optimizeLevels, type LevelMode, type LevelResult } from './levels';
 import {
   compactCity,
@@ -31,7 +31,7 @@ import {
 import type { PostReport } from './post';
 import type { ProductionOptions } from './production';
 import type { ServiceOptions } from './services';
-import type { OilOptions, OilReport } from './oil';
+import { estimateOilHarbor, type OilOptions, type OilReport } from './oil';
 import { mailResidentsFor, mailTypes, type RuleConfig } from './rules';
 import type { MipSolver, ServiceReport } from './services';
 import { solve, type LandMask } from './solver';
@@ -81,6 +81,15 @@ export interface PassInput {
   exact?: boolean;
   /** M5: Nachverdichtung nach Einwohnern am Ende (ms, 0 = aus; Standard aus – kein messbarer Gewinn). */
   valueCompactMs?: number;
+  /** Ölmodus: Rechenzeit der Gleisoptimierung (ms; Standard nach Inselgröße 3–20 s). */
+  oilMs?: number;
+  /**
+   * Ölmodus: Ölkraftwerke zum Gleisnetz ziehen (geschätzte Einwohner je Gleiskachel; 0 = aus).
+   * Standard je nach Durchlauf (`seed`), damit der Pool verschiedene Stärken vergleicht.
+   */
+  oilPull?: number;
+  /** Ölmodus: Nachverdichtung um die Gleise (ms; Standard max(4000, valueCompactMs)). */
+  oilCompactMs?: number;
 }
 
 export interface PassResult {
@@ -98,6 +107,8 @@ export interface PassResult {
   valueCompact: { gained: number; residents: number; accepted: boolean } | null;
   /** Ölmodus: Ölhafen, Raffinerien, Gleise. */
   oil?: OilReport | null;
+  /** Nachverdichtung um die Gleise (Häuser-Bilanz, Einwohner-Gewinn, übernommen?). */
+  oilCompact?: { gained: number; residents: number; accepted: boolean } | null;
   ms: number;
 }
 
@@ -127,6 +138,87 @@ function remap(before: CityPlan, after: CityPlan, planned: Planned): Planned {
     if (st) out.set(k, st);
   });
   return out;
+}
+
+/** Geplante Einwohner je Haus (Lage „x,y“) – Wert, den ein Gleis durch dieses Haus kostet. */
+export function residentsByHouse(mask: LandMask, city: CityPlan, rules: RuleConfig, planned: Planned, mail = false): Map<string, number> {
+  const analysis = analyzeCity(stampCity(mask, city, true), rules, { houses: new Map(), groups: new Map(), planned });
+  // Briefkästen kommen erst später: den Post-Bonus der Stufe schon mitzählen
+  const types = mail ? mailTypes(rules.mail) : [];
+  const out = new Map<string, number>();
+  for (const r of analysis.residences) {
+    const hs = city.houses[r.building.index];
+    const bonus = types.length && r.tier !== 'artisan' && !r.mailBonus ? mailResidentsFor(r.tier, r.level, types) : 0;
+    if (hs) out.set(`${hs.x},${hs.y}`, r.residents + bonus);
+  }
+  return out;
+}
+
+/** Stärken des Zugs zum Gleisnetz (Einwohner je Gleiskachel) je Durchlauf (`seed`). */
+export const OIL_PULLS = [20, 0, 40, 10];
+
+function oilRailFor(input: PassInput, city: CityPlan): ServiceOptions['oilRail'] {
+  if (!input.oil) return undefined;
+  const perTile = input.oilPull ?? OIL_PULLS[input.seed % OIL_PULLS.length];
+  if (!perTile) return undefined;
+  const { mask } = input;
+  const cell = new Uint8Array(mask.w * mask.h);
+  for (let i = 0; i < cell.length; i++) cell[i] = mask.data[i] ? FREE : WATER;
+  const p = estimateOilHarbor(mask, cell, city.houses, input.oil);
+  return p ? { ...p, perTile } : undefined;
+}
+
+/** Hochhaus-Stufen für einen Plan (Ingenieure je Kraftwerk aus den Spieldaten: Gas 250, Öl 150). */
+export function levelsFor(input: PassInput, c: CityPlan, seedOffset: number): LevelResult {
+  const { mask, rules } = input;
+  const withMail = input.post && rules.mail !== 'none';
+  const analysis = analyzeCity(stampCity(mask, c, true), rules);
+  const engineers = (c.services ?? []).filter((sv) => sv.kind === 'powerPlant').reduce((a, sv) => a + (sv.guid === 100780 ? 150 : 250), 0);
+  return optimizeLevels(analysis.residences, rules, input.levelMode, input.levelMs, 11 + input.seed * 977 + seedOffset, {
+    minEngineers: input.selfWorkforce ? engineers : 0,
+    mailTypes: withMail ? mailTypes(rules.mail) : undefined,
+  });
+}
+
+/**
+ * 7c. Ölversorgung: Ölhafen, Raffinerien mit Bohrtürmen, Gleise zu allen Ölkraftwerken –
+ * Gleise so, dass möglichst wenige Einwohner weichen (Wert je Haus = geplante Einwohner),
+ * danach um die Gleise nachverdichten (übernommen, wenn es Einwohner bringt).
+ */
+export function oilStage(
+  input: PassInput,
+  start: CityPlan,
+  lvStart: LevelResult,
+  emit: (e: PassEvent) => void,
+): { city: CityPlan; lv: LevelResult; oil: OilReport; oilCompact: PassResult['oilCompact'] } {
+  const { mask, rules } = input;
+  emit({ kind: 'step', label: 'Ölversorgung (Ölhafen, Gleise)' });
+  const values = residentsByHouse(mask, start, rules, lvStart.planned, input.post && rules.mail !== 'none');
+  const budgetMs = input.oilMs ?? Math.min(20000, Math.max(3000, start.houses.length * 1.5));
+  const r = planOil(mask, start, { ...(input.oil as OilOptions), values, budgetMs, seed: 1 + input.seed * 31 + input.lines });
+  let city: CityPlan = { ...r.city, removedHouses: start.removedHouses };
+  let lv = lvStart;
+  let oilCompact: PassResult['oilCompact'] = null;
+  if (r.city.houses.length !== start.houses.length) {
+    const lvOil = levelsFor(input, city, 7);
+    lv = lvOil;
+    const ms = input.oilCompactMs ?? Math.max(4000, input.valueCompactMs ?? 0);
+    if (ms > 0) {
+      emit({ kind: 'step', label: 'Nachverdichtung um die Gleise' });
+      const c = compactValued(mask, city, { deadline: performance.now() + ms, seed: 53 + input.seed * 7349 + input.lines });
+      if (c.result.improvements > 0) {
+        const cand: CityPlan = { ...c.city, removedHouses: city.removedHouses };
+        const lvc = levelsFor(input, cand, 8);
+        const accepted = lvc.residents > lvOil.residents;
+        oilCompact = { gained: c.result.gained, residents: lvc.residents - lvOil.residents, accepted };
+        if (accepted) {
+          city = cand;
+          lv = lvc;
+        }
+      } else oilCompact = { gained: 0, residents: 0, accepted: false };
+    }
+  }
+  return { city, lv, oil: r.report, oilCompact };
 }
 
 /**
@@ -194,6 +286,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     culture: input.culture,
     clay: input.clay,
     oilPower: !!input.oil,
+    oilRail: oilRailFor(input, dense),
     mines: input.mines,
     airport: input.airport,
     production: input.production,
@@ -211,15 +304,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
 
   // 5. Stufen
   const withMail = input.post && rules.mail !== 'none';
-  const levels = (c: CityPlan, seedOffset: number): LevelResult => {
-    const analysis = analyzeCity(stampCity(mask, c, true), rules);
-    // Ingenieure je Kraftwerk (Spieldaten): Gas 250, Öl 150
-    const engineers = (c.services ?? []).filter((sv) => sv.kind === 'powerPlant').reduce((a, sv) => a + (sv.guid === 100780 ? 150 : 250), 0);
-    return optimizeLevels(analysis.residences, rules, input.levelMode, input.levelMs, 11 + input.seed * 977 + seedOffset, {
-      minEngineers: input.selfWorkforce ? engineers : 0,
-      mailTypes: withMail ? mailTypes(rules.mail) : undefined,
-    });
-  };
+  const levels = (c: CityPlan, seedOffset: number): LevelResult => levelsFor(input, c, seedOffset);
   emit({ kind: 'step', label: 'Hochhaus-Stufen' });
   let lv = levels(city, 0);
   snap(city, lv.planned);
@@ -288,15 +373,16 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
       }
     } else valueCompact = { gained: 0, residents: 0, accepted: false };
   }
-  // 7c. Ölversorgung: Ölhafen, Raffinerien mit Bohrtürmen, Gleise zu allen Ölkraftwerken
+  // 7c. Ölversorgung (oilStage)
   let oil: OilReport | null = null;
+  let oilCompact: PassResult['oilCompact'] = null;
   if (input.oil && services) {
-    emit({ kind: 'step', label: 'Ölversorgung (Ölhafen, Gleise)' });
-    const r = planOil(mask, city, input.oil);
-    oil = r.report;
-    const changed = r.city.houses.length !== city.houses.length;
-    city = { ...r.city, removedHouses: city.removedHouses };
-    if (changed) lv = levels(city, 7);
+    snap(city, lv.planned);
+    const r = oilStage(input, city, lv, emit);
+    city = r.city;
+    lv = r.lv;
+    oil = r.oil;
+    oilCompact = r.oilCompact;
   }
   snap(city, lv.planned);
 
@@ -340,6 +426,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
     insert,
     valueCompact,
     oil,
+    oilCompact,
     ms: performance.now() - t0,
   };
 }

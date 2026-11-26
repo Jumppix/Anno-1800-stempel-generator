@@ -792,7 +792,9 @@ export class PlannerUi {
                 r.oil.refineries ? `, ${r.oil.refineries} Raffinerie${r.oil.refineries === 1 ? '' : 'n'} mit ${r.oil.wells} Bohrtürmen` : ', Öl per Schiff'
               }, ${r.oil.connected} Bahnhöfe angeschlossen, ${num(r.oil.railTiles)} Gleiskacheln (${r.oil.crossings} Bahnübergänge${
                 r.oil.bridges ? `, ${r.oil.bridges} Brückenkacheln` : ''
-              }), ${r.oil.houses} Häuser verdrängt${r.oil.notes.length ? ` – <strong>${r.oil.notes.join('; ')}</strong>` : ''}`
+              }), ${r.oil.houses} Häuser verdrängt (${num(r.oil.lostResidents ?? 0)} Einwohner)${
+                r.oilCompact?.accepted ? `, Nachverdichtung um die Gleise +${num(r.oilCompact.residents)} Einwohner` : ''
+              }${r.oil.notes.length ? ` – <strong>${r.oil.notes.join('; ')}</strong>` : ''}`
             : ''
         }${
           s.clay

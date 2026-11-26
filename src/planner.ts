@@ -680,7 +680,8 @@ export function compactValued(
   for (const spec of SERVICE_SPECS) {
     const list = (city.services ?? []).filter((sv) => sv.kind === spec.kind);
     if (!list.length) continue;
-    const range = (lookup(spec.guid).roadRange ?? 0) + (options.rangeBonus?.[spec.kind] ?? 0);
+    // Reichweite des tatsächlich gesetzten Gebäudes (Ölkraftwerk 49 statt Gas 59)
+    const range = (lookup(list[0].guid).roadRange ?? 0) + (options.rangeBonus?.[spec.kind] ?? 0);
     if (!range) continue;
     const dist = new Uint16Array(w * h);
     const queue: number[] = [];

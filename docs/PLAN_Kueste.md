@@ -371,27 +371,59 @@ Gaskraftwerke; Kreuzungen mit dem Straßenraster als Bahnübergang; Anzahl Raffi
 Kraftwerke und Gleise; Herkunft des Öls kümmert den Planer nicht). Hat die Insel keine Ölquellen, wird wie „per
 Schiff“ geplant.
 
-**Ablauf** (`src/oil.ts` `planOilSupply`, Hülle `planOil` in `planner.ts`, Schritt 7c in `pipeline.ts` nach
-Versorgung/Nachverdichtung, vor Post):
-1. Versorgung setzt Ölkraftwerke 100780 (5×5, Reichweite 49 statt 59, 150 Ingenieure statt 250) statt
-   Gaskraftwerken (`ServiceOptions.oilPower`); Mindest-Ingenieure in `levels` entsprechend.
-2. **Kleiner Ölhafen 100783** (7×10, Gleis 7 Kacheln von der Landseite, Ausgang landseitig): alle vier Drehungen
-   im Hafengebiet (Kaistraße) bzw. ohne Hafeninfo im zum Rand offenen Meer (Flutfüllung vom Kartenrand, 12 Kacheln
-   freies Wasser vor der Wasserseite) – Flüsse/Binnenseen fallen weg; Kontor und Fahrrinne sind gesperrt
-   (`blocked`). Kosten: Abstand zum Schwerpunkt der Kraftwerke.
-3. **Raffinerien** 101331 (bei eigenem Öl): Block 14×5 mit Raffinerie und 3 Bohrtürmen 101332 (gemeinsame
-   `ComplexOwnerID` 9300+r), nur auf freiem Land oder Häusern; der Raffinerieausgang muss erreichbar sein.
-4. **Gleise:** schrittweiser Steinerbaum per Dijkstra über Kachel × Richtung (Abbiegen kostet extra → gerade
-   Strecken statt Treppen), Häuser kosten 6, Straßen werden nur quer und höchstens 2 Kacheln breit überquert
-   (Bahnübergänge), Wasser bis 12 Kacheln per Brücke. Kraftwerke wählen die günstigste der vier Seiten, ihre
-   Drehung folgt der Ausgangsseite. Häuser auf der Strecke werden entfernt, Stufen neu verteilt.
-5. Stempel: `CityPlan.rails`, `railSegments` fasst Gleiskacheln zu waagrechten/senkrechten Abschnitten
+**Ablauf** (`src/oil.ts` `planOilSupply`, Hülle `planOil` in `planner.ts`, `oilStage` in `pipeline.ts` nach
+Versorgung/Nachverdichtung, vor Post). Ziel ist allein die Einwohnerzahl – gerade oder treppenförmige Gleise sind
+gleichwertig (Abbiegen kostet nichts):
+1. **Vorab (Versorgung):** Ölkraftwerke 100780 (5×5, Reichweite 49 statt 59, 150 Ingenieure statt 250) statt
+   Gaskraftwerken (`ServiceOptions.oilPower`). `ServiceOptions.oilRail` zieht sie zum Gleisnetz: Jedes Kraftwerk
+   zahlt in der Versorgungsplanung (gierig + lokale Suche) geschätzte Gleiskosten = Abstand zum nächsten
+   Ölkraftwerk bzw. zur vorab geschätzten Ölhafen-Ausfahrt (`estimateOilHarbor`) × `perTile` Einwohner. Die Stärke
+   wechselt je Durchlauf (`OIL_PULLS` nach `seed`: 20, 0, 40, 10), der Pool behält den besten Plan.
+2. **Kleiner Ölhafen 100783** (7×10, Gleis 7 Kacheln von der Landseite, Ausgang landseitig, `harborCandidates`):
+   im Hafengebiet (Kaistraße) bzw. ohne Hafeninfo im zum Rand offenen Meer (12 Kacheln freies Wasser davor); Kontor
+   und Fahrrinne gesperrt. Bis zu 4 verschiedene Lagen (≥ 25 Kacheln auseinander) werden mit vollem Gleisbau
+   verglichen.
+3. **Raffinerien** 101331 (bei eigenem Öl, je 3 Bohrtürme eine): 5×5-Platz nach Hauswert darunter + geschätzten
+   Gleiskosten zum Netz, mit Platz für die Bohrtürme; Ausfahrtsseite wählt der Gleisbau. Die beste Ölhafen-Lage
+   wird zusätzlich mit anderen Raffinerie-Plätzen gerechnet.
+4. **Gleise = Steinerbaum** über Ölhafen, Raffinerien und Kraftwerke (je bis zu 4 Ausfahrtsseiten):
+   - Kosten: ein Haus kostet einmal seine geplanten Einwohner (inkl. Post-Bonus), weitere Kacheln desselben oder
+     eines schon weichenden Hauses sind frei; freie Kachel 0,1 % eines Hauses, Bahnübergang 8 %, Brückenkachel 1 %.
+     Straßen nur quer (1–2 Kacheln, nie mehr als 2 Übergänge nebeneinander), Wasser bis 12 Kacheln.
+   - Aufbau: vom Ölhafen aus jeweils den billigsten fehlenden Bahnhof anhängen (Dijkstra vom ganzen Netz).
+   - Verbesserung: Schlüsselpfad-Tausch (Stück zwischen Abzweigen/Bahnhöfen herausnehmen, die zwei Teile neu
+     verbinden; ein Bahnhof am Ende darf die Seite wechseln), übernommen bei weniger verlorenen Einwohnern.
+   - Neustarts mit ±35 % verrauschten Hauswerten, wieder verbessern; der beste Baum gilt. Zeit: 1,5 ms je Haus,
+     3–20 s (`PassInput.oilMs`).
+5. **Bohrtürme** zuletzt: billigste 3×3-Plätze ganz im Radius 12 der Raffinerie (gern Reste weichender Häuser).
+6. **Nachverdichtung um die Gleise** (`compactValued`, Gleise fest; `oilCompactMs`, Standard max(4 s, M5-Zeit)),
+   übernommen, wenn die Stufen-Rechnung mehr Einwohner ergibt.
+7. Stempel: `CityPlan.rails`, `railSegments` fasst Gleiskacheln zu waagrechten/senkrechten Abschnitten
    (Abschnitt RailwayInfos).
 
-**Ergebnisse:** Testinsel (3 Bohrtürme): Ölhafen in der Bucht, 1 Raffinerie, 4 Kraftwerke angeschlossen, rund 76
+**Messungen** (Ölschritt allein auf demselben gespeicherten Crown-Falls-Plan, 12 Ölkraftwerke, 5 Bohrtürme):
+alter Gleisbau (Kachelkosten 6 je Hauskachel, Abbiegeaufschlag) 237 Häuser / −86 844 Einwohner; neuer Gleisbau
+174 Häuser / −67 212; mit Nachverdichtung −62 984 (+5 Häuser). Testinsel: 53 → 49 Häuser.
+
+Ganze Durchläufe Crown Falls (40 Flügel, 5 Bohrtürme, 4 Lehmgruben, seed 0) nach Zug `perTile`:
+
+| Zug | Einwohner | Ölkraftwerke | verdrängte Häuser | Gleiskacheln |
+|---|---|---|---|---|
+| 0 | 2 645 665 | 14 | 212 | 1 873 |
+| 10 | 2 638 059 | 10 | 189 | 1 313 |
+| 20 | 2 666 482 | 9 | 157 | 1 482 |
+| 30 | 2 650 839 | 10 | 177 | 1 414 |
+| 50 | 2 642 556 | 7 | 146 | 1 216 |
+
+Derselbe Zug 20 mit seed 1: 2 626 944 – die Schwankung zwischen Durchläufen (±20 000) ist so groß wie der Effekt
+des Zugs; sicher ist nur: weniger Kraftwerke und weniger verdrängte Häuser. Deshalb verschiedene Stärken im Pool.
+Erste Fassung (gleiche Einstellungen): 2 613 299; mit Gaskraftwerken etwa 2,72 Mio.
+
+**Erste Fassung (26.11.2026):** Testinsel (3 Bohrtürme): Ölhafen in der Bucht, 1 Raffinerie, 4 Kraftwerke angeschlossen, rund 76
 Häuser weniger. Crown Falls mit Minen-Stempel (5 Bohrtürme, 40 Flügel): 14 Ölkraftwerke (statt 10 Gas),
 2 Raffinerien, alle 16 Stationen angeschlossen, 1 687 Gleiskacheln, 119 Bahnübergänge, 280 Häuser weniger →
 2,61 Mio. statt 2,72 Mio. Einwohner.
 
 **Offen:** Ölverbrauch je Kraftwerk gegen Raffinerieleistung ungeprüft (Anzahl Raffinerien folgt nur den
-Bohrtürmen); Öllager 100784 nicht geplant; Gleise noch nicht nach der Nachverdichtung mitoptimiert.
+Bohrtürmen); Öllager 100784 nicht geplant; ob Gleisbrücken über Wasser wie Straßenbrücken gehen, ist im Spiel
+ungeprüft; Kraftwerke werden nach dem Gleisbau nicht mehr verschoben.

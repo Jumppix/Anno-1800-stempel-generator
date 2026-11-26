@@ -251,6 +251,12 @@ export interface ServiceOptions {
   mines?: ReadonlyArray<{ guid: number; x: number; y: number; w: number; h: number }>;
   /** Ölkraftwerke (100780) statt Gaskraftwerke; Öl, Ölhafen und Gleise plant `oil.ts` danach. */
   oilPower?: boolean;
+  /**
+   * Ölmodus: Ölkraftwerke ziehen zum Gleisnetz – je Kraftwerk werden die geschätzten Gleiskosten
+   * (Abstand zum nächsten Ölkraftwerk bzw. zur Ölhafen-Ausfahrt `x,y`, mal `perTile` Einwohner
+   * je Kachel) vom Gewinn abgezogen.
+   */
+  oilRail?: { x: number; y: number; perTile: number };
   /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
   keepRoads?: boolean;
   /**
@@ -1276,10 +1282,25 @@ export function placeServices(
       return b;
     };
 
+    /** Geschätzte Gleiskosten eines Ölkraftwerks: Abstand zum Netz (Ölhafen oder anderes Kraftwerk). */
+    const rail = spec.kind === 'powerPlant' && options.oilPower ? options.oilRail : undefined;
+    const railCost = (ci: number): number => {
+      if (!rail) return 0;
+      const c = cands[ci];
+      const x = c.x + c.w / 2;
+      const y = c.y + c.h / 2;
+      let d = Math.abs(x - rail.x) + Math.abs(y - rail.y);
+      for (const cj of chosen) {
+        if (cj === ci) continue;
+        const o = cands[cj];
+        d = Math.min(d, Math.max(0, Math.abs(x - o.x - o.w / 2) + Math.abs(y - o.y - o.h / 2) - 5));
+      }
+      return rail.perTile * d;
+    };
     /** Gewinn, wenn Kandidat ci dazukommt (im aktuellen Zustand). */
     const addGain = (ci: number): number => {
       const c = cands[ci];
-      let gain = -spec.fixedCost;
+      let gain = -spec.fixedCost - railCost(ci);
       for (const k of c.houses) {
         if (!isAlive(k)) continue;
         gain -= houseCost(k) + valueOf(k) * best[k];
@@ -1295,7 +1316,7 @@ export function placeServices(
     /** Gewinn, wenn das gewählte Gebäude ci wegfällt. */
     const removeGain = (ci: number): number => {
       const c = cands[ci];
-      let gain = spec.fixedCost;
+      let gain = spec.fixedCost + railCost(ci);
       const ks = coverK[ci];
       const fs = coverF[ci];
       for (let n = 0; n < ks.length; n++) {
