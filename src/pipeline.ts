@@ -23,6 +23,7 @@ import {
   planServices,
   planToStampItems,
   planOil,
+  relaneCity,
   railSegments,
   refillAroundTownHalls,
   townHallProblem,
@@ -116,6 +117,8 @@ export interface PassResult {
   oil?: OilReport | null;
   /** Zweiter Durchgang mit Gleiskorridor: Einwohner beider Durchgänge, zweiter übernommen? */
   corridor?: { first: number; second: number; used: boolean } | null;
+  /** Umbau um Gleise: neu aufgeteilte Streifen und Häuser-Gewinn (vor der Nachverdichtung). */
+  oilRelane?: { windows: number; gained: number } | null;
   /** Nachverdichtung um die Gleise (Häuser-Bilanz, Einwohner-Gewinn, übernommen?). */
   oilCompact?: { gained: number; residents: number; accepted: boolean } | null;
   ms: number;
@@ -259,7 +262,7 @@ export function oilStage(
   start: CityPlan,
   lvStart: LevelResult,
   emit: (e: PassEvent) => void,
-): { city: CityPlan; lv: LevelResult; oil: OilReport; oilCompact: PassResult['oilCompact'] } {
+): { city: CityPlan; lv: LevelResult; oil: OilReport; oilCompact: PassResult['oilCompact']; oilRelane: PassResult['oilRelane'] } {
   const { mask, rules } = input;
   emit({ kind: 'step', label: 'Ölversorgung (Ölhafen, Gleise)' });
   const mail = input.post && rules.mail !== 'none';
@@ -287,18 +290,24 @@ export function oilStage(
   let city: CityPlan = { ...r.city, removedHouses: start.removedHouses };
   let lv = lvStart;
   let oilCompact: PassResult['oilCompact'] = null;
+  let relane: PassResult['oilRelane'] = null;
   if (r.city.houses.length !== start.houses.length) {
     const lvOil = levelsFor(input, city, 7);
     lv = lvOil;
     const ms = input.oilCompactMs ?? Math.max(4000, input.valueCompactMs ?? 0);
     if (ms > 0) {
       emit({ kind: 'step', label: 'Nachverdichtung um die Gleise' });
-      const c = compactValued(mask, city, { deadline: performance.now() + ms, seed: 53 + input.seed * 7349 + input.lines });
-      if (c.result.improvements > 0) {
+      // Erst Streifen entlang gerader Gleisstücke neu aufteilen (Längsstraßen verschieben),
+      // dann die übliche Nachverdichtung.
+      const rl = relaneCity(mask, city);
+      relane = { windows: rl.windows, gained: rl.gained };
+      if (rl.windows) emit({ kind: 'detail', text: `Umbau um Gleise: +${rl.gained} Häuser in ${rl.windows} Streifen` });
+      const c = compactValued(mask, rl.city, { deadline: performance.now() + ms, seed: 53 + input.seed * 7349 + input.lines });
+      if (c.result.improvements > 0 || rl.windows > 0) {
         const cand: CityPlan = { ...c.city, removedHouses: city.removedHouses };
         const lvc = levelsFor(input, cand, 8);
         const accepted = lvc.residents > lvOil.residents;
-        oilCompact = { gained: c.result.gained, residents: lvc.residents - lvOil.residents, accepted };
+        oilCompact = { gained: c.result.gained + rl.gained, residents: lvc.residents - lvOil.residents, accepted };
         if (accepted) {
           city = cand;
           lv = lvc;
@@ -306,7 +315,7 @@ export function oilStage(
       } else oilCompact = { gained: 0, residents: 0, accepted: false };
     }
   }
-  return { city, lv, oil: r.report, oilCompact };
+  return { city, lv, oil: r.report, oilCompact, oilRelane: relane };
 }
 
 /**
@@ -485,6 +494,7 @@ function runPassOnce(input: PassInput, emit: (e: PassEvent) => void, mip?: MipSo
   // 7c. Ölversorgung (oilStage)
   let oil: OilReport | null = null;
   let oilCompact: PassResult['oilCompact'] = null;
+  let oilRelane: PassResult['oilRelane'] = null;
   if (input.oil && services) {
     snap(city, lv.planned);
     const r = oilStage(input, city, lv, emit);
@@ -492,6 +502,7 @@ function runPassOnce(input: PassInput, emit: (e: PassEvent) => void, mip?: MipSo
     lv = r.lv;
     oil = r.oil;
     oilCompact = r.oilCompact;
+    oilRelane = r.oilRelane;
   }
   snap(city, lv.planned);
 
@@ -536,6 +547,7 @@ function runPassOnce(input: PassInput, emit: (e: PassEvent) => void, mip?: MipSo
     valueCompact,
     oil,
     oilCompact,
+    oilRelane,
     ms: performance.now() - t0,
   };
 }

@@ -20,6 +20,7 @@ import { insertCrossRoads, type InsertReport } from './codesign';
 import type { LandMask, OverlapPenalty } from './solver';
 import type { StampBuilding, StampRail, StampStreet } from './stamp';
 import { planOilSupply, type OilOptions, type OilReport } from './oil';
+import { relaneAroundRails } from './relane';
 
 export type Orientation = 'vertical' | 'horizontal';
 
@@ -786,6 +787,20 @@ export function planOil(mask: LandMask, city: CityPlan, options: OilOptions): { 
   const r = planOilSupply(mask, s, city.services ?? [], options);
   const next = stateToCity(s, city, [...city.townHalls]);
   return { city: { ...next, plan: { ...next.plan, reserved: undefined }, services: r.services, rails: r.rails }, report: r.report };
+}
+
+/**
+ * Umbau um Gleise (`relane.ts`): Streifen entlang gerader Gleisstücke zwischen zwei Querstraßen
+ * räumen und mit Längsstraßen/Hausspalten neu aufteilen, wenn mehr Häuser hineinpassen.
+ */
+export function relaneCity(mask: LandMask, city: CityPlan): { city: CityPlan; gained: number; windows: number; stats?: Record<string, number> } {
+  if (!city.rails?.length) return { city, gained: 0, windows: 0 };
+  const s = cityToState(mask, city);
+  const rail = new Uint8Array(s.cell.length);
+  for (const i of city.rails) rail[i] = 1;
+  const r = relaneAroundRails(s, rail, city.services);
+  if (!r.windows) return { city, gained: 0, windows: 0, stats: r.stats };
+  return { city: stateToCity(s, city, [...city.townHalls]), gained: r.gained, windows: r.windows, stats: r.stats };
 }
 
 /** Überflüssige Straßenstummel durch Häuser ersetzen (fill.ts `replaceRoadStubs`). */

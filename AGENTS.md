@@ -95,7 +95,7 @@ unnötig verändern.
   Steinerbaum nach Einwohnerverlust mit Schlüsselpfad-Tausch und Neustarts), Hülle `planOil` in `planner.ts`,
   `oilStage`/`levelsFor` in `pipeline.ts` (danach Nachverdichtung um die Gleise), `CityPlan.rails`, `railSegments`;
   Ölkraftwerke über `ServiceOptions.oilPower`, Zug zum Gleisnetz `oilRail` (`OIL_PULLS` je Durchlauf);
-  Kraftwerke nach dem Gleisbau verschieben (`relocate`, `powerReach`); 2. Durchgang mit Gleiskorridor (`runPass` →
+  Kraftwerke nach dem Gleisbau verschieben (`relocate`, `powerReach`); Umbau um Gleise `src/relane.ts` (`relaneCity`); 2. Durchgang mit Gleiskorridor (`runPass` →
   `designCorridor`, `latticeFillCorridor` in `fill.ts` mit Lückenzeilen/-spalten, `GridPlan.reserved`);
   UI `plan-power-fuel`/`plan-oil-source` (eigene Quellen / Schiff).
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,

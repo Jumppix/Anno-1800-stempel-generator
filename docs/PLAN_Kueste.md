@@ -402,9 +402,19 @@ gleichwertig (Abbiegen kostet nichts):
    (Straßenentfernung wie die Analyse, Reichweite inkl. Palast-/Ministeriumszuschlag `powerReach` aus der Analyse).
    Übernommen bei weniger Einwohnerverlust (alter Platz zählt ½ Haus Gutschrift für die Nachverdichtung). Danach
    prüft `oilStage` mit der Analyse, dass kein stehendes Haus den Strom verliert, sonst ohne Verschieben neu.
-7. **Nachverdichtung um die Gleise** (`compactValued`, Gleise fest; `oilCompactMs`, Standard max(4 s, M5-Zeit)),
+7. **Umbau um Gleise** (`src/relane.ts` `relaneAroundRails`, Hülle `relaneCity`, vor der Nachverdichtung): Je
+   geradem Gleisstück wird der Streifen bis zu den nächsten durchgehenden Querstraßen darüber/darunter und bis
+   24 Kacheln seitlich (an Gebäuden endet die Suche) geräumt und exakt neu aufgeteilt – dynamische Programmierung
+   quer zum Gleis über Längsstraßen-, Hausspalten- und Leerspalten, jede Hausspalte an einer Straße. Übernommen bei
+   mehr Häusern, gleichem Straßennetz und wenn jedes Haus/Gebäude am Fenster seinen Straßenanschluss behält.
+   **Messung:** Crown Falls 152 Gleisstücke, 104 davon ohne möglichen Gewinn, +4 Häuser (0,5 s); Testinsel +1.
+   Grund: Ein Gleis längs durch einen Block braucht 1 Kachel, zwischen zwei Längsstraßen sind 6 = zwei Hausspalten;
+   es bleibt eine Spalte + 2 freie Kacheln. Platz entsteht nur durch Verschieben vieler Blöcke bis zu einer
+   Reserve – Läden/Rathäuser/Kraftwerke blockieren das; dafür ist der Gleiskorridor (2. Durchgang) da, der die
+   Lückenspalte schon beim Bauen des Rasters einplant.
+8. **Nachverdichtung um die Gleise** (`compactValued`, Gleise fest; `oilCompactMs`, Standard max(4 s, M5-Zeit)),
    übernommen, wenn die Stufen-Rechnung mehr Einwohner ergibt.
-8. Stempel: `CityPlan.rails`, `railSegments` fasst Gleiskacheln zu waagrechten/senkrechten Abschnitten
+9. Stempel: `CityPlan.rails`, `railSegments` fasst Gleiskacheln zu waagrechten/senkrechten Abschnitten
    (Abschnitt RailwayInfos).
 
 **Gleiskorridor vorab (2. Durchgang, `runPass`, Schalter `plan-oil-corridor`, Standard an):** Nach dem ersten
