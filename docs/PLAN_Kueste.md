@@ -396,10 +396,31 @@ gleichwertig (Abbiegen kostet nichts):
    - Neustarts mit ±35 % verrauschten Hauswerten, wieder verbessern; der beste Baum gilt. Zeit: 1,5 ms je Haus,
      3–20 s (`PassInput.oilMs`).
 5. **Bohrtürme** zuletzt: billigste 3×3-Plätze ganz im Radius 12 der Raffinerie (gern Reste weichender Häuser).
-6. **Nachverdichtung um die Gleise** (`compactValued`, Gleise fest; `oilCompactMs`, Standard max(4 s, M5-Zeit)),
+6. **Kraftwerke ans Netz verschieben** (`relocate`, nach dem Gleisbau): Ein Kraftwerk am Ende eines Astes darf auf
+   einen Platz bis 40 Kacheln entfernt (Vorauswahl nach Häusern darunter + Abstand zum Netz, 12 Proben mit vollem
+   Neuanschluss), wenn jedes Haus und jede Fabrik, die nur von ihm Strom hat, auch vom neuen Platz erreicht wird
+   (Straßenentfernung wie die Analyse, Reichweite inkl. Palast-/Ministeriumszuschlag `powerReach` aus der Analyse).
+   Übernommen bei weniger Einwohnerverlust (alter Platz zählt ½ Haus Gutschrift für die Nachverdichtung). Danach
+   prüft `oilStage` mit der Analyse, dass kein stehendes Haus den Strom verliert, sonst ohne Verschieben neu.
+7. **Nachverdichtung um die Gleise** (`compactValued`, Gleise fest; `oilCompactMs`, Standard max(4 s, M5-Zeit)),
    übernommen, wenn die Stufen-Rechnung mehr Einwohner ergibt.
-7. Stempel: `CityPlan.rails`, `railSegments` fasst Gleiskacheln zu waagrechten/senkrechten Abschnitten
+8. Stempel: `CityPlan.rails`, `railSegments` fasst Gleiskacheln zu waagrechten/senkrechten Abschnitten
    (Abschnitt RailwayInfos).
+
+**Gleiskorridor vorab (2. Durchgang, `runPass`, Schalter `plan-oil-corridor`, Standard an):** Nach dem ersten
+Durchgang entwirft `designCorridor` aus den Bahnhöfen (Ölhafen, Raffinerien, Kraftwerke) einen Steinerbaum aus langen
+geraden Stücken (Abbiegen kostet 15 Kacheln – Treppen kann das Gitter nicht aufnehmen). Der zweite Durchgang baut die
+ganze Stadt neu um diesen Korridor (`searchFill(..., { corridor })` → `latticeFillCorridor`):
+- **Lückenzeile:** Läuft der Korridor längs eines Bandes (≥ 8 Kacheln in einer Zeile), wird zwischen zwei Hausreihen
+  eine freie Zeile eingeschoben (das Band wird 1 länger, höchstens 2 je Band); die Häuser hängen weiter an den
+  Längsstraßen, die die Lücke kreuzen.
+- **Lückenspalte:** Quert der Korridor ein Band (≥ halbe Bandhöhe in einer Spalte), bekommt das Band dort eine freie
+  Spalte, die Zellen dahinter rücken eine Kachel weiter. Die Gittersuche (Lage, Bandverschiebungen) bewertet die
+  Häuserzahl mit Lücken und richtet die Lücken so zwischen die Hausreihen aus.
+- Lücken sind `BLOCKED` (`GridPlan.reserved`, `cityToState`): kein Haus, kein Laden, kein Rathaus darauf; `planOil`
+  gibt sie für die Gleise frei, ungenutzte Kacheln füllt die Nachverdichtung. Die Versorgung zieht die Kraftwerke
+  zusätzlich zum Korridor (`oilRail.near`, Zug mindestens 10). Die Gleise selbst plant wieder der Einwohner-Router.
+- Das bessere der beiden Ergebnisse gilt (`PassResult.corridor`); doppelte Rechenzeit.
 
 **Messungen** (Ölschritt allein auf demselben gespeicherten Crown-Falls-Plan, 12 Ölkraftwerke, 5 Bohrtürme):
 alter Gleisbau (Kachelkosten 6 je Hauskachel, Abbiegeaufschlag) 237 Häuser / −86 844 Einwohner; neuer Gleisbau
@@ -418,6 +439,23 @@ Ganze Durchläufe Crown Falls (40 Flügel, 5 Bohrtürme, 4 Lehmgruben, seed 0) n
 Derselbe Zug 20 mit seed 1: 2 626 944 – die Schwankung zwischen Durchläufen (±20 000) ist so groß wie der Effekt
 des Zugs; sicher ist nur: weniger Kraftwerke und weniger verdrängte Häuser. Deshalb verschiedene Stärken im Pool.
 Erste Fassung (gleiche Einstellungen): 2 613 299; mit Gaskraftwerken etwa 2,72 Mio.
+
+**Kraftwerke verschieben** (Ölschritt allein, derselbe gespeicherte Crown-Falls-Plan): ohne −62 984, mit −53 286
+Einwohnern (8 Kraftwerke verschoben, kein Haus ohne Strom; Nachverdichtung danach +16 Häuser).
+
+**Gleiskorridor (2. Durchgang)**, ganze Durchläufe mit Verschieben:
+
+| Insel / seed | 1. Durchgang | 2. Durchgang | übernommen | verdrängte Häuser |
+|---|---|---|---|---|
+| Testinsel 0 | 764 921 | 777 252 | 2. | 24 |
+| Testinsel 1 | 772 591 | 761 972 | 1. | 47 |
+| Testinsel 2 | 770 038 | 781 975 | 2. | 22 |
+| Crown Falls 0 | 2 653 517 | 2 668 761 | 2. | 113 |
+| Crown Falls 1 | 2 638 539 | 2 644 539 | 2. | 117 |
+| Crown Falls 2 | 2 667 350 | 2 656 512 | 1. | 116 |
+
+Vorher (ohne Verschieben/Korridor) verdrängten die Gleise auf Crown Falls 146–212 Häuser. Rechenzeit Crown Falls
+je Durchlauf rund 2 × 7–10 min.
 
 **Erste Fassung (26.11.2026):** Testinsel (3 Bohrtürme): Ölhafen in der Bucht, 1 Raffinerie, 4 Kraftwerke angeschlossen, rund 76
 Häuser weniger. Crown Falls mit Minen-Stempel (5 Bohrtürme, 40 Flügel): 14 Ölkraftwerke (statt 10 Gas),

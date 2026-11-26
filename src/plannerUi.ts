@@ -516,8 +516,12 @@ export class PlannerUi {
     if (withServices && (el<HTMLInputElement>('#plan-thin').checked || el<HTMLInputElement>('#plan-insert').checked)) {
       steps.push({ label: 'Querstraßen anpassen', est: 20000 }, { label: 'Hochhaus-Stufen nach Straßenanpassung', est: lvMs });
     }
+    const oil = withServices && el<HTMLSelectElement>('#plan-power-fuel').value === 'oil';
+    if (oil) steps.push({ label: 'Ölversorgung (Ölhafen, Gleise)', est: 20000 }, { label: 'Nachverdichtung um die Gleise', est: 8000 });
     if (el<HTMLInputElement>('#plan-post').checked) steps.push({ label: 'Briefkästen', est: 3000 });
     steps.push({ label: 'Fertigstellen', est: 1500 });
+    // Ölmodus mit Gleiskorridor: alles ein zweites Mal
+    if (oil && el<HTMLInputElement>('#plan-oil-corridor').checked) return [...steps, { label: '2. Durchgang: Bebauung um den Gleiskorridor', est: 500 }, ...steps];
     return steps;
   }
 
@@ -551,6 +555,7 @@ export class PlannerUi {
       clay: this.clayOption(src),
       mines: src.mines?.length ? src.mines : undefined,
       oil: this.oilOption(src),
+      oilCorridor: el<HTMLInputElement>('#plan-oil-corridor').checked,
       airport: el<HTMLInputElement>('#plan-airport').checked ? { harbor: this.currentHarbor() } : undefined,
       production,
       levelMode: this.levelMode.value as LevelMode,
@@ -794,6 +799,8 @@ export class PlannerUi {
                 r.oil.bridges ? `, ${r.oil.bridges} Brückenkacheln` : ''
               }), ${r.oil.houses} Häuser verdrängt (${num(r.oil.lostResidents ?? 0)} Einwohner)${
                 r.oilCompact?.accepted ? `, Nachverdichtung um die Gleise +${num(r.oilCompact.residents)} Einwohner` : ''
+              }${r.oil.moved ? `, ${r.oil.moved} Kraftwerk${r.oil.moved === 1 ? '' : 'e'} ans Gleisnetz verschoben` : ''}${
+                r.corridor ? ` · Gleiskorridor (2. Durchgang): ${num(r.corridor.second)} statt ${num(r.corridor.first)} Einwohner${r.corridor.used ? ' – übernommen' : ' – 1. Durchgang behalten'}` : ''
               }${r.oil.notes.length ? ` – <strong>${r.oil.notes.join('; ')}</strong>` : ''}`
             : ''
         }${

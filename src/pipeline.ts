@@ -31,7 +31,7 @@ import {
 import type { PostReport } from './post';
 import type { ProductionOptions } from './production';
 import type { ServiceOptions } from './services';
-import { estimateOilHarbor, type OilOptions, type OilReport } from './oil';
+import { designCorridor, estimateOilHarbor, oilStationExits, type OilOptions, type OilReport } from './oil';
 import { mailResidentsFor, mailTypes, type RuleConfig } from './rules';
 import type { MipSolver, ServiceReport } from './services';
 import { solve, type LandMask } from './solver';
@@ -88,6 +88,13 @@ export interface PassInput {
    * Standard je nach Durchlauf (`seed`), damit der Pool verschiedene Stärken vergleicht.
    */
   oilPull?: number;
+  /**
+   * Ölmodus: zweiter Durchgang, in dem die Gleise des ersten als Korridor vor der Bebauung
+   * freigehalten werden (Standard an; doppelte Rechenzeit, das bessere Ergebnis gilt).
+   */
+  oilCorridor?: boolean;
+  /** Intern: Gleiskorridor für die Bebauung (Maske, 1 = Korridor). */
+  corridor?: Uint8Array;
   /** Ölmodus: Nachverdichtung um die Gleise (ms; Standard max(4000, valueCompactMs)). */
   oilCompactMs?: number;
 }
@@ -107,6 +114,8 @@ export interface PassResult {
   valueCompact: { gained: number; residents: number; accepted: boolean } | null;
   /** Ölmodus: Ölhafen, Raffinerien, Gleise. */
   oil?: OilReport | null;
+  /** Zweiter Durchgang mit Gleiskorridor: Einwohner beider Durchgänge, zweiter übernommen? */
+  corridor?: { first: number; second: number; used: boolean } | null;
   /** Nachverdichtung um die Gleise (Häuser-Bilanz, Einwohner-Gewinn, übernommen?). */
   oilCompact?: { gained: number; residents: number; accepted: boolean } | null;
   ms: number;
@@ -142,16 +151,52 @@ function remap(before: CityPlan, after: CityPlan, planned: Planned): Planned {
 
 /** Geplante Einwohner je Haus (Lage „x,y“) – Wert, den ein Gleis durch dieses Haus kostet. */
 export function residentsByHouse(mask: LandMask, city: CityPlan, rules: RuleConfig, planned: Planned, mail = false): Map<string, number> {
-  const analysis = analyzeCity(stampCity(mask, city, true), rules, { houses: new Map(), groups: new Map(), planned });
-  // Briefkästen kommen erst später: den Post-Bonus der Stufe schon mitzählen
+  return houseFacts(mask, city, rules, planned, mail).values;
+}
+
+/**
+ * Analyse eines Plans für den Ölschritt: Einwohner je Haus (Lage „x,y“, inkl. Post-Bonus der
+ * Stufe, da Briefkästen erst später kommen), Häuser mit Strom, Reichweite der Kraftwerke
+ * (Palast-/Ministeriumsbereich in Maskenkoordinaten und Zuschlag).
+ */
+function houseFacts(
+  mask: LandMask,
+  city: CityPlan,
+  rules: RuleConfig,
+  planned: Planned,
+  mail = false,
+): { values: Map<string, number>; powered: Set<string>; powerReach?: { ministryRoads: Uint8Array; bonus: number } } {
+  const stamped = stampCity(mask, city, true);
+  const analysis = analyzeCity(stamped, rules, { houses: new Map(), groups: new Map(), planned });
   const types = mail ? mailTypes(rules.mail) : [];
-  const out = new Map<string, number>();
+  const values = new Map<string, number>();
+  const powered = new Set<string>();
+  let dx = 0;
+  let dy = 0;
   for (const r of analysis.residences) {
     const hs = city.houses[r.building.index];
+    if (!hs) continue;
+    dx = hs.x - r.building.x;
+    dy = hs.y - r.building.y;
+    const key = `${hs.x},${hs.y}`;
     const bonus = types.length && r.tier !== 'artisan' && !r.mailBonus ? mailResidentsFor(r.tier, r.level, types) : 0;
-    if (hs) out.set(`${hs.x},${hs.y}`, r.residents + bonus);
+    values.set(key, r.residents + bonus);
+    if (r.services.powerPlant) powered.add(key);
   }
-  return out;
+  let powerReach: { ministryRoads: Uint8Array; bonus: number } | undefined;
+  const plant = analysis.services.find((sv) => sv.building.entry.kind === 'powerPlant' && sv.inMinistry);
+  if (plant && analysis.residences.length) {
+    const roads = new Uint8Array(mask.w * mask.h);
+    const cw = stamped.w;
+    for (let i = 0; i < analysis.ministryRoads.length; i++) {
+      if (!analysis.ministryRoads[i]) continue;
+      const x = (i % cw) + dx;
+      const y = Math.floor(i / cw) + dy;
+      if (x >= 0 && y >= 0 && x < mask.w && y < mask.h) roads[y * mask.w + x] = 1;
+    }
+    powerReach = { ministryRoads: roads, bonus: plant.range - plant.baseRange };
+  }
+  return { values, powered, powerReach };
 }
 
 /** Stärken des Zugs zum Gleisnetz (Einwohner je Gleiskachel) je Durchlauf (`seed`). */
@@ -159,13 +204,37 @@ export const OIL_PULLS = [20, 0, 40, 10];
 
 function oilRailFor(input: PassInput, city: CityPlan): ServiceOptions['oilRail'] {
   if (!input.oil) return undefined;
-  const perTile = input.oilPull ?? OIL_PULLS[input.seed % OIL_PULLS.length];
+  const pull = input.oilPull ?? OIL_PULLS[input.seed % OIL_PULLS.length];
+  // Mit Korridor immer etwas Zug, sonst bleibt er ungenutzt
+  const perTile = input.corridor ? Math.max(10, pull) : pull;
   if (!perTile) return undefined;
   const { mask } = input;
   const cell = new Uint8Array(mask.w * mask.h);
   for (let i = 0; i < cell.length; i++) cell[i] = mask.data[i] ? FREE : WATER;
   const p = estimateOilHarbor(mask, cell, city.houses, input.oil);
-  return p ? { ...p, perTile } : undefined;
+  if (!p) return undefined;
+  // Zweiter Durchgang: Entfernung zum freigehaltenen Korridor zählt wie Entfernung zum Netz
+  let near: Int32Array | undefined;
+  if (input.corridor) {
+    near = new Int32Array(cell.length).fill(-1);
+    const queue: number[] = [];
+    for (let i = 0; i < cell.length; i++) {
+      if (input.corridor[i]) {
+        near[i] = 0;
+        queue.push(i);
+      }
+    }
+    for (let q = 0; q < queue.length; q++) {
+      const i = queue[q];
+      const x = i % mask.w;
+      for (const j of [x > 0 ? i - 1 : -1, x < mask.w - 1 ? i + 1 : -1, i - mask.w, i + mask.w]) {
+        if (j < 0 || j >= cell.length || near[j] >= 0) continue;
+        near[j] = near[i] + 1;
+        queue.push(j);
+      }
+    }
+  }
+  return { ...p, perTile, near };
 }
 
 /** Hochhaus-Stufen für einen Plan (Ingenieure je Kraftwerk aus den Spieldaten: Gas 250, Öl 150). */
@@ -193,9 +262,28 @@ export function oilStage(
 ): { city: CityPlan; lv: LevelResult; oil: OilReport; oilCompact: PassResult['oilCompact'] } {
   const { mask, rules } = input;
   emit({ kind: 'step', label: 'Ölversorgung (Ölhafen, Gleise)' });
-  const values = residentsByHouse(mask, start, rules, lvStart.planned, input.post && rules.mail !== 'none');
+  const mail = input.post && rules.mail !== 'none';
+  const facts = houseFacts(mask, start, rules, lvStart.planned, mail);
   const budgetMs = input.oilMs ?? Math.min(20000, Math.max(3000, start.houses.length * 1.5));
-  const r = planOil(mask, start, { ...(input.oil as OilOptions), values, budgetMs, seed: 1 + input.seed * 31 + input.lines });
+  const oilOpts: OilOptions = {
+    ...(input.oil as OilOptions),
+    values: facts.values,
+    budgetMs,
+    seed: 1 + input.seed * 31 + input.lines,
+    powerReach: facts.powerReach,
+  };
+  let r = planOil(mask, start, oilOpts);
+  // Verschobene Kraftwerke: kein Haus, das Strom hatte und stehen bleibt, darf ihn verlieren –
+  // sonst ohne Verschieben neu planen.
+  if (r.report.moved > 0) {
+    const after = houseFacts(mask, r.city, rules, remap(start, r.city, lvStart.planned), mail).powered;
+    const standing = new Set(r.city.houses.map((hs) => `${hs.x},${hs.y}`));
+    const lostPower = [...facts.powered].filter((k) => standing.has(k) && !after.has(k));
+    if (lostPower.length) {
+      emit({ kind: 'detail', text: `${lostPower.length} Häuser ohne Strom nach dem Verschieben – ohne Verschieben neu geplant` });
+      r = planOil(mask, start, { ...oilOpts, relocate: false });
+    }
+  }
   let city: CityPlan = { ...r.city, removedHouses: start.removedHouses };
   let lv = lvStart;
   let oilCompact: PassResult['oilCompact'] = null;
@@ -226,6 +314,27 @@ export function oilStage(
  * ohne ihn Gierig + lokale Suche.
  */
 export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: MipSolver): PassResult {
+  const first = runPassOnce(input, emit, mip);
+  if (!input.oil || input.oilCorridor === false || input.corridor || !first.city.rails?.length) return first;
+  // Vorab statt nachträglich: die Gleise des ersten Durchgangs als Korridor freihalten und die
+  // Stadt darum herum neu bauen (Lückenspalten im Gitter, Kraftwerke zum Korridor gezogen).
+  const corridor = corridorFrom(input.mask, first.city);
+  emit({ kind: 'step', label: '2. Durchgang: Bebauung um den Gleiskorridor' });
+  const second = runPassOnce({ ...input, corridor }, emit, mip);
+  const used = second.residents > first.residents;
+  const res = used ? second : first;
+  return { ...res, corridor: { first: first.residents, second: second.residents, used }, ms: first.ms + second.ms };
+}
+
+/**
+ * Korridor für den zweiten Durchgang: gerade Strecken zwischen den Bahnhöfen des ersten
+ * (Ölhafen, Raffinerien, Kraftwerke) – das Gitter legt dafür Lückenzeilen/-spalten an.
+ */
+function corridorFrom(mask: LandMask, city: CityPlan): Uint8Array {
+  return designCorridor(mask, oilStationExits(city.services ?? []));
+}
+
+function runPassOnce(input: PassInput, emit: (e: PassEvent) => void, mip?: MipSolver): PassResult {
   const t0 = performance.now();
   const { mask, rules } = input;
   const snap = (city: CityPlan, planned?: Planned): void => {
@@ -234,7 +343,7 @@ export function runPass(input: PassInput, emit: (e: PassEvent) => void, mip?: Mi
 
   // 1. Bebauung
   emit({ kind: 'step', label: 'Bebauung (Raster, Gittersuche)' });
-  const fill = searchFill(mask, { orientation: input.orientation, housesPerLine: input.lines });
+  const fill = searchFill(mask, { orientation: input.orientation, housesPerLine: input.lines, corridor: input.corridor });
   addBridges(fill, input.bridgeLen);
   const plan = planFromFill(fill);
   snap(finishPlan(plan, [], 0));

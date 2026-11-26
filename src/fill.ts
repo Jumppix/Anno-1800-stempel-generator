@@ -436,7 +436,9 @@ export function latticeFill(
   oy: number,
   blocked?: Uint8Array,
   shifts?: ReadonlyArray<number>,
+  corridor?: Uint8Array,
 ): FillState {
+  if (corridor) return latticeFillCorridor(mask, orientation, housesPerLine, ox, oy, blocked, shifts, corridor);
   const { w, h, data } = mask;
   const n = housesPerLine;
   const vertical = orientation === 'vertical';
@@ -520,6 +522,161 @@ export function latticeFill(
   return s;
 }
 
+/**
+ * Gitter wie `latticeFill`, aber um einen Gleiskorridor (Ölmodus) herum gebaut:
+ * - Lückenzeile: Läuft der Korridor längs eines Bandes (mindestens 8 Kacheln in einer Zeile), wird
+ *   dort zwischen zwei Hausreihen eine freie Zeile eingeschoben – das Band wird eine Kachel länger,
+ *   die Häuser hängen weiter an den Längsstraßen.
+ * - Lückenspalte: Quert der Korridor ein Band (mindestens die halbe Höhe in einer Spalte), bekommt
+ *   das Band dort eine freie Spalte; die Zellen dahinter rücken eine Kachel weiter.
+ * Lücken sind BLOCKED (kein Haus, keine Längsstraße); Querstraßen und Längsstraßen kreuzen sie.
+ */
+function latticeFillCorridor(
+  mask: LandMask,
+  orientation: Orientation,
+  housesPerLine: number,
+  ox: number,
+  oy: number,
+  blocked: Uint8Array | undefined,
+  shifts: ReadonlyArray<number> | undefined,
+  corridor: Uint8Array,
+): FillState {
+  const { w, h, data } = mask;
+  const n = housesPerLine;
+  const vertical = orientation === 'vertical';
+  const px = (vertical ? 6 : 3 * n) + 1;
+  const py = (vertical ? 3 * n : 6) + 1;
+  const cell = new Uint8Array(w * h);
+  for (let i = 0; i < cell.length; i++) cell[i] = data[i] ? (blocked?.[i] ? BLOCKED : FREE) : WATER;
+  const s: FillState = { w, h, cell, houses: [] };
+  const mod = (a: number, m: number): number => ((a % m) + m) % m;
+  const bandPeriod = vertical ? py : px;
+  const bandOrigin = vertical ? oy : ox;
+  const crossPeriod = vertical ? px : py;
+  const crossOrigin = vertical ? ox : oy;
+  const bandLimit = vertical ? h : w;
+  const crossLimit = vertical ? w : h;
+  const at = (b: number, c: number): number => (vertical ? b * w + c : c * w + b);
+  const shiftOf = (k: number): number => (shifts && k >= 0 && k < shifts.length ? shifts[k] : 0);
+  // Korridorkacheln je Zeile (längs des Bandes)
+  const rowCount = new Int32Array(bandLimit);
+  for (let b = 0; b < bandLimit; b++) for (let c = 0; c < crossLimit; c++) if (corridor[at(b, c)]) rowCount[b]++;
+
+  // 1. Bänder ablaufen: Querstraße, dann 3n Hauszeilen; Lückenzeilen nur zwischen Hausreihen.
+  const ROADROW = -1;
+  const GAPROW = -2;
+  const rowRole = new Int32Array(bandLimit).fill(-3); // ≥ 0: Hausreihe r beginnt hier (nur Reihenanfang), sonst Rolle
+  const rowBand = new Int32Array(bandLimit).fill(-1);
+  const houseRowStart: Array<Array<number>> = [];
+  const bandRows: Array<Array<number>> = []; // Hauszeilen je Band (für Lückenspalten)
+  let k = 0;
+  for (let b = mod(bandOrigin, bandPeriod) - bandPeriod; b < bandLimit; k++) {
+    if (b >= 0) {
+      rowRole[b] = ROADROW;
+      rowBand[b] = k;
+    }
+    b++;
+    houseRowStart[k] = [];
+    bandRows[k] = [];
+    let t = 0;
+    let gaps = 0;
+    while (t < 3 * n) {
+      if (t % 3 === 0 && b >= 0 && b < bandLimit && rowCount[b] >= 8 && gaps < 2) {
+        rowRole[b] = GAPROW;
+        rowBand[b] = k;
+        b++;
+        gaps++;
+        continue;
+      }
+      if (b >= 0 && b < bandLimit) {
+        rowBand[b] = k;
+        bandRows[k].push(b);
+        if (t % 3 === 0) {
+          rowRole[b] = t / 3;
+          houseRowStart[k].push(b);
+        }
+      } else if (t % 3 === 0) houseRowStart[k].push(b);
+      t++;
+      b++;
+    }
+  }
+  const bands = k;
+
+  // 2. Je Band die Rollen quer zum Band: 0 Längsstraße, 1…6 Hausspalten, 7 Lückenspalte.
+  const GAP = 7;
+  const roles: Int8Array[] = [];
+  for (let kk = 0; kk < bands; kk++) {
+    const rows = bandRows[kk];
+    const need = Math.max(2, Math.ceil(rows.length / 2));
+    const arr = new Int8Array(crossLimit);
+    let t = 0;
+    for (let c = mod(crossOrigin + shiftOf(kk), crossPeriod) - crossPeriod; c < crossLimit; c++) {
+      if (c >= 0 && rows.length) {
+        let cnt = 0;
+        for (const b of rows) if (corridor[at(b, c)]) cnt++;
+        if (cnt >= need) {
+          arr[c] = GAP;
+          continue;
+        }
+      }
+      if (c >= 0) arr[c] = t;
+      t = (t + 1) % crossPeriod;
+    }
+    roles.push(arr);
+  }
+
+  // 3. Straßen und Lücken
+  for (let b = 0; b < bandLimit; b++) {
+    const kk = rowBand[b];
+    for (let c = 0; c < crossLimit; c++) {
+      const i = at(b, c);
+      if (cell[i] !== FREE) continue;
+      if (rowRole[b] === ROADROW) {
+        cell[i] = ROAD;
+        continue;
+      }
+      const r = kk >= 0 ? roles[kk][c] : 1;
+      if (r === 0) cell[i] = ROAD;
+      else if (r === GAP || rowRole[b] === GAPROW) cell[i] = BLOCKED;
+    }
+  }
+
+  connectRoadPieces(s, 14, 3, landLabelsOf(mask));
+  const land = landLabelsOf(mask);
+  const roadLabel = labelComponents(w, h, (i) => cell[i] === ROAD);
+  const sizeByRoad = new Map<number, number>();
+  for (let i = 0; i < cell.length; i++) {
+    if (roadLabel[i] >= 0) sizeByRoad.set(roadLabel[i], (sizeByRoad.get(roadLabel[i]) ?? 0) + 1);
+  }
+  const bestByLand = new Map<number, number>();
+  for (let i = 0; i < cell.length; i++) {
+    const r = roadLabel[i];
+    if (r < 0) continue;
+    const l = land[i];
+    const cur = bestByLand.get(l);
+    if (cur === undefined || (sizeByRoad.get(r) ?? 0) > (sizeByRoad.get(cur) ?? 0)) bestByLand.set(l, r);
+  }
+  for (let i = 0; i < cell.length; i++) {
+    if (cell[i] === ROAD && bestByLand.get(land[i]) !== roadLabel[i]) cell[i] = FREE;
+  }
+
+  // 4. Häuser
+  for (let kk = 0; kk < bands; kk++) {
+    const arr = roles[kk];
+    for (const b of houseRowStart[kk]) {
+      for (let c = 0; c < crossLimit; c++) {
+        if (arr[c] !== 1 && arr[c] !== 4) continue;
+        const x = vertical ? c : b;
+        const y = vertical ? b : c;
+        if (x < 0 || y < 0) continue;
+        if (footprintFree(s, x, y) && touchesRoad(s, x, y)) placeHouse(s, x, y, arr[c] === 1 ? 0 : 1);
+      }
+    }
+  }
+  pruneRoads(s);
+  return s;
+}
+
 /** Anzahl der Bänder (für `shifts`) einer Gitterlage. */
 export function bandCount(mask: LandMask, orientation: Orientation, housesPerLine: number, ox: number, oy: number): number {
   const vertical = orientation === 'vertical';
@@ -539,8 +696,9 @@ export function fillWithLattice(
   oy: number,
   blocked?: Uint8Array,
   shifts?: ReadonlyArray<number>,
+  corridor?: Uint8Array,
 ): FillResult {
-  const s = latticeFill(mask, orientation, housesPerLine, ox, oy, blocked, shifts);
+  const s = latticeFill(mask, orientation, housesPerLine, ox, oy, blocked, shifts, corridor);
   const latticeHouses = s.houses.length;
   greedyFill(s);
   const extraRoads = extendRoads(s);
@@ -566,8 +724,9 @@ function quickScore(
   oy: number,
   shifts?: ReadonlyArray<number>,
   blocked?: Uint8Array,
+  corridor?: Uint8Array,
 ): number {
-  const s = latticeFill(mask, o, n, ox, oy, blocked, shifts);
+  const s = latticeFill(mask, o, n, ox, oy, blocked, shifts, corridor);
   greedyFill(s);
   return s.houses.length;
 }
@@ -586,11 +745,12 @@ export function optimizeShifts(
   deadline: number,
   blocked?: Uint8Array,
   initial?: ReadonlyArray<number>,
+  corridor?: Uint8Array,
 ): { shifts: number[]; score: number } {
   const bands = bandCount(mask, o, n, ox, oy);
   const cross = 7;
   const shifts = Array.from({ length: bands }, (_, k) => initial?.[k] ?? 0);
-  let score = quickScore(mask, o, n, ox, oy, shifts, blocked);
+  let score = quickScore(mask, o, n, ox, oy, shifts, blocked, corridor);
   for (let sweep = 0; sweep < 4; sweep++) {
     let improved = false;
     for (let k = 0; k < bands; k++) {
@@ -600,7 +760,7 @@ export function optimizeShifts(
       for (let d = 0; d < cross; d++) {
         if (d === keep) continue;
         shifts[k] = d;
-        const v = quickScore(mask, o, n, ox, oy, shifts, blocked);
+        const v = quickScore(mask, o, n, ox, oy, shifts, blocked, corridor);
         if (v > score) {
           score = v;
           bestShift = d;
@@ -614,6 +774,15 @@ export function optimizeShifts(
   return { shifts, score };
 }
 
+export interface FillSearchOptions {
+  orientation: 'auto' | Orientation;
+  housesPerLine: number;
+  deadline?: number;
+  bandShifts?: boolean;
+  /** Gleiskorridor (Ölmodus, 1 = Gleiskachel eines ersten Durchgangs): Lückenspalten im Gitter. */
+  corridor?: Uint8Array;
+}
+
 /**
  * Beste Gitterlage suchen: grob alle Verschiebungen nur mit Gitter + Füllen
  * bewerten, für die besten die Bänder einzeln verschieben und vollständig
@@ -621,7 +790,7 @@ export function optimizeShifts(
  */
 export function searchFill(
   mask: LandMask,
-  options: { orientation: 'auto' | Orientation; housesPerLine: number; deadline?: number; bandShifts?: boolean },
+  options: FillSearchOptions,
   onProgress?: (best: FillResult, done: number, total: number) => void,
 ): FillResult {
   // Getrennte Landstücke (Flussarme) bekommen je ein eigenes Raster mit eigener
@@ -670,7 +839,13 @@ export function searchFill(
         }
       }
     }
-    const r = searchFillSingle({ w: cw, h: ch, data, landCount: count }, options);
+    let corridor: Uint8Array | undefined;
+    if (options.corridor) {
+      const src = options.corridor;
+      corridor = new Uint8Array(cw * ch);
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) corridor[y * cw + x] = src[(y + y0) * w + x + x0];
+    }
+    const r = searchFillSingle({ w: cw, h: ch, data, landCount: count }, { ...options, corridor });
     const horizontal = r.orientation === 'horizontal' ? 1 : 0;
     for (let y = 0; y < ch; y++) {
       for (let x = 0; x < cw; x++) {
@@ -703,7 +878,7 @@ export function searchFill(
 
 function searchFillSingle(
   mask: LandMask,
-  options: { orientation: 'auto' | Orientation; housesPerLine: number; deadline?: number; bandShifts?: boolean },
+  options: FillSearchOptions,
   onProgress?: (best: FillResult, done: number, total: number) => void,
 ): FillResult {
   const n = Math.max(1, Math.round(options.housesPerLine));
@@ -715,7 +890,7 @@ function searchFillSingle(
     const py = (o === 'vertical' ? 3 * n : 6) + 1;
     for (let ox = 0; ox < px; ox++) {
       for (let oy = 0; oy < py; oy++) {
-        coarse.push({ o, ox, oy, score: quickScore(mask, o, n, ox, oy) });
+        coarse.push({ o, ox, oy, score: quickScore(mask, o, n, ox, oy, undefined, undefined, options.corridor) });
       }
     }
   }
@@ -726,9 +901,9 @@ function searchFillSingle(
   finalists.forEach((c, i) => {
     if (best && options.deadline && Date.now() > options.deadline) return;
     const shifts = useShifts
-      ? optimizeShifts(mask, c.o, n, c.ox, c.oy, options.deadline ?? Date.now() + 60_000).shifts
+      ? optimizeShifts(mask, c.o, n, c.ox, c.oy, options.deadline ?? Date.now() + 60_000, undefined, undefined, options.corridor).shifts
       : undefined;
-    const r = fillWithLattice(mask, c.o, n, c.ox, c.oy, undefined, shifts);
+    const r = fillWithLattice(mask, c.o, n, c.ox, c.oy, undefined, shifts, options.corridor);
     if (!best || r.houses.length > best.houses.length) best = r;
     onProgress?.(best, i + 1, finalists.length);
   });

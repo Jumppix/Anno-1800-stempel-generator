@@ -256,7 +256,7 @@ export interface ServiceOptions {
    * (Abstand zum nächsten Ölkraftwerk bzw. zur Ölhafen-Ausfahrt `x,y`, mal `perTile` Einwohner
    * je Kachel) vom Gewinn abgezogen.
    */
-  oilRail?: { x: number; y: number; perTile: number };
+  oilRail?: { x: number; y: number; perTile: number; near?: Int32Array };
   /** Keine Straßen überbauen (Wege der übrigen Gebäude bleiben exakt wie geplant). */
   keepRoads?: boolean;
   /**
@@ -1290,6 +1290,10 @@ export function placeServices(
       const x = c.x + c.w / 2;
       const y = c.y + c.h / 2;
       let d = Math.abs(x - rail.x) + Math.abs(y - rail.y);
+      if (rail.near) {
+        const n = rail.near[Math.floor(y) * s.w + Math.floor(x)];
+        if (n >= 0) d = Math.min(d, Math.max(0, n - 3));
+      }
       for (const cj of chosen) {
         if (cj === ci) continue;
         const o = cands[cj];

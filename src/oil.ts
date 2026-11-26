@@ -52,6 +52,13 @@ export interface OilOptions {
   /** Rechenzeit für die Gleisoptimierung (ms, Standard 4000). */
   budgetMs?: number;
   seed?: number;
+  /** Ölkraftwerke nach dem Gleisbau ans Netz verschieben (Standard an). */
+  relocate?: boolean;
+  /**
+   * Reichweite der Kraftwerke: Straßenkacheln im Palast-/Ministeriumsbereich (Maskenkoordinaten)
+   * und der Zuschlag dort (Wohlfahrt + Netz). Ohne: nur Grundreichweite.
+   */
+  powerReach?: { ministryRoads: Uint8Array; bonus: number };
 }
 
 export interface OilReport {
@@ -69,6 +76,8 @@ export interface OilReport {
   /** Verglichene Varianten (Ölhafen-Lage, Raffinerie-Plätze) und Verbesserungen der Gleise. */
   variants: number;
   improvements: number;
+  /** Nach dem Gleisbau verschobene Ölkraftwerke. */
+  moved: number;
   notes: string[];
 }
 
@@ -209,6 +218,7 @@ export function planOilSupply(
     lostResidents: 0,
     variants: 0,
     improvements: 0,
+    moved: 0,
     notes: [],
   };
   const idx = (x: number, y: number): number => y * w + x;
@@ -821,6 +831,215 @@ export function planOilSupply(
   restore(win.state, win.terms);
   report.notes.push(...win.notes);
 
+  // --- Kraftwerke ans Netz verschieben: ein Kraftwerk am Ende eines Astes darf auf einen Platz
+  //     näher am Netz, wenn jedes Haus und jede Fabrik, die nur es versorgt, auch vom neuen Platz
+  //     erreicht wird (Straßenentfernung, Reichweite wie in der Analyse). Übernommen, wenn der
+  //     Einwohnerverlust (Häuser unter Kraftwerk und Gleis) sinkt.
+  const moves: Array<{ sv: number; x: number; y: number }> = [];
+  if (opts.relocate !== false) relocatePlants(win, Math.max(performance.now() + 1500, deadline + 0.25 * (opts.budgetMs ?? 4000)));
+  function relocatePlants(v: Variant, until: number): void {
+    const R0 = lookup(OIL_POWER_GUID).roadRange ?? 49;
+    const reach = opts.powerReach;
+    const isRoad = (i: number): boolean => cell[i] === ROAD || cell[i] === BRIDGE;
+    const ringRoads = (x: number, y: number, ww: number, hh: number): number[] => {
+      const r: number[] = [];
+      const push = (px: number, py: number): void => {
+        if (inside(px, py) && isRoad(idx(px, py))) r.push(idx(px, py));
+      };
+      for (let d = 0; d < ww; d++) {
+        push(x + d, y - 1);
+        push(x + d, y + hh);
+      }
+      for (let d = 0; d < hh; d++) {
+        push(x - 1, y + d);
+        push(x + ww, y + d);
+      }
+      return r;
+    };
+    const rangeOf = (starts: number[]): number => R0 + (reach && starts.some((i) => reach.ministryRoads[i]) ? reach.bonus : 0);
+    // Straßensuche wie RoadSearch (Start 1, je Kachel +1, bis zur Reichweite)
+    const rd = new Int32Array(N);
+    const rs = new Int32Array(N);
+    let rg = 0;
+    const queue = new Int32Array(N);
+    const roadBfs = (starts: number[], range: number): void => {
+      rg++;
+      let head = 0;
+      let tail = 0;
+      for (const i of starts) {
+        if (rs[i] === rg) continue;
+        rs[i] = rg;
+        rd[i] = 1;
+        queue[tail++] = i;
+      }
+      while (head < tail) {
+        const i = queue[head++];
+        if (rd[i] >= range) continue;
+        const x = i % w;
+        for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+          if (j < 0 || j >= N || rs[j] === rg || !isRoad(j)) continue;
+          rs[j] = rg;
+          rd[j] = rd[i] + 1;
+          queue[tail++] = j;
+        }
+      }
+    };
+    // Versorgte Ziele: stehende Häuser und Fabriken (Produktion, Lehmgruben)
+    const targets: number[][] = [];
+    const houseTarget = new Int32Array(H).fill(-1);
+    s.houses.forEach((hs, k) => {
+      houseTarget[k] = targets.length;
+      targets.push(ringRoads(hs.x, hs.y, 3, 3));
+    });
+    for (const sv of out) if (sv.kind === 'production' || sv.kind === 'clayPit') targets.push(ringRoads(sv.x, sv.y, sv.w, sv.h));
+    const alive = (t: number): boolean => t >= H || hit[t] === 0;
+    const coverOf = (starts: number[]): Set<number> => {
+      const set = new Set<number>();
+      if (!starts.length) return set;
+      roadBfs(starts, rangeOf(starts));
+      targets.forEach((ring, t) => {
+        for (const i of ring) {
+          if (rs[i] === rg) {
+            set.add(t);
+            break;
+          }
+        }
+      });
+      return set;
+    };
+    const plantTerms = v.terms.filter((t) => t.kind === 'plant' && t.chosen >= 0);
+    const cover = new Map<Terminal, Set<number>>();
+    for (const t of plantTerms) cover.set(t, coverOf(ringRoads(out[t.sv].x, out[t.sv].y, 5, 5)));
+    const count = new Int32Array(targets.length);
+    for (const set of cover.values()) for (const t of set) count[t]++;
+    // Entfernung zum Netz (alle Kacheln, Manhattan) für die Vorauswahl
+    const netDist = new Int32Array(N);
+    const refreshNetDist = (): void => {
+      netDist.fill(-1);
+      let head = 0;
+      let tail = 0;
+      for (const i of nb.keys()) {
+        netDist[i] = 0;
+        queue[tail++] = i;
+      }
+      while (head < tail) {
+        const i = queue[head++];
+        const x = i % w;
+        for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+          if (j < 0 || j >= N || netDist[j] >= 0) continue;
+          netDist[j] = netDist[i] + 1;
+          queue[tail++] = j;
+        }
+      }
+    };
+    refreshNetDist();
+    const credit = 0.5 * vAvg; // freie Fläche des alten Platzes (Nachverdichtung)
+    for (let round = 0; round < 3; round++) {
+      let any = false;
+      for (const t of plantTerms) {
+        if (performance.now() > until) return;
+        const p = out[t.sv];
+        const anchor = t.options[t.chosen].anchor;
+        if ((nb.get(anchor)?.length ?? 0) !== 1) continue; // nur Astenden
+        const mine = cover.get(t) as Set<number>;
+        const unique = [...mine].filter((g) => count[g] === 1 && alive(g));
+        // Kandidaten in der Nähe: frei/Haus, Anschluss an Straße, nah am Netz
+        const cands: Array<{ x: number; y: number; est: number }> = [];
+        for (let y = p.y - 40; y <= p.y + 40; y++) {
+          for (let x = p.x - 40; x <= p.x + 40; x++) {
+            if (!inside(x, y) || !inside(x + 4, y + 4) || (x === p.x && y === p.y)) continue;
+            let ok = true;
+            let est = 0;
+            const seen: number[] = [];
+            for (let dy = 0; dy < 5 && ok; dy++) {
+              for (let dx = 0; dx < 5; dx++) {
+                const i = idx(x + dx, y + dy);
+                const own = x + dx >= p.x && x + dx < p.x + 5 && y + dy >= p.y && y + dy < p.y + 5;
+                if (!own && (!pass(i) || inTree[i])) {
+                  ok = false;
+                  break;
+                }
+                const hk = houseAt[i];
+                if (hk >= 0 && hit[hk] === 0 && !seen.includes(hk)) {
+                  seen.push(hk);
+                  est += V[hk];
+                }
+              }
+            }
+            if (!ok) continue;
+            let near = Infinity;
+            for (const [ex, ey] of [[x + 5, y + 2], [x - 1, y + 2], [x + 2, y - 1], [x + 2, y + 5]]) {
+              if (inside(ex, ey) && netDist[idx(ex, ey)] >= 0) near = Math.min(near, netDist[idx(ex, ey)]);
+            }
+            cands.push({ x, y, est: est + C_EST * near });
+          }
+        }
+        cands.sort((a, b) => a.est - b.est);
+        const before = lossOf();
+        let bestMove: { x: number; y: number; loss: number; state: TreeState; options: Option[]; chosen: number; occ: Uint8Array; cov: Set<number> } | null = null;
+        let tried = 0;
+        for (const c of cands) {
+          if (tried >= 12 || performance.now() > until) break;
+          const starts = ringRoads(c.x, c.y, 5, 5);
+          if (!starts.length) continue;
+          const cov = coverOf(starts);
+          if (!unique.every((g) => cov.has(g))) continue;
+          tried++;
+          // Probe: Ast abhängen, alten Platz frei, neuen belegen, neu anschließen
+          const st = snapshot(v.terms);
+          const occ0 = occ.slice();
+          const opts0 = t.options;
+          unchoose(t);
+          prune(v.terms);
+          for (let dy = 0; dy < 5; dy++) for (let dx = 0; dx < 5; dx++) occ[idx(p.x + dx, p.y + dy)] = FREE;
+          for (let dy = 0; dy < 5; dy++) {
+            for (let dx = 0; dx < 5; dx++) {
+              const i = idx(c.x + dx, c.y + dy);
+              occ[i] = SERVICE;
+              hitTile(i, 1);
+            }
+          }
+          const options = stationOptions(c.x, c.y);
+          const tg = new Map<number, number>();
+          options.forEach((o, k) => {
+            if (!inTree[o.anchor] && usable(o) && !tg.has(o.anchor)) tg.set(o.anchor, k);
+          });
+          const sources = [...nb.keys()].filter((i) => !isWet(occ[i]));
+          const path = tg.size ? route(sources, (i) => tg.has(i), V) : null;
+          if (path) {
+            addPath(path);
+            t.options = options;
+            choose(t, tg.get(path[path.length - 1]) as number);
+            const loss = lossOf() - credit;
+            if (loss < before - 1e-6 && (!bestMove || loss < bestMove.loss)) {
+              bestMove = { x: c.x, y: c.y, loss, state: snapshot(v.terms), options, chosen: t.chosen, occ: occ.slice(), cov };
+            }
+          }
+          // zurück
+          t.options = opts0;
+          occ.set(occ0);
+          restore(st, v.terms);
+        }
+        if (!bestMove) continue;
+        // übernehmen
+        t.options = bestMove.options;
+        occ.set(bestMove.occ);
+        restore(bestMove.state, v.terms);
+        t.chosen = bestMove.chosen;
+        for (const g of mine) count[g]--;
+        for (const g of bestMove.cov) count[g]++;
+        cover.set(t, bestMove.cov);
+        moves.push({ sv: t.sv, x: p.x, y: p.y });
+        p.x = bestMove.x;
+        p.y = bestMove.y;
+        report.moved++;
+        any = true;
+        refreshNetDist();
+      }
+      if (!any) break;
+    }
+  }
+
   // --- Bohrtürme: billigste 3×3-Plätze im Radius der Raffinerie (Reste verdrängter Häuser bevorzugt)
   const wellsPlaced: Array<{ x: number; y: number; owner: number }> = [];
   let left = opts.wells;
@@ -930,7 +1149,9 @@ export function planOilSupply(
       }
     }
   }
-  for (const sv of out.slice(services.length)) {
+  // Verschobene Kraftwerke: alter Platz frei (zuerst), neuer belegt
+  for (const m of moves) for (let dy = 0; dy < 5; dy++) for (let dx = 0; dx < 5; dx++) if (cell[idx(m.x + dx, m.y + dy)] === SERVICE) cell[idx(m.x + dx, m.y + dy)] = FREE;
+  for (const sv of [...out.slice(services.length), ...moves.map((m) => out[m.sv])]) {
     for (let dy = 0; dy < sv.h; dy++) for (let dx = 0; dx < sv.w; dx++) cell[idx(sv.x + dx, sv.y + dy)] = SERVICE;
   }
   const rails: number[] = [];
@@ -1055,4 +1276,93 @@ export function estimateOilHarbor(
     if (!best || d < best.d) best = { x: c.ex, y: c.ey, d };
   }
   return best && { x: best.x, y: best.y };
+}
+
+/** Ausfahrtskacheln der Bahnhöfe eines Plans (Ölhafen zuerst, dann Raffinerien und Ölkraftwerke). */
+export function oilStationExits(services: readonly PlacedService[]): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const sv of services) if (sv.guid === OIL_HARBOR_GUID) out.push(harborShape(sv.x, sv.y, sv.turns).exit);
+  for (const sv of services) {
+    if (sv.guid === OIL_REFINERY_GUID || sv.guid === OIL_POWER_GUID) out.push(stationRail(sv.x, sv.y, (((sv.turns % 4) + 4) % 4) as Side).exit);
+  }
+  return out;
+}
+
+/**
+ * Gleiskorridor für einen zweiten Durchgang (vor der Bebauung): Steinerbaum aus möglichst
+ * langen geraden Stücken über die Ausfahrten `points` (erste = Wurzel). Jedes Abbiegen kostet
+ * `turn` Kacheln – nur so kann das Straßengitter Lückenzeilen/-spalten dafür anlegen. Wasser
+ * bis 12 Kacheln am Stück (Brücke). Ergebnis: Landkacheln des Korridors.
+ */
+export function designCorridor(mask: LandMask, points: ReadonlyArray<readonly [number, number]>, turn = 15): Uint8Array {
+  const { w, h, data } = mask;
+  const N = w * h;
+  const out = new Uint8Array(N);
+  const inside = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h;
+  const pts = points.filter(([x, y]) => inside(x, y) && data[y * w + x]).map(([x, y]) => y * w + x);
+  if (pts.length < 2) return out;
+  const inTree = new Uint8Array(N);
+  const tree: number[] = [pts[0]];
+  inTree[pts[0]] = 1;
+  out[pts[0]] = 1;
+  const pending = new Set(pts.slice(1).filter((p) => p !== pts[0]));
+  const dist = new Float64Array(N * 4);
+  const prev = new Int32Array(N * 4);
+  const heap = new Heap();
+  while (pending.size) {
+    dist.fill(Infinity);
+    heap.clear();
+    for (const i of tree) {
+      for (let d = 0; d < 4; d++) {
+        dist[i * 4 + d] = 0;
+        prev[i * 4 + d] = -1;
+        heap.push(0, i * 4 + d);
+      }
+    }
+    let found = -1;
+    while (heap.size) {
+      const node = heap.pop();
+      const dd = heap.topKey;
+      if (dd > dist[node]) continue;
+      const i = node >> 2;
+      const from = node & 3;
+      if (pending.has(i)) {
+        found = node;
+        break;
+      }
+      const x = i % w;
+      const y = (i - x) / w;
+      for (let dir = 0; dir < 4; dir++) {
+        let nx = x + DX[dir];
+        let ny = y + DY[dir];
+        let k = 0;
+        while (k < 12 && inside(nx, ny) && !data[ny * w + nx]) {
+          k++;
+          nx += DX[dir];
+          ny += DY[dir];
+        }
+        if (!inside(nx, ny) || !data[ny * w + nx]) continue;
+        const n = ny * w + nx;
+        const nn = n * 4 + dir;
+        const nd = dd + 1 + 2 * k + (dir !== from && dist[node] > 0 ? turn : 0);
+        if (nd < dist[nn]) {
+          dist[nn] = nd;
+          prev[nn] = node;
+          heap.push(nd, nn);
+        }
+      }
+    }
+    if (found < 0) break;
+    for (let node = found; node >= 0; node = prev[node]) {
+      const i = node >> 2;
+      if (!inTree[i]) {
+        inTree[i] = 1;
+        tree.push(i);
+        out[i] = 1;
+      }
+      if (dist[node] === 0) break;
+    }
+    pending.delete(found >> 2);
+  }
+  return out;
 }

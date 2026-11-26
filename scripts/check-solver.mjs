@@ -157,6 +157,34 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
   const mask = { w: island.width, h: island.height, data: island.mask, landCount: island.landCount };
   const plan = planFromFill(searchFill(mask, { orientation: 'auto', housesPerLine: 4 }));
   expect('Planer: ≥ 2.000 Häuser (ganze Insel bebaut)', plan.houses.length >= 2000, `${plan.houses.length} Häuser`);
+  {
+    // Gleiskorridor (Ölmodus, 2. Durchgang): gerader Korridor → Lücken im Gitter, keine Häuser darauf
+    const { designCorridor } = await server.ssrLoadModule('/src/oil.ts');
+    const { BLOCKED, ROAD } = await server.ssrLoadModule('/src/fill.ts');
+    const hs = plan.houses;
+    const pts = [hs[0], hs[Math.floor(hs.length / 3)], hs[Math.floor((2 * hs.length) / 3)], hs[hs.length - 1]].map((p) => [p.x + 1, p.y + 1]);
+    const corridor = designCorridor(mask, pts);
+    const f = searchFill(mask, { orientation: 'auto', housesPerLine: 4, corridor });
+    let gaps = 0;
+    for (const v of f.cell) if (v === BLOCKED) gaps++;
+    let onGap = 0;
+    let noRoad = 0;
+    const W = mask.w;
+    for (const h of f.houses) {
+      let road = false;
+      for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) if (f.cell[(h.y + dy) * W + h.x + dx] === BLOCKED) onGap++;
+      for (let d = 0; d < 3; d++) {
+        for (const [x, y] of [[h.x + d, h.y - 1], [h.x + d, h.y + 3], [h.x - 1, h.y + d], [h.x + 3, h.y + d]]) {
+          if (x >= 0 && y >= 0 && x < W && y < mask.h && f.cell[y * W + x] === ROAD) road = true;
+        }
+      }
+      if (!road) noRoad++;
+    }
+    const corr = corridor.reduce((a, v) => a + v, 0);
+    expect('Gleiskorridor: Lücken im Gitter, keine Häuser darauf, alle Häuser an der Straße, ≥ 97 % der Häuser',
+      gaps > 0 && !onGap && !noRoad && f.houses.length >= 0.97 * plan.houses.length,
+      `${corr} Korridorkacheln, ${gaps} Lückenkacheln, ${f.houses.length} statt ${plan.houses.length} Häuser`);
+  }
   const problem = townHallProblem(mask, plan);
   const L = solve(problem.target, ['rh'], { budgetMs: budget, seed: 7, allowed: problem.allowed, overlapPenalty: problem.penalty });
   const withHalls = refillAroundTownHalls(mask, finishPlan(plan, L.groups[0].chambers, 12));

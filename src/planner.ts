@@ -57,6 +57,8 @@ export interface GridPlan {
   bridges?: number[];
   /** Ausrichtung je Kachel (1 = waagerecht), wenn Landstücke eigene Raster haben. */
   orientationMap?: Uint8Array;
+  /** Freigehaltener Gleiskorridor (Ölmodus): kein Haus, kein Gebäude; der Ölschritt gibt ihn frei. */
+  reserved?: number[];
 }
 
 /** Abzug je verdrängtem Haus in „abgedeckten Häusern“. */
@@ -534,12 +536,14 @@ function countNetworks(roads: Uint8Array, w: number, bridges?: readonly number[]
 export function planFromFill(r: FillResult): GridPlan {
   const roads = new Uint8Array(r.cell.length);
   const bridges: number[] = [];
+  const reserved: number[] = [];
   let roadCount = 0;
   for (let i = 0; i < roads.length; i++) {
     if (r.cell[i] === ROAD) {
       roads[i] = 1;
       roadCount++;
     } else if (r.cell[i] === BRIDGE) bridges.push(i);
+    else if (r.cell[i] === BLOCKED) reserved.push(i);
   }
   const n = r.housesPerLine;
   return {
@@ -557,6 +561,7 @@ export function planFromFill(r: FillResult): GridPlan {
     networks: countNetworks(roads, r.w, bridges),
     bridges,
     orientationMap: r.orientationMap,
+    ...(reserved.length ? { reserved } : {}),
   };
 }
 
@@ -592,8 +597,9 @@ function cityToState(mask: LandMask, city: CityPlan): FillState {
     for (let dy = 0; dy < sv.h; dy++) for (let dx = 0; dx < sv.w; dx++) cell[(sv.y + dy) * w + sv.x + dx] = SERVICE;
   }
   for (const i of city.plan.bridges ?? []) cell[i] = BRIDGE;
-  // Gleise (außer Bahnübergängen) sind belegt
+  // Gleise (außer Bahnübergängen) sind belegt, der Gleiskorridor bleibt frei von Gebäuden
   for (const i of city.rails ?? []) if (cell[i] === FREE) cell[i] = SERVICE;
+  for (const i of city.plan.reserved ?? []) if (cell[i] === FREE) cell[i] = BLOCKED;
   return s;
 }
 
@@ -771,10 +777,15 @@ export function planServices(
 /** Ölversorgung (Ölhafen, Raffinerien, Gleise) als letzter Planungsschritt – `oil.ts`. */
 export function planOil(mask: LandMask, city: CityPlan, options: OilOptions): { city: CityPlan; report: OilReport } {
   const s = cityToState(mask, city);
-  const before = s.houses.length;
+  // Der freigehaltene Korridor ist jetzt Gleisland (ungenutzte Kacheln danach wieder Bauland)
+  if (city.plan.reserved?.length) {
+    const hall = new Uint8Array(s.cell.length);
+    for (const t of city.townHalls) for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) hall[(t.y + dy) * s.w + t.x + dx] = 1;
+    for (const i of city.plan.reserved) if (s.cell[i] === BLOCKED && !hall[i]) s.cell[i] = FREE;
+  }
   const r = planOilSupply(mask, s, city.services ?? [], options);
-  const next = s.houses.length !== before ? stateToCity(s, city, [...city.townHalls]) : city;
-  return { city: { ...next, services: r.services, rails: r.rails }, report: r.report };
+  const next = stateToCity(s, city, [...city.townHalls]);
+  return { city: { ...next, plan: { ...next.plan, reserved: undefined }, services: r.services, rails: r.rails }, report: r.report };
 }
 
 /** Überflüssige Straßenstummel durch Häuser ersetzen (fill.ts `replaceRoadStubs`). */
