@@ -624,6 +624,7 @@ function setupInfo(): WizardIsland | null {
     oil: dep?.oil ?? 0,
     clay: dep?.clay ?? 0,
     mines: (combined.buildings ?? []).filter((b) => b.kind === 'mine').length,
+    other: (combined.buildings ?? []).filter((b) => b.kind === 'other').length,
     harbor: !!combined.harbor?.some((v) => v),
     kontor: !!currentKontor(),
   };
@@ -906,6 +907,7 @@ plannerUi = new PlannerUi(
           kontor: currentKontor(),
           deposits: combined.buildings ? { clay: depositSummary(combined.buildings).clay, oil: depositSummary(combined.buildings).oil } : undefined,
           mines: combined.buildings?.filter((b) => b.kind === 'mine').map(({ guid, x, y, w, h }) => ({ guid, x, y, w, h })),
+          buildings: combined.buildings,
           harbor: combined.harbor,
           blocked: (() => {
             const k = currentKontor();

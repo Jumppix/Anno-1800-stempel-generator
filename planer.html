@@ -129,6 +129,31 @@
             </div>
           </details>
 
+          <details id="stamp-buildings" class="group" hidden>
+            <summary>Gebäude aus dem Stempel <span id="sum-stamp" class="sum"></span></summary>
+            <p id="stamp-found" class="micro"></p>
+            <label class="select-row" title="Lehmgruben lassen sich mit „Bahnbrechende Entdeckungen“ (Enbesa) verschieben. Neu: alle zusammen im Radius einer eigenen Handelskammer (nur für die Lehmgruben – dort später der Mineraloge für Bauxit), Lagerhäuser direkt daneben.">Lehmgruben
+              <select id="plan-fix-clay">
+                <option value="move" selected>Planer platziert neu (eine Handelskammer)</option>
+                <option value="fixed">Fest – bleiben, wo sie stehen</option>
+              </select>
+            </label>
+            <label class="check-row" title="Mit Strom: ein Lagerhaus je 6 Lehmgruben und ein Kraftwerk in Reichweite; ohne Strom: ein Lagerhaus je 4."><input id="plan-clay-power" type="checkbox" checked />Lehmgruben mit Strom (1 Lagerhaus je 6, ohne Strom je 4)</label>
+            <label class="select-row" title="Ölquellen (Bohrtürme) lassen sich mit „Bahnbrechende Entdeckungen“ verschieben, nur mit einer Raffinerie (bis zu 3 Bohrtürme je Raffinerie). Neu: alle zusammen nahe der Küste; bei Ölkraftwerken mit eigenem Öl am Gleisnetz.">Ölquellen
+              <select id="plan-fix-oil">
+                <option value="move" selected>Planer platziert neu (zusammen an der Küste)</option>
+                <option value="fixed">Fest – bleiben mit ihrer Raffinerie stehen</option>
+              </select>
+            </label>
+            <label class="select-row" title="Alle übrigen Gebäude im Stempel. Fest: sie bleiben, bekommen einen Straßenanschluss und stehen im Export. Neu: ihre Fläche wird bebaut, der Planer setzt selbst, was gebraucht wird.">Sonstige Gebäude
+              <select id="plan-fix-other">
+                <option value="fixed" selected>Fest – bleiben, wo sie stehen</option>
+                <option value="move">Planer plant neu (Fläche wird bebaut)</option>
+              </select>
+            </label>
+            <p class="micro">Minen bleiben immer fest (an ihr Vorkommen gebunden) und bekommen Straße und Lagerhaus. Vorhandene Lehmgruben und Ölquellen werden immer eingeplant, nie weggelassen.</p>
+          </details>
+
           <details class="group">
             <summary>Spielstand dieser Stadt <span id="sum-rules" class="sum"></span></summary>
             <label class="select-row" title="Automatisch: der Planer vergleicht die Bauweisen (4-5, 3-3-5, frei gemischt) und nimmt die mit den meisten Einwohnern.">Hochhäuser
@@ -217,7 +242,7 @@
           </details>
 
           <details class="group">
-            <summary>Produktion &amp; Rohstoffe <span id="sum-prod" class="sum"></span></summary>
+            <summary>Produktion (Clipping) <span id="sum-prod" class="sum"></span></summary>
             <div class="prod-add">
               <select id="prod-type" aria-label="Produktionsgebäude"></select>
               <input id="prod-count" type="number" min="1" max="60" step="1" value="4" aria-label="Anzahl" />
@@ -228,13 +253,6 @@
               <input id="prod-power" type="checkbox" checked />
               Strom für die Produktion
             </label>
-            <label class="select-row" title="Lehmgruben lassen sich mit „Bahnbrechende Entdeckungen“ (Enbesa) verschieben. Leer = so viele, wie im Stempel als Blaupause stehen. Je Cluster bis zu 8 Gruben im Radius einer Handelskammer, dazu ein Lagerhaus (z. B. für Bauxit).">Lehmgruben (verschiebbar)
-              <input id="plan-clay" type="number" min="0" max="64" step="1" placeholder="aus Stempel" />
-            </label>
-            <label class="select-row" title="Wie viele Lehmgruben sich ein Lagerhaus teilen (Karren). Zusätzliche Lagerhäuser kommen in den Block.">Lehmgruben je Lagerhaus
-              <input id="plan-clay-wh" type="number" min="1" max="8" step="1" value="8" />
-            </label>
-            <label class="check-row"><input id="plan-clay-power" type="checkbox" checked />Lehmgruben mit Strom (Kraftwerk in Reichweite)</label>
             <p class="micro">Jedes Gebäude genau zwischen zwei Handelskammern (Mitten 30 auseinander) – quadratisch, Raute oder versetzte Raute; nur gerade Breite und Länge, schräge Formen nur für quadratische. Handelskammern und Lagerhaus werden ergänzt.</p>
           </details>
 

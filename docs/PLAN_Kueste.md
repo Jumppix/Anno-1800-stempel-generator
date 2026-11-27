@@ -475,3 +475,29 @@ Häuser weniger. Crown Falls mit Minen-Stempel (5 Bohrtürme, 40 Flügel): 14 Ö
 **Offen:** Ölverbrauch je Kraftwerk gegen Raffinerieleistung ungeprüft (Anzahl Raffinerien folgt nur den
 Bohrtürmen); Öllager 100784 nicht geplant; ob Gleisbrücken über Wasser wie Straßenbrücken gehen, ist im Spiel
 ungeprüft; Kraftwerke werden nach dem Gleisbau nicht mehr verschoben.
+
+## 11. Gebäude aus dem Stempel: fest oder neu, Lehmgruben-Handelskammer, Ölfeld (27.11.2026)
+
+Vorgaben des Nutzers: Vorhandene Lehmgruben und Ölquellen müssen immer eingeplant werden (nie weglassen). Je
+Gebäudeart im Stempel wählbar, ob der Planer sie verschiebt oder als fest annimmt.
+
+- **Einstellung** (Gruppe „Gebäude aus dem Stempel“, nur wenn der Stempel Gebäude enthält; Assistent-Frage
+  „verschieben oder fest?“): `plan-fix-clay`, `plan-fix-oil` (Bohrtürme + Raffinerie), `plan-fix-other` (alle
+  übrigen) je „Planer platziert neu“ / „fest“. Minen bleiben immer fest (Vorkommen). Standard: Lehm und Öl neu,
+  Sonstiges fest.
+- **Fest** (`PlannerUi.stampPlan` → `ServiceOptions.fixed`): Fläche ist in der Planungsmaske kein Bauland, das
+  Gebäude wird übernommen (auch im Export, Bohrtürme mit gemeinsamer `ComplexOwnerID` ihrer Raffinerie),
+  Lehmgruben und Sonstige bekommen einen Straßenanschluss wie Minen, Lehmgruben ein Lagerhaus in Reichweite.
+  Feste Raffinerien werden im Ölmodus (eigenes Öl) als Bahnhöfe angeschlossen (`OilOptions.fixedRefineries`).
+  „Sonstige neu“: ihre Fläche wird Bauland, der Planer setzt selbst, was gebraucht wird.
+- **Lehmgruben neu** (`services.ts`): **alle unter einer eigenen Handelskammer** (Mittelpunkt im Radius 15,
+  Vorlage `packAroundTradeUnion([5, 5])` – bis 28 Felder), die nächsten Felder bekommen die Gruben, die folgenden
+  die Lagerhäuser: **1 je 6 Gruben mit Strom, 1 je 4 ohne** (`plan-clay-power`). Kein fremdes
+  Produktionsgebäude im Radius (die Kammer bekommt später den Mineralogen für Bauxit). Block mit Ringstraße,
+  tote Straßenenden der Vorlage abgebaut. Erst wenn Gruben + Lagerhäuser > 28, mehrere Kammern.
+  Test (Insel 189 × 290): 9 Gruben → 1 Kammer, 2 Lagerhäuser; 13 Gruben → 1 Kammer, 3 Lagerhäuser.
+- **Ölquellen neu, ohne Gleisanschluss** (`placeOilField` in `oil.ts`): bei **Gaskraftwerken** und bei Öl per
+  Schiff kommen Raffinerien (je bis zu 3 Bohrtürme) **alle zusammen nahe der Küste** (Abstand zum offenen Meer +
+  zu den übrigen Raffinerien + Einwohner der Häuser darunter). Bei Ölkraftwerken mit eigenem Öl wie bisher am
+  Gleisnetz. Testinsel, Gas, 5 Ölquellen + 9 Lehmgruben: 772 145 Einwohner, 2 Raffinerien, 9 Häuser für das Ölfeld.
+

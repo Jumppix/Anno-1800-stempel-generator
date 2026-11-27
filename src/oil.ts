@@ -55,6 +55,15 @@ export interface OilOptions {
   /** Ölkraftwerke nach dem Gleisbau ans Netz verschieben (Standard an). */
   relocate?: boolean;
   /**
+   * Ölfeld statt Gleisanschluss: Raffinerien mit den Bohrtürmen alle zusammen nahe der Küste,
+   * ohne Gleise (Gaskraftwerke oder Öl per Schiff). Ohne Ölkraftwerke immer so.
+   */
+  field?: boolean;
+  /** Raffinerien stehen fest (aus dem Stempel, in `services`): sie werden nur angeschlossen. */
+  fixedRefineries?: boolean;
+  /** Ölkraftwerke statt Gaskraftwerke (Standard an); aus = nur das Ölfeld (Gaskraftwerke). */
+  power?: boolean;
+  /**
    * Reichweite der Kraftwerke: Straßenkacheln im Palast-/Ministeriumsbereich (Maskenkoordinaten)
    * und der Zuschlag dort (Wohlfahrt + Netz). Ohne: nur Grundreichweite.
    */
@@ -229,10 +238,14 @@ export function planOilSupply(
     if (sv.guid === OIL_POWER_GUID) plantIdx.push(i);
   });
   report.plants = plantIdx.length;
+  // Ölfeld (ohne Gleise): Raffinerien + Bohrtürme zusammen an der Küste
+  const fieldMode = opts.wells > 0 && !opts.fixedRefineries && (!!opts.field || !plantIdx.length);
+  if (fieldMode) placeOilField(mask, s, out, opts, report);
   if (!plantIdx.length) {
-    report.notes.push('keine Ölkraftwerke im Plan');
+    if (!fieldMode && !opts.fixedRefineries) report.notes.push('keine Ölkraftwerke im Plan');
     return { services: out, rails: [], report };
   }
+  const wellsToPlace = fieldMode || opts.fixedRefineries ? 0 : opts.wells;
   const deadline = performance.now() + (opts.budgetMs ?? 4000);
   let seed = ((opts.seed ?? 1) * 2654435761) >>> 0 || 1;
   const rnd = (): number => {
@@ -735,7 +748,7 @@ export function planOilSupply(
     return placed;
   };
 
-  const refineryCount = opts.wells > 0 ? Math.ceil(opts.wells / WELLS_PER_REFINERY) : 0;
+  const refineryCount = wellsToPlace > 0 ? Math.ceil(wellsToPlace / WELLS_PER_REFINERY) : 0;
   /** Grundzustand einer Variante: Ölhafen und Raffinerien gesetzt, Netz leer. */
   const setupVariant = (
     hc: { x: number; y: number; t: number },
@@ -759,7 +772,12 @@ export function planOilSupply(
     const exit = idx(sh.exit[0], sh.exit[1]);
     if (!pass(exit)) return null;
     const terms: Terminal[] = [{ kind: 'harbor', sv: -1, options: [{ side: sh.side, anchor: exit, between: [] }], chosen: -1 }];
-    const refineries = refineryCount ? placeRefineries(sh.exit[0], sh.exit[1], refineryCount, refAvoid) : [];
+    // Feste Raffinerien aus dem Stempel werden nur angeschlossen (nicht im Ölfeld-Modus)
+    const refineries = opts.fixedRefineries && !fieldMode
+      ? out.filter((sv) => sv.guid === OIL_REFINERY_GUID).map((sv) => ({ x: sv.x, y: sv.y }))
+      : refineryCount
+        ? placeRefineries(sh.exit[0], sh.exit[1], refineryCount, refAvoid)
+        : [];
     if (refineries.length < refineryCount) notes.push(`kein Platz für ${refineryCount - refineries.length} Raffinerie(n)`);
     refineries.forEach((r, k) => terms.push({ kind: 'refinery', sv: -2 - k, options: stationOptions(r.x, r.y), chosen: -1 }));
     for (const i of plantIdx) {
@@ -1042,7 +1060,7 @@ export function planOilSupply(
 
   // --- Bohrtürme: billigste 3×3-Plätze im Radius der Raffinerie (Reste verdrängter Häuser bevorzugt)
   const wellsPlaced: Array<{ x: number; y: number; owner: number }> = [];
-  let left = opts.wells;
+  let left = wellsToPlace;
   win.refineries.forEach((r, k) => {
     const n = Math.min(WELLS_PER_REFINERY, Math.ceil(left / (win.refineries.length - k)));
     left -= n;
@@ -1116,7 +1134,9 @@ export function planOilSupply(
   win.refineries.forEach((r, k) => {
     const t = win.terms.find((tt) => tt.sv === -2 - k) as Terminal;
     const side: Side = t.chosen >= 0 ? t.options[t.chosen].side : 0;
-    add(OIL_REFINERY_GUID, r.x, r.y, 5, 5, side, OIL_OWNER_BASE + k);
+    const existing = out.slice(0, services.length).find((sv) => sv.guid === OIL_REFINERY_GUID && sv.x === r.x && sv.y === r.y);
+    if (existing) existing.turns = side;
+    else add(OIL_REFINERY_GUID, r.x, r.y, 5, 5, side, OIL_OWNER_BASE + k);
     report.refineries++;
     if (t.chosen >= 0) for (const [x, y] of stationRail(r.x, r.y, side).inner) rail[idx(x, y)] = 1;
   });
@@ -1163,7 +1183,7 @@ export function planOilSupply(
     if (cell[i] === FREE) cell[i] = SERVICE;
   }
   report.railTiles = rails.length;
-  report.houses = lost.size;
+  report.houses += lost.size;
   report.lostResidents = Math.round(report.lostResidents);
   s.houses = s.houses.filter((_, k) => !lost.has(k));
   return { services: out, rails, report };
@@ -1365,4 +1385,174 @@ export function designCorridor(mask: LandMask, points: ReadonlyArray<readonly [n
     pending.delete(found >> 2);
   }
   return out;
+}
+
+/**
+ * Ölfeld: Raffinerien (je bis zu 3 Bohrtürme im Radius 12) alle zusammen nahe der Küste (zum
+ * offenen Meer), ohne Gleise. Kosten: Einwohner der Häuser darunter + Abstand zur Küste + Abstand
+ * zu den schon gesetzten Raffinerien. Häuser darunter werden aus `s.houses` genommen.
+ */
+function placeOilField(mask: LandMask, s: FillState, out: PlacedService[], opts: OilOptions, report: OilReport): void {
+  const { w, h, cell } = s;
+  const N = w * h;
+  const idx = (x: number, y: number): number => y * w + x;
+  const inside = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h;
+  const blockedAt = (i: number): boolean => !!opts.blocked?.[i];
+  const houseAt = new Int32Array(N).fill(-1);
+  s.houses.forEach((hs, k) => {
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) houseAt[idx(hs.x + dx, hs.y + dy)] = k;
+  });
+  const vals = s.houses.map((hs) => opts.values?.get(`${hs.x},${hs.y}`) ?? 0);
+  const known = vals.filter((v) => v > 0);
+  const vAvg = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 1000;
+  const V = vals.map((v) => (v > 0 ? v : vAvg));
+  // Abstand zur Küste: Landkacheln am offenen Meer (Wasser vom Kartenrand aus)
+  const ocean = new Uint8Array(N);
+  const q: number[] = [];
+  const seed = (i: number): void => {
+    if (!mask.data[i] && !ocean[i] && cell[i] === WATER) {
+      ocean[i] = 1;
+      q.push(i);
+    }
+  };
+  for (let x = 0; x < w; x++) {
+    seed(x);
+    seed((h - 1) * w + x);
+  }
+  for (let y = 0; y < h; y++) {
+    seed(y * w);
+    seed(y * w + w - 1);
+  }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k];
+    const x = i % w;
+    if (x > 0) seed(i - 1);
+    if (x < w - 1) seed(i + 1);
+    if (i >= w) seed(i - w);
+    if (i + w < N) seed(i + w);
+  }
+  const coast = new Int32Array(N).fill(-1);
+  const bq: number[] = [];
+  for (let i = 0; i < N; i++) {
+    if (!ocean[i]) continue;
+    coast[i] = 0;
+    bq.push(i);
+  }
+  for (let k = 0; k < bq.length; k++) {
+    const i = bq[k];
+    const x = i % w;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+      if (j < 0 || j >= N || coast[j] >= 0) continue;
+      coast[j] = coast[i] + 1;
+      bq.push(j);
+    }
+  }
+  const removed = new Set<number>();
+  const pass = (i: number): boolean => !blockedAt(i) && (cell[i] === FREE || cell[i] === HOUSE);
+  const costRect = (x: number, y: number, ww: number, hh: number): number => {
+    let cost = 0;
+    const seen: number[] = [];
+    for (let dy = 0; dy < hh; dy++) {
+      for (let dx = 0; dx < ww; dx++) {
+        if (!inside(x + dx, y + dy)) return Infinity;
+        const i = idx(x + dx, y + dy);
+        if (!pass(i)) return Infinity;
+        const k = houseAt[i];
+        if (k >= 0 && !removed.has(k) && !seen.includes(k)) {
+          seen.push(k);
+          cost += V[k];
+        }
+      }
+    }
+    return cost;
+  };
+  const occupy = (x: number, y: number, ww: number, hh: number): void => {
+    for (let dy = 0; dy < hh; dy++) {
+      for (let dx = 0; dx < ww; dx++) {
+        const i = idx(x + dx, y + dy);
+        const k = houseAt[i];
+        if (k >= 0 && !removed.has(k)) {
+          removed.add(k);
+          const hs = s.houses[k];
+          for (let ey = 0; ey < 3; ey++) for (let ex = 0; ex < 3; ex++) if (cell[idx(hs.x + ex, hs.y + ey)] === HOUSE) cell[idx(hs.x + ex, hs.y + ey)] = FREE;
+        }
+        cell[i] = SERVICE;
+      }
+    }
+  };
+  const add = (guid: number, x: number, y: number, ww: number, hh: number, owner: number): void => {
+    const e = lookup(guid);
+    out.push({ guid, kind: e.kind, name: e.name, x, y, w: ww, h: hh, turns: 0, owner });
+  };
+  const refineries = Math.ceil(opts.wells / WELLS_PER_REFINERY);
+  const placed: Array<{ x: number; y: number }> = [];
+  let left = opts.wells;
+  for (let r = 0; r < refineries; r++) {
+    let best: { x: number; y: number; cost: number } | null = null;
+    for (let y = 0; y + 5 <= h; y++) {
+      for (let x = 0; x + 5 <= w; x++) {
+        const cd = coast[idx(x + 2, y + 2)];
+        if (cd < 0) continue;
+        let cost = costRect(x, y, 5, 5);
+        if (!Number.isFinite(cost)) continue;
+        let near = cd;
+        for (const p of placed) near = Math.max(near, Math.abs(p.x - x) + Math.abs(p.y - y) - 6);
+        cost += vAvg * 0.2 * near;
+        if (best && cost >= best.cost) continue;
+        // Platz für die Bohrtürme in Reichweite (grob)
+        let room = 0;
+        for (let dy = -WELL_RADIUS; dy <= WELL_RADIUS + 4 && room < 18; dy += 2) {
+          for (let dx = -WELL_RADIUS; dx <= WELL_RADIUS + 4; dx += 2) {
+            if (dx >= 0 && dx <= 4 && dy >= 0 && dy <= 4) continue;
+            const px = x + dx;
+            const py = y + dy;
+            if (inside(px, py) && Math.hypot(px - x - 2, py - y - 2) <= WELL_RADIUS - 1 && pass(idx(px, py))) room++;
+          }
+        }
+        if (room < 18) continue;
+        best = { x, y, cost };
+      }
+    }
+    if (!best) {
+      report.notes.push(`kein Platz für Raffinerie ${r + 1} des Ölfelds`);
+      break;
+    }
+    occupy(best.x, best.y, 5, 5);
+    add(OIL_REFINERY_GUID, best.x, best.y, 5, 5, OIL_OWNER_BASE + r);
+    placed.push(best);
+    report.refineries++;
+    const n = Math.min(WELLS_PER_REFINERY, Math.ceil(left / (refineries - r)));
+    left -= n;
+    const rcx = best.x + 2.5;
+    const rcy = best.y + 2.5;
+    for (let m = 0; m < n; m++) {
+      let bw: { x: number; y: number; cost: number } | null = null;
+      for (let y = best.y - WELL_RADIUS; y <= best.y + WELL_RADIUS + 2; y++) {
+        for (let x = best.x - WELL_RADIUS; x <= best.x + WELL_RADIUS + 2; x++) {
+          const corners: Array<[number, number]> = [
+            [x + 0.5, y + 0.5],
+            [x + 2.5, y + 0.5],
+            [x + 0.5, y + 2.5],
+            [x + 2.5, y + 2.5],
+          ];
+          if (corners.some(([cx, cy]) => Math.hypot(cx - rcx, cy - rcy) > WELL_RADIUS)) continue;
+          let cost = costRect(x, y, 3, 3);
+          if (!Number.isFinite(cost)) continue;
+          cost += 1e-3 * vAvg * Math.hypot(x + 1.5 - rcx, y + 1.5 - rcy);
+          if (!bw || cost < bw.cost) bw = { x, y, cost };
+        }
+      }
+      if (!bw) {
+        report.notes.push(`kein Platz für einen Bohrturm an Raffinerie ${r + 1}`);
+        continue;
+      }
+      occupy(bw.x, bw.y, 3, 3);
+      add(OIL_WELL_GUID, bw.x, bw.y, 3, 3, OIL_OWNER_BASE + r);
+      report.wells++;
+    }
+  }
+  for (const k of removed) report.lostResidents += V[k];
+  report.houses += removed.size;
+  report.lostResidents = Math.round(report.lostResidents);
+  s.houses = s.houses.filter((_, k) => !removed.has(k));
 }

@@ -65,6 +65,8 @@ export interface PassInput {
   oil?: OilOptions;
   /** Minen aus dem Stempel (Straßenanschluss + Lagerhaus). */
   mines?: ServiceOptions['mines'];
+  /** Feste Gebäude aus dem Stempel (übernommen, Straße/Lagerhaus nach Bedarf). */
+  fixed?: ServiceOptions['fixed'];
   airport?: { harbor: { x: number; y: number } | null };
   production?: ProductionOptions;
   levelMode: LevelMode;
@@ -206,7 +208,7 @@ function houseFacts(
 export const OIL_PULLS = [20, 0, 40, 10];
 
 function oilRailFor(input: PassInput, city: CityPlan): ServiceOptions['oilRail'] {
-  if (!input.oil) return undefined;
+  if (!input.oil || input.oil.power === false) return undefined;
   const pull = input.oilPull ?? OIL_PULLS[input.seed % OIL_PULLS.length];
   // Mit Korridor immer etwas Zug, sonst bleibt er ungenutzt
   const perTile = input.corridor ? Math.max(10, pull) : pull;
@@ -403,9 +405,10 @@ function runPassOnce(input: PassInput, emit: (e: PassEvent) => void, mip?: MipSo
     ministry: input.ministry,
     culture: input.culture,
     clay: input.clay,
-    oilPower: !!input.oil,
+    oilPower: !!input.oil && input.oil.power !== false,
     oilRail: oilRailFor(input, dense),
     mines: input.mines,
+    fixed: input.fixed,
     airport: input.airport,
     production: input.production,
     mip,

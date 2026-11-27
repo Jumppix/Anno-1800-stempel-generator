@@ -197,8 +197,42 @@ const { searchFill } = await server.ssrLoadModule('/src/fill.ts');
     serviced.report.warehouses > 0, `${serviced.report.warehouses} Lagerhäuser, ${serviced.report.removedHouses} Häuser ersetzt`);
   const city = serviced.city;
   {
+    // Lehmgruben (verschiebbar): alle 9 unter einer eigenen Handelskammer, 2 Lagerhäuser (1 je 6 mit Strom)
+    const clayRun = planServices(mask, dense, { kinds, fullCoverageValue: 30, clay: { count: 9, power: true } });
+    const sv = clayRun.city.services;
+    const tus = sv.filter((x) => x.kind === 'tradeUnion');
+    const pits = sv.filter((x) => x.kind === 'clayPit');
+    const hk = tus[0];
+    const inR = (b) => hk && Math.hypot(b.x + b.w / 2 - (hk.x + 2), b.y + b.h / 2 - (hk.y + 2)) <= 15 + 1e-9;
+    const roadAt = (x, y) => x >= 0 && y >= 0 && x < mask.w && y < mask.h && clayRun.city.plan.roads[y * mask.w + x] === 1;
+    const touches = (b) => {
+      for (let d = 0; d < b.w; d++) if (roadAt(b.x + d, b.y - 1) || roadAt(b.x + d, b.y + b.h)) return true;
+      for (let d = 0; d < b.h; d++) if (roadAt(b.x - 1, b.y + d) || roadAt(b.x + b.w, b.y + d)) return true;
+      return false;
+    };
+    const rep = clayRun.report.clay;
+    expect('Lehmgruben: alle 9 in einer Handelskammer, 2 Lagerhäuser, alle mit Straße, keine fremde Produktion im Radius',
+      tus.length === 1 && pits.length === 9 && pits.every(inR) && pits.every(touches) && touches(hk) && rep?.warehouses === 2 &&
+        !sv.some((x) => x.kind === 'production' && inR(x)),
+      `${tus.length} HK, ${pits.length} Gruben (${pits.filter(inR).length} im Radius), ${rep?.warehouses} Lagerhäuser, ${rep?.houses} Häuser verdrängt`);
+    // Feste Gebäude aus dem Stempel: übernommen, Straßenanschluss
+    const f = dense.houses[Math.floor(dense.houses.length / 2)];
+    const fixedRun = planServices(mask, dense, { kinds, fullCoverageValue: 30, fixed: [{ guid: 100416, x: f.x, y: f.y, w: 5, h: 5, turns: 0, road: true, warehouse: true }] });
+    const kept = fixedRun.city.services.find((x) => x.guid === 100416 && x.x === f.x && x.y === f.y);
+    expect('Feste Stempel-Gebäude: übernommen und angeschlossen', !!kept && fixedRun.report.fixed?.connected === 1, JSON.stringify(fixedRun.report.fixed));
+  }
+  {
     // Ölmodus: Ölkraftwerke, Ölhafen (offenes Meer), 1 Raffinerie mit 3 Bohrtürmen, Gleise.
     const { planOil } = await server.ssrLoadModule('/src/planner.ts');
+    // Gaskraftwerke + Ölquellen: Ölfeld an der Küste (2 Raffinerien, 5 Bohrtürme, keine Gleise)
+    const gasSv = planServices(mask, dense, { kinds, fullCoverageValue: 30 });
+    const field = planOil(mask, gasSv.city, { wells: 5, field: true, power: false, seed: 1 });
+    const fr = field.city.services.filter((x) => x.guid === 101331);
+    const fw = field.city.services.filter((x) => x.guid === 101332);
+    const wellsOk = fw.every((wl) => fr.some((r) => r.owner === wl.owner && Math.hypot(wl.x + 1.5 - r.x - 2.5, wl.y + 1.5 - r.y - 2.5) <= 12));
+    expect('Ölfeld bei Gaskraftwerken: alle Ölquellen eingeplant, zusammen, ohne Gleise',
+      fr.length === 2 && fw.length === 5 && wellsOk && !(field.city.rails ?? []).length && Math.hypot(fr[0].x - fr[1].x, fr[0].y - fr[1].y) <= 20,
+      `${fr.length} Raffinerien, ${fw.length} Bohrtürme, ${field.report.houses} Häuser verdrängt${field.report.notes.length ? ' – ' + field.report.notes.join('; ') : ''}`);
     const oilSv = planServices(mask, dense, { kinds, fullCoverageValue: 30, oilPower: true });
     const { city: oc, report: or } = planOil(mask, oilSv.city, { wells: 3, budgetMs: 2000, seed: 1 });
     const W = mask.w;

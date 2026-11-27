@@ -13,6 +13,7 @@
 // Danach Lagerhäuser (5×5), sodass jedes Kaufhaus/Einrichtungshaus/Drogerie/
 // Kraftwerk eines in seiner Straßenreichweite hat.
 
+import { packAroundTradeUnion } from './prod/layout';
 import { footprint, lookup, type BuildingKind } from './catalog';
 import { skyscraperResidents, UNIVERSITY_MAX_RANGE, universityFactor, type SkyLevel, type SkyTier } from './rules';
 import { BLOCKED, BRIDGE, FREE, HOUSE, isWay, ROAD, SERVICE, WATER, touchesBridge, touchesRoad, type FillState } from './fill';
@@ -240,10 +241,18 @@ export interface ServiceOptions {
     maxModules: number;
   };
   /**
-   * Lehmgruben (verschiebbare Vorkommen): je Cluster bis zu 8 Gruben im Radius einer
-   * Handelskammer, dazu ein Lagerhaus – als Block mit Ringstraße.
+   * Lehmgruben (verschiebbare Vorkommen): alle zusammen im Radius einer eigenen Handelskammer
+   * (nur für die Lehmgruben, später Mineraloge für Bauxit), Lagerhäuser im selben Block
+   * (`perWarehouse` Gruben je Lagerhaus: 6 mit Strom, 4 ohne) – als Block mit Ringstraße.
+   * Passen nicht alle in einen Radius (höchstens 28 Gruben inkl. Lagerhäuser), mehrere Blöcke.
    */
   clay?: { count: number; perWarehouse?: number; power?: boolean };
+  /**
+   * Gebäude aus dem Stempel, die fest bleiben (Lehmgruben, Bohrtürme, Raffinerie, sonstige):
+   * werden übernommen (auch im Export), bekommen bei `road` einen Straßenanschluss wie Minen und
+   * bei `warehouse` ein Lagerhaus in Reichweite. Ihre Fläche ist in der Maske kein Bauland.
+   */
+  fixed?: ReadonlyArray<FixedBuilding>;
   /**
    * Minen aus dem Stempel (fest am Vorkommen, Maskenkoordinaten): bekommen einen Straßenanschluss
    * (kürzester Weg zum Netz, Häuser weichen) und ein Lagerhaus in Reichweite.
@@ -279,6 +288,21 @@ export interface ServiceOptions {
   mip?: MipSolver;
 }
 
+/** Festes Gebäude aus dem Stempel (Maskenkoordinaten). */
+export interface FixedBuilding {
+  guid: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  turns: number;
+  owner?: number;
+  /** Straßenanschluss herstellen (kürzester Weg zum Netz). */
+  road?: boolean;
+  /** Braucht ein Lagerhaus in Reichweite (Produktion). */
+  warehouse?: boolean;
+}
+
 /** Minimale Schnittstelle von `highs` (LP-Text im CPLEX-Format). */
 export interface MipSolver {
   solve(lp: string, opts?: Record<string, unknown>): { Status: string; Columns?: Record<string, { Primal?: number }> };
@@ -292,8 +316,10 @@ export interface ServiceReport {
   ministry: { placed: boolean; houses: number };
   /** Minen: angeschlossen, neue Straßenkacheln, verdrängte Häuser, nicht erreichbar. */
   mines?: { connected: number; roads: number; houses: number; unreachable: number };
+  /** Feste Gebäude aus dem Stempel (übernommen, angeschlossen, ohne Weg). */
+  fixed?: { count: number; connected: number; roads: number; houses: number; unreachable: number };
   /** Lehmgruben-Cluster (Handelskammer + Gruben + Lagerhaus). */
-  clay?: { clusters: number; pits: number; houses: number; warehouses: number; powerPlants: number };
+  clay?: { clusters: number; pits: number; requested: number; houses: number; warehouses: number; powerPlants: number; perWarehouse: number };
   /** Museen für die Attraktivität (Palastinsel). */
   culture?: { museums: number; modules: number; attr: number; known: number; missing: number; houses: number };
   warehouses: number;
@@ -548,76 +574,112 @@ export function placeServices(
   for (let i = 0; i < cell.length; i++) if (cell[i] === ROAD) origRoad[i] = 1;
   const placedOf = new Map<Candidate, PlacedService>();
 
-  // --- Minen (fest): Straßenanschluss über den günstigsten Weg zum Netz (freies Land vor Häusern).
+  // --- Minen und feste Stempel-Gebäude: Straßenanschluss über den günstigsten Weg zum Netz
+  //     (freies Land vor Häusern).
   const mineRings: number[][] = [];
+  /** Anschluss herstellen; false = kein Weg. */
+  const connect = (m: { x: number; y: number; w: number; h: number }, rep: { roads: number; houses: number }): boolean => {
+    const around = ring(m.x, m.y, m.w, m.h);
+    if (around.some((i) => cell[i] === ROAD)) return true;
+    // Dijkstra (Kosten: frei 1, Haus 12) von den Landkacheln am Rand zur nächsten Straße
+    const dist = new Float64Array(w * h).fill(Infinity);
+    const prev = new Int32Array(w * h).fill(-1);
+    const open: Array<[number, number]> = [];
+    const push = (i: number, d: number, from: number): void => {
+      if (d >= dist[i]) return;
+      dist[i] = d;
+      prev[i] = from;
+      open.push([d, i]);
+    };
+    for (const i of around) if (cell[i] === FREE || cell[i] === HOUSE) push(i, cell[i] === HOUSE ? 12 : 1, -1);
+    let goal = -1;
+    let steps = 0;
+    while (open.length && steps++ < 200000) {
+      let bi = 0;
+      for (let k = 1; k < open.length; k++) if (open[k][0] < open[bi][0]) bi = k;
+      const [d, i] = open[bi];
+      open[bi] = open[open.length - 1];
+      open.pop();
+      if (d > dist[i]) continue;
+      if (cell[i] === ROAD) {
+        goal = i;
+        break;
+      }
+      if (d > 400) break;
+      const x = i % w;
+      for (const n of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (n < 0 || n >= cell.length) continue;
+        const c = cell[n];
+        if (c === ROAD) push(n, d, i);
+        else if (c === FREE) push(n, d + 1, i);
+        else if (c === HOUSE) push(n, d + 12, i);
+      }
+    }
+    if (goal < 0) return false;
+    for (let i = prev[goal]; i >= 0; i = prev[i]) {
+      if (cell[i] === HOUSE) {
+        const k = houseAt[i];
+        if (k >= 0 && isAlive(k)) {
+          removedBy[k]++;
+          rep.houses++;
+          const hs = s.houses[k];
+          for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) {
+            const j = (hs.y + dy) * w + hs.x + dx;
+            if (cell[j] === HOUSE) cell[j] = FREE;
+          }
+        }
+      }
+      if (cell[i] !== ROAD) {
+        cell[i] = ROAD;
+        rep.roads++;
+      }
+    }
+    return true;
+  };
+  // Feste Gebäude aus dem Stempel zuerst: Fläche belegen (Häuser darunter weichen), übernehmen
+  if (options.fixed?.length) {
+    const rep = { count: 0, connected: 0, roads: 0, houses: 0, unreachable: 0 };
+    report.fixed = rep;
+    for (const f of options.fixed) {
+      for (let dy = 0; dy < f.h; dy++) {
+        for (let dx = 0; dx < f.w; dx++) {
+          const xx = f.x + dx;
+          const yy = f.y + dy;
+          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          const i = yy * w + xx;
+          const k = houseAt[i];
+          if (cell[i] === HOUSE && k >= 0 && isAlive(k)) {
+            removedBy[k]++;
+            rep.houses++;
+            const hs = s.houses[k];
+            for (let ey = 0; ey < 3; ey++) for (let ex = 0; ex < 3; ex++) {
+              const j = (hs.y + ey) * w + hs.x + ex;
+              if (cell[j] === HOUSE) cell[j] = FREE;
+            }
+          }
+          cell[i] = SERVICE;
+        }
+      }
+      const entry = lookup(f.guid);
+      services.push({ guid: f.guid, kind: entry.kind, name: entry.name, x: f.x, y: f.y, w: f.w, h: f.h, turns: f.turns, ...(f.owner !== undefined ? { owner: f.owner } : {}) });
+      rep.count++;
+    }
+    for (const f of options.fixed) {
+      if (!f.road) continue;
+      if (connect(f, rep)) {
+        rep.connected++;
+        if (f.warehouse) mineRings.push(ring(f.x, f.y, f.w, f.h));
+      } else rep.unreachable++;
+    }
+  }
   if (options.mines?.length) {
     const rep = { connected: 0, roads: 0, houses: 0, unreachable: 0 };
     report.mines = rep;
     for (const m of options.mines) {
-      const around = ring(m.x, m.y, m.w, m.h);
-      if (around.some((i) => cell[i] === ROAD)) {
+      if (connect(m, rep)) {
         rep.connected++;
-        mineRings.push(around);
-        continue;
-      }
-      // Dijkstra (Kosten: frei 1, Haus 12) von den Landkacheln am Rand der Mine zur nächsten Straße
-      const dist = new Float64Array(w * h).fill(Infinity);
-      const prev = new Int32Array(w * h).fill(-1);
-      const open: Array<[number, number]> = [];
-      const push = (i: number, d: number, from: number): void => {
-        if (d >= dist[i]) return;
-        dist[i] = d;
-        prev[i] = from;
-        open.push([d, i]);
-      };
-      for (const i of around) if (cell[i] === FREE || cell[i] === HOUSE) push(i, cell[i] === HOUSE ? 12 : 1, -1);
-      let goal = -1;
-      let steps = 0;
-      while (open.length && steps++ < 200000) {
-        let bi = 0;
-        for (let k = 1; k < open.length; k++) if (open[k][0] < open[bi][0]) bi = k;
-        const [d, i] = open[bi];
-        open[bi] = open[open.length - 1];
-        open.pop();
-        if (d > dist[i]) continue;
-        if (cell[i] === ROAD) {
-          goal = i;
-          break;
-        }
-        if (d > 400) break;
-        const x = i % w;
-        for (const n of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
-          if (n < 0 || n >= cell.length) continue;
-          const c = cell[n];
-          if (c === ROAD) push(n, d, i);
-          else if (c === FREE) push(n, d + 1, i);
-          else if (c === HOUSE) push(n, d + 12, i);
-        }
-      }
-      if (goal < 0) {
-        rep.unreachable++;
-        continue;
-      }
-      for (let i = prev[goal]; i >= 0; i = prev[i]) {
-        if (cell[i] === HOUSE) {
-          const k = houseAt[i];
-          if (k >= 0 && isAlive(k)) {
-            removedBy[k]++;
-            rep.houses++;
-            const hs = s.houses[k];
-            for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) {
-              const j = (hs.y + dy) * w + hs.x + dx;
-              if (cell[j] === HOUSE) cell[j] = FREE;
-            }
-          }
-        }
-        if (cell[i] !== ROAD) {
-          cell[i] = ROAD;
-          rep.roads++;
-        }
-      }
-      rep.connected++;
-      mineRings.push(around);
+        mineRings.push(ring(m.x, m.y, m.w, m.h));
+      } else rep.unreachable++;
     }
   }
 
@@ -1092,26 +1154,65 @@ export function placeServices(
     }
   }
 
-  // --- Lehmgruben-Cluster: Handelskammer und Lagerhaus in der Mitte, Gruben ringsum (Radius 15).
+  // --- Lehmgruben-Cluster: alle Gruben im Radius einer eigenen Handelskammer (Mittelpunkt im
+  //     Radius 15, Vorlage `packAroundTradeUnion`: bis 28 Felder 5×5 an einem Straßenkamm), die
+  //     nächsten Felder bekommen die Gruben, die folgenden die Lagerhäuser. Block mit Ringstraße.
+  //     Kein anderes Produktionsgebäude im Radius (die Kammer bekommt später den Mineralogen).
   if (options.clay && options.clay.count > 0) {
-    const rep = { clusters: 0, pits: 0, houses: 0, warehouses: 0, powerPlants: 0 };
+    const perWh = Math.max(1, Math.min(8, Math.round(options.clay.perWarehouse ?? (options.clay.power ? 6 : 4))));
+    const rep = { clusters: 0, pits: 0, requested: Math.round(options.clay.count), houses: 0, warehouses: 0, powerPlants: 0, perWarehouse: perWh };
     report.clay = rep;
-    let left = Math.round(options.clay.count);
-    const perWh = Math.max(1, Math.min(8, Math.round(options.clay.perWarehouse ?? 8)));
+    const tpl = packAroundTradeUnion([5, 5]);
+    const hkc = { x: tpl.hk.x + 2, y: tpl.hk.y + 2 };
+    const slots = tpl.buildings
+      .map((b) => ({ ...b, d: Math.hypot(b.x + b.w / 2 - hkc.x, b.y + b.h / 2 - hkc.y) }))
+      .sort((p, q) => p.d - q.d);
+    const total = Math.round(options.clay.count);
+    // Felder je Block: Gruben + Lagerhäuser; reicht ein Radius nicht, gleichmäßig aufteilen
+    let blocks = 1;
+    while (Math.ceil(total / blocks) + Math.ceil(Math.ceil(total / blocks) / perWh) > slots.length) blocks++;
+    let left = total;
     const deadline = performance.now() + Math.max(5000, Math.min(30000, (w * h) / 8));
-    while (left > 0 && performance.now() < deadline) {
-      // Gruben je Cluster: höchstens 8, Platz für Handelskammer + nötige Lagerhäuser (≤ 10 Felder)
-      let maxN = 8;
-      while (maxN > 1 && maxN + 1 + Math.ceil(maxN / perWh) > 10) maxN--;
-      // gleichmäßig auf die nötigen Cluster verteilen (z. B. 4 + 4 statt 7 + 1)
-      let n = Math.ceil(left / Math.ceil(left / maxN));
+    for (let bIdx = 0; bIdx < blocks && left > 0 && performance.now() < deadline; bIdx++) {
+      const n = Math.ceil(left / (blocks - bIdx));
       const whs = Math.ceil(n / perWh);
-      const rows = Math.max(2, Math.ceil((n + 1 + whs) / 2));
-      // Zwei Spalten aus 5×5-Feldern, dazwischen eine Straße; ringsum Ringstraße
-      const bw = 11;
-      const bh = rows * 5;
+      const used = slots.slice(0, n + whs);
+      // Straßen der Vorlage, die ein benutztes Feld oder die Kammer berühren, plus Verbindungen
+      const key = (x: number, y: number): string => `${x},${y}`;
+      const roadSet = new Set(tpl.roads.map((r) => key(r.x, r.y)));
+      const occupied = new Set<string>();
+      for (const u of used) for (let dy = 0; dy < u.h; dy++) for (let dx = 0; dx < u.w; dx++) occupied.add(key(u.x + dx, u.y + dy));
+      for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) occupied.add(key(tpl.hk.x + dx, tpl.hk.y + dy));
+      // tote Enden abbauen: Straßenkachel ohne angrenzendes Gebäude und mit ≤ 1 Straßennachbar
+      const touches = (x: number, y: number): boolean =>
+        occupied.has(key(x + 1, y)) || occupied.has(key(x - 1, y)) || occupied.has(key(x, y + 1)) || occupied.has(key(x, y - 1));
+      for (let changed = true; changed; ) {
+        changed = false;
+        for (const k of [...roadSet]) {
+          const [x, y] = k.split(',').map(Number);
+          const nbs = [key(x + 1, y), key(x - 1, y), key(x, y + 1), key(x, y - 1)].filter((q) => roadSet.has(q)).length;
+          if (nbs <= 1 && !touches(x, y)) {
+            roadSet.delete(k);
+            changed = true;
+          }
+        }
+      }
+      const roads = [...roadSet].map((k) => k.split(',').map(Number) as [number, number]);
+      const xs = [...used.map((u) => u.x), ...roads.map((r) => r[0]), tpl.hk.x];
+      const ys = [...used.map((u) => u.y), ...roads.map((r) => r[1]), tpl.hk.y];
+      const x0 = Math.min(...xs);
+      const y0 = Math.min(...ys);
+      const bw = Math.max(...used.map((u) => u.x + u.w), ...roads.map((r) => r[0] + 1), tpl.hk.x + 4) - x0;
+      const bh = Math.max(...used.map((u) => u.y + u.h), ...roads.map((r) => r[1] + 1), tpl.hk.y + 4) - y0;
+      // Kein fremdes Produktionsgebäude im Radius der Kammer
+      const others = services.filter((sv) => sv.kind === 'production');
       let best: Candidate | null = null;
       for (const c of candidatesFor(CLAY_PIT_GUID, { w: bw + 2, h: bh + 2, maxRoads: Infinity })) {
+        const inner = innerOf(c);
+        const turned = c.turns === 1;
+        const hx = inner.x + (turned ? tpl.hk.y - y0 : tpl.hk.x - x0) + 2;
+        const hy = inner.y + (turned ? tpl.hk.x - x0 : tpl.hk.y - y0) + 2;
+        if (others.some((sv) => Math.hypot(sv.x + sv.w / 2 - hx, sv.y + sv.h / 2 - hy) <= 15 + 1e-9)) continue;
         if (validRinged(c)) {
           best = c;
           break;
@@ -1123,45 +1224,25 @@ export function placeServices(
       for (const i of borderOf(best)) cell[i] = ROAD;
       for (const k of best.houses) removedBy[k]++;
       for (let dy = 0; dy < inner.h; dy++) for (let dx = 0; dx < inner.w; dx++) cell[(inner.y + dy) * w + inner.x + dx] = FREE;
-      // ungedreht (lx, ly) → Karte
-      const at = (lx: number, ly: number): [number, number] => (turned ? [inner.x + ly, inner.y + lx] : [inner.x + lx, inner.y + ly]);
-      for (let ly = 0; ly < bh; ly++) {
-        const [rx, ry] = at(5, ly);
-        cell[ry * w + rx] = ROAD;
+      // Vorlage (lx, ly) → Karte (gedreht = gespiegelt an der Diagonalen)
+      const at = (lx: number, ly: number): [number, number] => (turned ? [inner.x + ly - y0, inner.y + lx - x0] : [inner.x + lx - x0, inner.y + ly - y0]);
+      for (const [rx, ry] of roads) {
+        const [x, y] = at(rx, ry);
+        cell[y * w + x] = ROAD;
       }
-      const mid = Math.floor(rows / 2);
-      /** Quadratisches Gebäude an ungedrehter Stelle (lx, ly) setzen. */
       const put = (guid: number, lx: number, ly: number, size: number): void => {
         const [x, y] = at(lx, ly);
         for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) cell[(y + dy) * w + x + dx] = SERVICE;
         const entry = lookup(guid);
         services.push({ guid, kind: entry.kind, name: entry.name, x, y, w: size, h: size, turns: 0 });
       };
-      let pits = 0;
-      let extraWh = whs - 1;
-      for (let r = 0; r < rows; r++) {
-        const ly = r * 5;
-        // linke Spalte x 0–4, Straße x 5, rechte Spalte x 6–10
-        if (r === mid) {
-          put(TRADE_UNION_GUID, 1, ly, 4); // Handelskammer an der Mittelstraße
-          put(WAREHOUSE_GUID, 6, ly, 5);
-          continue;
-        }
-        for (const lx of [0, 6]) {
-          if (pits < n) {
-            put(CLAY_PIT_GUID, lx, ly, 5);
-            pits++;
-          } else if (extraWh > 0) {
-            put(WAREHOUSE_GUID, lx, ly, 5);
-            extraWh--;
-          }
-        }
-      }
+      put(TRADE_UNION_GUID, tpl.hk.x, tpl.hk.y, 4);
+      used.forEach((u, k) => put(k < n ? CLAY_PIT_GUID : WAREHOUSE_GUID, u.x, u.y, 5));
       rep.warehouses += whs;
       rep.clusters++;
-      rep.pits += pits;
+      rep.pits += n;
       rep.houses += best.houses.length;
-      left -= pits;
+      left -= n;
     }
   }
 
@@ -1597,7 +1678,7 @@ export function placeServices(
   // --- Strom für die Produktion: jedes Produktionsgebäude in Reichweite eines Kraftwerks.
   const POWER_GUID = options.oilPower ? OIL_POWER_GUID : (SERVICE_SPECS.find((sp) => sp.kind === 'powerPlant')?.guid ?? 117547);
   const prodPower = !!(options.production?.power && report.production);
-  const clayPower = !!(options.clay?.power && report.clay);
+  const clayPower = !!options.clay?.power && services.some((sv) => sv.kind === 'clayPit');
   if (prodPower || clayPower) {
     const factories = services.filter((sv) => (prodPower && sv.kind === 'production') || (clayPower && sv.kind === 'clayPit'));
     const powered = new Uint8Array(factories.length);

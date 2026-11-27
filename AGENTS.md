@@ -98,6 +98,9 @@ unnötig verändern.
   Kraftwerke nach dem Gleisbau verschieben (`relocate`, `powerReach`); Umbau um Gleise `src/relane.ts` (`relaneCity`); 2. Durchgang mit Gleiskorridor (`runPass` →
   `designCorridor`, `latticeFillCorridor` in `fill.ts` mit Lückenzeilen/-spalten, `GridPlan.reserved`);
   UI `plan-power-fuel`/`plan-oil-source` (eigene Quellen / Schiff).
+  Gebäude aus dem Stempel fest oder neu (`plan-fix-clay/oil/other`, `PlannerUi.stampPlan` → `ServiceOptions.fixed`);
+  Lehmgruben alle unter einer eigenen HK (`packAroundTradeUnion`, Lagerhaus je 6 mit / 4 ohne Strom); Ölfeld an der Küste
+  ohne Gleise (`placeOilField`, `OilOptions.field/power`), feste Raffinerien als Bahnhöfe (`fixedRefineries`).
 - Stadt-Analyse (Phase 1 von `docs/PLAN_Stadtplaner.md`): `src/catalog.ts`,
   `src/rules.ts`, `src/city.ts`, `src/analysis.ts`, `src/cityUi.ts`,
   `src/testStamps.ts`. Phase 2: `src/fill.ts` (vollständige Bebauung: Gitter über die ganze

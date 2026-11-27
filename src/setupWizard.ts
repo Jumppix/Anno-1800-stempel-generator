@@ -12,6 +12,8 @@ export interface WizardIsland {
   oil: number;
   clay: number;
   mines: number;
+  /** Sonstige Gebäude im Stempel. */
+  other: number;
   /** Hafengebiet (Kaistraße) bzw. Kontor erkannt. */
   harbor: boolean;
   kontor: boolean;
@@ -83,7 +85,11 @@ export async function openSetupWizard(island: WizardIsland | null, onRun?: () =>
       key: 'power',
       title: 'Womit sollen die Kraftwerke laufen?',
       choices: () => [
-        { value: 'gas', label: 'Gas', note: 'Gaskraftwerke, Gas kommt über die Lagerhäuser.' },
+        {
+          value: 'gas',
+          label: 'Gas',
+          note: `Gaskraftwerke, Gas kommt über die Lagerhäuser.${island?.oil ? ' Die Ölquellen aus dem Stempel kommen trotzdem als Ölfeld an die Küste.' : ''}`,
+        },
         {
           value: 'oil-own',
           label: 'Öl von der eigenen Insel',
@@ -139,18 +145,48 @@ export async function openSetupWizard(island: WizardIsland | null, onRun?: () =>
       current: () => (!checked('plan-museums') ? 'none' : value('plan-attr-target') === '33000' ? '33000' : 'keep'),
     },
     {
+      key: 'stamp',
+      title: 'Gebäude aus dem Stempel: verschieben oder fest?',
+      lead: island
+        ? `Im Stempel: ${[
+            island.clay ? `${island.clay} Lehmgrube${island.clay === 1 ? '' : 'n'}` : '',
+            island.oil ? `${island.oil} Ölquelle${island.oil === 1 ? '' : 'n'}` : '',
+            island.other ? `${island.other} sonstige Gebäude` : '',
+          ]
+            .filter(Boolean)
+            .join(', ')}. Eingeplant werden sie immer; Minen bleiben ohnehin fest.`
+        : undefined,
+      when: () => !!island && island.clay + island.oil + island.other > 0,
+      choices: () => [
+        {
+          value: 'recommended',
+          label: 'Lehmgruben und Ölquellen neu platzieren, Sonstiges bleibt (empfohlen)',
+          note: 'Lehmgruben alle unter einer Handelskammer mit Lagerhaus, Ölquellen zusammen an der Küste.',
+        },
+        { value: 'fixed', label: 'Alles bleibt, wo es steht', note: 'Bekommt Straße und Lagerhaus, wo nötig.' },
+        { value: 'move', label: 'Alles neu planen', note: 'Auch sonstige Gebäude – ihre Fläche wird bebaut.' },
+      ],
+      current: () => {
+        const c = value('plan-fix-clay');
+        const o = value('plan-fix-oil');
+        const x = value('plan-fix-other');
+        if (c === 'fixed' && o === 'fixed' && x === 'fixed') return 'fixed';
+        if (c === 'move' && o === 'move' && x === 'move') return 'move';
+        return 'recommended';
+      },
+    },
+    {
       key: 'clay',
-      title: 'Lehmgruben einplanen?',
+      title: 'Bekommen die Lehmgruben Strom?',
       lead: island?.clay
-        ? `${island.clay} Lehmgrube${island.clay === 1 ? '' : 'n'} im Stempel (mit „Bahnbrechende Entdeckungen“ verschiebbar).`
+        ? `${island.clay} Lehmgrube${island.clay === 1 ? '' : 'n'} – Lagerhäuser direkt im Block.`
         : undefined,
       when: () => (island?.clay ?? 0) > 0,
       choices: () => [
-        { value: 'power', label: 'Ja, mit Strom', note: 'Im Radius einer Handelskammer, Lagerhaus daneben, Kraftwerk in Reichweite.' },
-        { value: 'nopower', label: 'Ja, ohne Strom' },
-        { value: 'no', label: 'Nein' },
+        { value: 'power', label: 'Ja, mit Strom', note: 'Kraftwerk in Reichweite, ein Lagerhaus je 6 Lehmgruben.' },
+        { value: 'nopower', label: 'Nein', note: 'Ein Lagerhaus je 4 Lehmgruben.' },
       ],
-      current: () => (value('plan-clay') === '0' ? 'no' : checked('plan-clay-power') ? 'power' : 'nopower'),
+      current: () => (checked('plan-clay-power') ? 'power' : 'nopower'),
     },
     {
       key: 'effort',
@@ -204,11 +240,13 @@ export async function openSetupWizard(island: WizardIsland | null, onRun?: () =>
       setField('plan-museums', attr !== 'none');
       if (attr === '33000') setField('plan-attr-target', '33000');
     }
-    if (island?.clay) {
-      const clay = a('clay') ?? 'power';
-      setField('plan-clay', clay === 'no' ? '0' : '');
-      setField('plan-clay-power', clay === 'power');
+    if (island && island.clay + island.oil + island.other > 0) {
+      const st = a('stamp') ?? 'recommended';
+      setField('plan-fix-clay', st === 'fixed' ? 'fixed' : 'move');
+      setField('plan-fix-oil', st === 'fixed' ? 'fixed' : 'move');
+      setField('plan-fix-other', st === 'move' ? 'move' : 'fixed');
     }
+    if (island?.clay) setField('plan-clay-power', (a('clay') ?? 'power') === 'power');
     setField('plan-effort', a('effort') ?? 'thorough');
   };
 

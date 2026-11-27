@@ -32,8 +32,9 @@ interface PalaceVariant {
   reform?: 'townHallReform' | 'freethinkers';
 }
 import type { PostReport } from './post';
-import type { ServiceOptions } from './services';
+import type { FixedBuilding, ServiceOptions } from './services';
 import { kontorBack, type KontorFound } from './harbor';
+import type { IslandBuilding } from './deposits';
 
 const SERVICE_KINDS_UI: BuildingKind[] = [
   'departmentStore',
@@ -67,6 +68,8 @@ export interface IslandSource {
   deposits?: { clay: number; oil: number };
   /** Minen aus dem Stempel (fest), Maskenkoordinaten. */
   mines?: ReadonlyArray<{ guid: number; x: number; y: number; w: number; h: number }>;
+  /** Alle Gebäude aus den Stempeln (Lehmgruben, Bohrtürme, Raffinerien, Minen, sonstige). */
+  buildings?: ReadonlyArray<IslandBuilding>;
   /** Hafengebiet (Kaistraße …) und gesperrte Flächen (Kontor + Zufahrt), Maskenkoordinaten. */
   harbor?: Uint8Array;
   blocked?: Uint8Array;
@@ -302,6 +305,15 @@ export class PlannerUi {
     const ministry = r.palace
       ? 'Palast (Crown Falls)'
       : r.ministry === 'welfare' ? 'Wohlfahrt' : r.ministry === 'labour' ? 'Arbeit' : r.ministry === 'city' ? 'Verwaltung' : 'ohne Ministerium';
+    const fix = (id: string): string => (el<HTMLSelectElement>(id).value === 'fixed' ? 'fest' : 'neu');
+    const shown = (id: string): boolean => !el<HTMLElement>(id).closest<HTMLElement>('label')?.hidden;
+    el<HTMLElement>('#sum-stamp').textContent = [
+      shown('#plan-fix-clay') ? `Lehm ${fix('#plan-fix-clay')}` : '',
+      shown('#plan-fix-oil') ? `Öl ${fix('#plan-fix-oil')}` : '',
+      shown('#plan-fix-other') ? `Sonstige ${fix('#plan-fix-other')}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
     const oil = el<HTMLSelectElement>('#plan-power-fuel').value === 'oil';
     el<HTMLElement>('#sum-island').textContent = `${r.palace ? 'Crown Falls' : 'Wohninsel'} · ${
       oil ? (el<HTMLSelectElement>('#plan-oil-source').value === 'own' ? 'Öl (eigene Quellen)' : 'Öl per Schiff') : 'Gas'
@@ -440,12 +452,37 @@ export class PlannerUi {
     this.harborInfo.textContent = h ? `bei ${h.x}, ${h.y}` : 'nicht gesetzt';
     const src = this.island();
     this.runButton.disabled = !src || this.running;
-    // Lehmgruben-Felder nur, wenn der Stempel Lehmgruben (Blaupausen) enthält
-    const clay = (src?.deposits?.clay ?? 0) > 0;
-    for (const id of ['#plan-clay', '#plan-clay-wh', '#plan-clay-power']) {
-      const row = el<HTMLElement>(id).closest<HTMLElement>('label');
-      if (row) row.hidden = !clay;
-    }
+    // Gebäude aus dem Stempel: Gruppe und Zeilen nur für vorhandene Arten
+    const list = src?.buildings ?? [];
+    const count = (k: string): number => list.filter((b) => b.kind === k).length;
+    const clay = count('clay');
+    const oil = count('oil');
+    const refineries = count('refinery');
+    const mines = count('mine');
+    const other = count('other');
+    el<HTMLElement>('#stamp-buildings').hidden = !list.length;
+    const row = (id: string, show: boolean): void => {
+      const r = el<HTMLElement>(id).closest<HTMLElement>('label');
+      if (r) r.hidden = !show;
+    };
+    row('#plan-fix-clay', clay > 0);
+    row('#plan-clay-power', clay > 0);
+    row('#plan-fix-oil', oil + refineries > 0);
+    row('#plan-fix-other', other > 0);
+    const names = new Map<string, number>();
+    for (const b of list) if (b.kind === 'other') names.set(b.name, (names.get(b.name) ?? 0) + 1);
+    el<HTMLElement>('#stamp-found').textContent = list.length
+      ? `Im Stempel: ${[
+          clay ? `${clay} Lehmgrube${clay === 1 ? '' : 'n'}` : '',
+          oil ? `${oil} Ölquelle${oil === 1 ? '' : 'n'}` : '',
+          refineries ? `${refineries} Raffinerie${refineries === 1 ? '' : 'n'}` : '',
+          mines ? `${mines} Mine${mines === 1 ? '' : 'n'} (fest)` : '',
+          ...[...names].map(([n, c]) => `${c}× ${n}`),
+        ]
+          .filter(Boolean)
+          .join(', ')}.`
+      : '';
+    this.updateSummaries();
     this.islandInfo.textContent = src
       ? `Insel: ${src.label}`
       : 'Keine Insel geladen – oben unter „Inselform aus Stempeln“ die Feldweg-Stempel laden und im Tab „Anordnen“ ausrichten.';
@@ -535,6 +572,7 @@ export class PlannerUi {
   /** Alle Einstellungen eines Durchlaufs aus der Oberfläche. */
   private passInput(src: IslandSource, lines: number, seed: number, snapshots: boolean, variant?: PalaceVariant): PassInput {
     const eff = this.effort();
+    const stamp = this.stampPlan(src);
     let rules = this.cityUi.currentRules();
     if (variant?.reform && rules.palace) {
       const other = variant.reform === 'townHallReform' ? 'freethinkers' : 'townHallReform';
@@ -545,7 +583,8 @@ export class PlannerUi {
       ? { requests: this.production.map((r) => ({ ...r })), power: el<HTMLInputElement>('#prod-power').checked }
       : undefined;
     return {
-      mask: src.mask,
+      mask: stamp.mask,
+      fixed: stamp.fixed.length ? stamp.fixed : undefined,
       lines,
       seed,
       orientation: 'auto',
@@ -683,22 +722,84 @@ export class PlannerUi {
   /** Regionalministerium (Reichweite, Wohlfahrt, Stadtweites Netz) aus den Regeln. */
   /** Ölmodus: Ölkraftwerke mit Ölhafen und Gleisen; Öl aus eigenen Quellen oder per Schiff. */
   private oilOption(src: IslandSource): PassInput['oil'] {
-    if (el<HTMLSelectElement>('#plan-power-fuel').value !== 'oil') return undefined;
+    const list = src.buildings ?? [];
+    const wells = list.filter((b) => b.kind === 'oil').length;
+    const fixOil = el<HTMLSelectElement>('#plan-fix-oil').value === 'fixed';
+    const hasRefinery = list.some((b) => b.kind === 'refinery');
+    const base = { harbor: src.harbor, blocked: src.blocked };
+    if (el<HTMLSelectElement>('#plan-power-fuel').value !== 'oil') {
+      // Gaskraftwerke: vorhandene Ölquellen trotzdem einplanen (Ölfeld an der Küste, ohne Gleise)
+      return wells && !fixOil ? { ...base, wells, field: true, power: false } : undefined;
+    }
     const own = el<HTMLSelectElement>('#plan-oil-source').value === 'own';
-    return { wells: own ? (src.deposits?.oil ?? 0) : 0, harbor: src.harbor, blocked: src.blocked };
+    if (fixOil) return { ...base, wells: 0, fixedRefineries: own && hasRefinery };
+    // Eigenes Öl: Raffinerien am Gleisnetz; per Schiff: Ölfeld an der Küste, Gleise nur zum Ölhafen
+    return { ...base, wells, field: !own };
   }
 
-  /** Lehmgruben: Feld oder (leer) Anzahl aus dem Stempel. */
+
+  /** Lehmgruben, die der Planer neu setzt (alle aus dem Stempel; fest = in `fixed`). */
   private clayOption(src: IslandSource): ServiceOptions['clay'] {
-    const raw = el<HTMLInputElement>('#plan-clay').value.trim();
-    const count = raw === '' ? (src.deposits?.clay ?? 0) : Math.max(0, Math.min(64, Math.round(Number(raw) || 0)));
-    return count > 0
-      ? {
-          count,
-          perWarehouse: Math.max(1, Math.min(8, Math.round(Number(el<HTMLInputElement>('#plan-clay-wh').value) || 8))),
-          power: el<HTMLInputElement>('#plan-clay-power').checked,
+    const power = el<HTMLInputElement>('#plan-clay-power').checked;
+    const clay = (src.buildings ?? []).filter((b) => b.kind === 'clay');
+    if (!clay.length) return undefined;
+    const fixed = el<HTMLSelectElement>('#plan-fix-clay').value === 'fixed';
+    // Fest: nur Strom/Lagerhaus für die vorhandenen Gruben (count 0)
+    return { count: fixed ? 0 : clay.length, perWarehouse: power ? 6 : 4, power };
+  }
+
+  /**
+   * Gebäude aus dem Stempel: Planungsmaske (feste Gebäude sind kein Bauland, neu geplante
+   * sonstige Gebäude werden Bauland) und Liste der festen Gebäude für die Versorgung.
+   */
+  private stampPlan(src: IslandSource): { mask: LandMask; fixed: FixedBuilding[] } {
+    const list = src.buildings ?? [];
+    const fixClay = el<HTMLSelectElement>('#plan-fix-clay').value === 'fixed';
+    const fixOil = el<HTMLSelectElement>('#plan-fix-oil').value === 'fixed';
+    const fixOther = el<HTMLSelectElement>('#plan-fix-other').value !== 'move';
+    const { w, h } = src.mask;
+    const data = src.mask.data.slice();
+    const fixed: FixedBuilding[] = [];
+    const refineries = list.filter((b) => b.kind === 'refinery');
+    const ownerOf = (b: IslandBuilding): number | undefined => {
+      // Bohrturm → nächste Raffinerie (Radius 12 + halbe Größen)
+      let best = -1;
+      let bd = Infinity;
+      refineries.forEach((r, k) => {
+        const d = Math.hypot(b.x + b.w / 2 - (r.x + r.w / 2), b.y + b.h / 2 - (r.y + r.h / 2));
+        if (d < bd) {
+          bd = d;
+          best = k;
         }
-      : undefined;
+      });
+      return best >= 0 && bd <= 16 ? 9350 + best : undefined;
+    };
+    const setRect = (b: IslandBuilding, v: number): void => {
+      for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (x >= 0 && y >= 0 && x < w && y < h) data[y * w + x] = v;
+    };
+    for (const b of list) {
+      if (b.kind === 'mine') continue; // Minen: eigene Liste (immer fest)
+      const isFixed = b.kind === 'clay' ? fixClay : b.kind === 'oil' || b.kind === 'refinery' ? fixOil : fixOther;
+      if (!isFixed) {
+        if (b.kind === 'other') setRect(b, 1);
+        continue;
+      }
+      setRect(b, 0);
+      fixed.push({
+        guid: b.guid,
+        x: b.x,
+        y: b.y,
+        w: b.w,
+        h: b.h,
+        turns: b.turns,
+        owner: b.kind === 'refinery' ? 9350 + refineries.indexOf(b) : b.kind === 'oil' ? ownerOf(b) : undefined,
+        road: b.kind === 'clay' || b.kind === 'other',
+        warehouse: b.kind === 'clay',
+      });
+    }
+    let landCount = 0;
+    for (let i = 0; i < data.length; i++) if (data[i]) landCount++;
+    return { mask: { w, h, data, landCount }, fixed };
   }
 
   /** Gebaute Palastflügel: Feld „Palastflügel auf dieser Insel“, höchstens so viele wie erlaubt. */
@@ -823,9 +924,15 @@ export class PlannerUi {
         `Versorgung: ${SERVICE_KINDS_UI.filter((k) => s.placed[k])
           .map((k) => `${s.placed[k]}× ${short[k]}`)
           .join(', ')}, ${s.warehouses}× Lagerhaus${s.ministry.placed ? ` · ${this.cityUi.currentRules().palace ? 'Palast' : 'Regionalministerium'} (${num(s.ministry.houses)} Häuser in Reichweite)` : ''}${
+          s.fixed ? ` · Aus dem Stempel fest: ${s.fixed.count} Gebäude${s.fixed.unreachable ? ` – <strong>${s.fixed.unreachable} ohne Straßenweg</strong>` : ''}` : ''
+        }${
           s.mines ? ` · Minen: ${s.mines.connected} angeschlossen${s.mines.roads ? ` (${s.mines.roads} Straßenkacheln neu, ${s.mines.houses} Häuser verdrängt)` : ''}${s.mines.unreachable ? ` – <strong>${s.mines.unreachable} ohne Weg</strong>` : ''}` : ''
         }${
-          r.oil
+          r.oil && !r.oil.plants
+            ? ` · Ölfeld an der Küste: ${r.oil.refineries} Raffinerie${r.oil.refineries === 1 ? '' : 'n'} mit ${r.oil.wells} Bohrtürmen (${r.oil.houses} Häuser verdrängt)${
+                r.oil.notes.length ? ` – <strong>${r.oil.notes.join('; ')}</strong>` : ''
+              }`
+            : r.oil
             ? ` · Öl: ${r.oil.harbor ? 'Ölhafen' : '<strong>kein Ölhafen</strong>'}${
                 r.oil.refineries ? `, ${r.oil.refineries} Raffinerie${r.oil.refineries === 1 ? '' : 'n'} mit ${r.oil.wells} Bohrtürmen` : ', Öl per Schiff'
               }, ${r.oil.connected} Bahnhöfe angeschlossen, ${num(r.oil.railTiles)} Gleiskacheln (${r.oil.crossings} Bahnübergänge${
@@ -838,8 +945,10 @@ export class PlannerUi {
             : ''
         }${
           s.clay
-            ? ` · Lehmgruben: ${s.clay.pits} in ${s.clay.clusters} Cluster${s.clay.clusters === 1 ? '' : 'n'} mit Handelskammer + ${s.clay.warehouses} Lagerh${
-                s.clay.warehouses === 1 ? 'aus' : 'äusern'
+            ? ` · Lehmgruben: ${s.clay.pits}${
+                s.clay.clusters === 1 ? ' unter einer eigenen Handelskammer' : ` unter ${s.clay.clusters} Handelskammern (nicht alle passten in einen Radius)`
+              } + ${s.clay.warehouses} Lagerh${s.clay.warehouses === 1 ? 'aus' : 'äuser'} (1 je ${s.clay.perWarehouse})${
+                s.clay.pits < s.clay.requested ? ` – <strong>${s.clay.requested - s.clay.pits} ohne Platz</strong>` : ''
               }${s.clay.powerPlants ? `, ${s.clay.powerPlants} Kraftwerk${s.clay.powerPlants === 1 ? '' : 'e'} für Strom` : ''} (${s.clay.houses} Häuser verdrängt)`
             : ''
         }${
